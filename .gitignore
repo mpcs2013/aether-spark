@@ -30,3 +30,6 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Site-specific details of the home installation (public repo, ADR-0004)
+ops.local/

@@ -32,7 +32,7 @@ gantt
 *Track B bars are drawn at the earliest D. If D slips, Track B shifts as a block and Track A packages extend (see §Slip policy).*
 
 ## Interim desktop resource budget (WSL2)
-Desktop (confirmed 2026-10-03): i7-9700 (8 cores), **64 GB RAM**, NVMe 477 GB + HDD 1.86 TB, RTX 2060, 1 GbE, Windows 11 Home build 26300.
+Desktop (confirmed 2026-10-03; full specs in `ops.local/site.md`): 8 cores, **64 GB RAM**, NVMe + HDD + USB SSD, RTX 2060 (6 GB), 1 GbE, Windows 11.
 `%USERPROFILE%\.wslconfig`: `memory=32GB`, `processors=6` (leaves 32 GB and 2 cores for Windows, VS Code and the browser).
 
 | Component | RAM | Notes |
@@ -42,7 +42,7 @@ Desktop (confirmed 2026-10-03): i7-9700 (8 cores), **64 GB RAM**, NVMe 477 GB + 
 | Keycloak | 1 GB | dev mode |
 | Aspire dashboard + .NET services | 2 GB | |
 | `grafana/otel-lgtm` all-in-one | 3 GB | can now run on the desktop (ADR-0011) |
-| Small model via Ollama on the RTX 2060 (quantised; size depends on VRAM) | 2 GB RAM + VRAM | **Plumbing only** — never quality evals |
+| Small model via Ollama on the RTX 2060 (**6 GB VRAM** → ≤ 4B parameters, 4-bit, e.g. `qwen3:4b`/`qwen3:1.7b`) | 2 GB RAM + ~3 GB VRAM | **Plumbing only** — never quality evals |
 | Small embedding model on the RTX 2060 (0.6B class) | VRAM | Dev universe only |
 | Headroom (builds, tests, Testcontainers) | ~14 GB | |
 | **Total** | **32 GB** | |
@@ -59,7 +59,8 @@ Storage layout (desktop, decided 2026-10-03):
 USB SSD rules: NTFS (not exFAT: no journal), fixed drive letter `E:`, USB selective suspend off, never unplug while WSL/Docker run. Weekly `just clean` (Docker prune).
 Not run on the desktop: vLLM, embeddings at full scale, arm64 images on every PR (QEMU too slow → **amd64 on PR, multi-arch nightly**).
 Runs on the desktop GPU, **to be verified in P2** (WSL2 GPU passthrough + RAPIDS support for Turing): Polars GPU engine for the first CPU/GPU parity test (ADR-0014), small embedding model, Ollama on GPU.
-Risk: build 26300 is an Insider-channel build; a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDIA driver version once it works, and note the build in the P2 runbook.
+GPU rule (6 GB VRAM): **one GPU job at a time** — the test LLM, the embedding model and the Polars GPU parity test do not run together; Ollama unloads idle models (`OLLAMA_KEEP_ALIVE=5m`).
+Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDIA driver version once it works, and note the build in the P2 runbook.
 
 ## Phases
 
@@ -72,15 +73,15 @@ Risk: build 26300 is an Insider-channel build; a Windows update can change WSL2 
 - WP2.2 .NET 10 solution: Aspire AppHost, ServiceDefaults, Directory.Packages.props (central package mgmt)
 - WP2.3 Python workspace: `uv` workspace, `ruff`, `mypy --strict`, `pytest`
 - WP2.4 Devcontainer (Ubuntu 24.04) matching DGX OS userland
-- WP2.5 GitHub repo (private), `main` ruleset, self-hosted runner in WSL2 (ephemeral container), buildx (amd64 per PR, arm64 nightly), Grype, gitleaks, Dependabot, SHA-pinned actions
+- WP2.5 GitHub repo (public, ADR-0004), `main` ruleset (id in `ops.local/site.md`), CI on GitHub-hosted runners incl. native arm64 (`ubuntu-24.04-arm`), fork-PR approval, secret scanning + push protection, Grype, gitleaks, Dependabot, SHA-pinned actions
 - WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016): copy/adapt Decisya `.claude/`, add `data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint (ADR-0019); CLAUDE.md; first issue through its own pipeline
-- **Gate G2:** `just ci` green locally and on the runner; nightly produces amd64+arm64 images; `lint.py` + `roster.py --check` green; hook denial tests prove lanes and data guard.
+- **Gate G2:** `just ci` green locally and in GitHub Actions; CI builds amd64 + arm64; `lint.py` + `roster.py --check` green; hook denial tests prove lanes and data guard.
 
 ### P3n — Network & hardware readiness *(12 Oct – before D)*
-- WP3n.1 Router: SRM 1.3 update, three networks (Home / AetherSpark VLAN 20 / Guest-IoT VLAN 30), firewall rules — [runbooks/network-setup.md](runbooks/network-setup.md) (ADR-0012)
-- WP3n.2 NAS DS918+ ready (ADR-0013): `aetherspark-backup` on Volume 2, rest-server container (append-only), NAS port 2 → router LAN port on VLAN 20, NAS firewall; buy a 2 TB external USB HDD (offline copy) and a UPS sized for Spark + router + NAS. **No 10 GbE switch in v1.**
+- WP3n.1 Router: firmware update (VLAN support), three networks (Home / AetherSpark VLAN 20 / Guest-IoT VLAN 30), firewall rules, local DNS zone `home.arpa` on the router — [runbooks/network-setup.md](runbooks/network-setup.md) (ADR-0012)
+- WP3n.2 NAS ready (ADR-0013): `aetherspark-backup` on the dedicated SSD volume, rest-server container (append-only), NAS port 2 → router LAN port on VLAN 20, NAS firewall; buy two 2 TB external USB HDDs (rotating offline + off-site copy) and a UPS sized for Spark + router + NAS. **No 10 GbE switch in v1.**
 - WP3n.3 Egress proxy + nftables allowlist built and tested on the desktop (same config later on the Spark)
-- WP3n.4 Physical: free LAN port (LAN 4) and cable run to the Spark location, power, ventilation
+- WP3n.4 Physical: free router LAN port and cable run to the Spark location, power, ventilation
 - **Gate G3n:** runbook "Done when" checklist complete; a test device on the AetherSpark network reaches only allowlisted hosts through the proxy.
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
@@ -142,7 +143,7 @@ As of 2026-10-03. One-time hardware (Spark, NAS, switch, UPS, disks) not include
 | Price data — Sharadar | Prices full history, annual: USD 299/yr ≈ **USD 25** | same ≈ **USD 25** | Bundle full history, monthly: **USD 69** |
 | Spark electricity (35 W idle / 160 W load, measured by Tom's Hardware) | 4 h load/day ≈ 41 kWh ≈ CHF 12 | 12 h load/day ≈ 71 kWh ≈ CHF 21 | 24/7 load ≈ 117 kWh ≈ CHF 34 |
 | NAS — already running today for home use (no extra cost) | 0 | 0 | 0 |
-| Software (all open source), GitHub private repo, self-hosted runner, ntfy | 0 | 0 | 0 |
+| Software (all open source), GitHub public repo + GitHub-hosted CI, ntfy | 0 | 0 | 0 |
 | Claude subscription (dev agents) | already paid — not incremental | | |
 | **Total** | **≈ USD 25 + CHF 12** | **≈ USD 25 + CHF 21** | **≈ USD 69 + CHF 34** |
 
@@ -159,9 +160,9 @@ Code + tests + ADR/doc updated + CI green + OTel instrumented + runbook entry if
 ## Open questions
 | # | Question | Needed by |
 |---|---|---|
-| ~~Q1~~ | ~~Router~~ → answered 2026-10-03: Synology RT2600ac, SRM 1.2.5 → update to 1.3 (ADR-0012) | — |
-| ~~Q2~~ | ~~NAS~~ → answered 2026-10-04: DS918+, Volume 2 (SSD) as backup target, port 2 on AetherSpark network (ADR-0013) | — |
+| ~~Q1~~ | ~~Router~~ → answered 2026-10-03: existing router supports VLANs after a firmware update (ADR-0012; details in `ops.local/site.md`) | — |
+| ~~Q2~~ | ~~NAS~~ → answered 2026-10-04: existing NAS, dedicated SSD volume as backup target, second port on the AetherSpark network (ADR-0013) | — |
 | ~~Q3~~ | ~~Research universe~~ → answered 2026-10-03: ADR-0020 | — |
-| ~~Q4~~ | ~~Market price source~~ → answered 2026-10-03: PoC on Sharadar free tier (Dow 30) + synthetic prices; PROD Sharadar Prices **full history** bought after the PoC works (first month monthly to verify delisted coverage, then annual). Provider-neutral internal price schema keyed by CIK; raw prices + corporate actions, adjustments computed in-house. Before paying: written confirmation of personal-licence eligibility (bank employee, IT role). | — |
-| Q5 | ~~Desktop specs~~ → answered 2026-10-03 (64 GB, 8 cores); only RTX 2060 VRAM (6 or 12 GB) left | P2 |
+| ~~Q4~~ | ~~Market price source~~ → answered 2026-10-03: PoC on Sharadar free tier (Dow 30) + synthetic prices; PROD Sharadar Prices **full history** bought after the PoC works (first month monthly to verify delisted coverage, then annual). Provider-neutral internal price schema keyed by CIK; raw prices + corporate actions, adjustments computed in-house. Before paying: written confirmation of personal-licence eligibility (details in `ops.local/site.md`). | — |
+| ~~Q5~~ | ~~Desktop specs~~ → answered 2026-10-03/04: 64 GB RAM, 8 cores, RTX 2060 **6 GB** VRAM | — |
 | ~~Q6~~ | ~~Spark delivery~~ → answered: not before 2026-11-15, no guarantee | — |
