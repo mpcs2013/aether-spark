@@ -37,3 +37,6 @@ Secrets are sealed envelopes. Git holds only the **list** of envelopes (names, o
 ## Alternatives considered
 - sops + age files in git (original proposal): rejected — sealed secrets leave the LAN and stay in git history forever; history has no value for generated secrets.
 - HashiCorp Vault / OpenBao: stronger (dynamic credentials), but another stateful service to run and unseal; revisit if dynamic DB credentials are needed.
+
+## Amendment (2026-10-04) — infrastructure credentials
+This ADR covers **application secrets**. Infrastructure credentials (router and NAS administrators, NAS service accounts, notification mail, the desktop-phase and offline-copy restic repositories) are managed by hand by the owner in an end-to-end encrypted password manager. They are never stored in git or in ops files, and never used by platform services. Exception: maintenance keys that a scheduled job on the NAS needs are generated on the NAS and stay there (ADR-0013 Amendment 2). Second-factor seeds are kept on a separate device; 2FA backup codes and the offline-copy password are printed and stored off-site with the offline recovery key. An interactive admin session may hold a secret in a session variable and is closed afterwards; services never do (change 2).

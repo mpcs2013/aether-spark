@@ -10,13 +10,16 @@ flowchart LR
     EDGAR[SEC EDGAR]; HF[HF / NGC registries]; GH[GitHub]
   end
   subgraph LAN[Home LAN]
-    subgraph CLI[VLAN 10 clients]
+    subgraph CLI[Home network clients]
       PC[Dev PC / VS Code]; Phone[Mobile]
     end
-    subgraph SRV[VLAN 20 platform]
+    subgraph SRV[AetherSpark network - VLAN 20, wired]
       PX[Egress proxy]; RP[Reverse proxy + OIDC]; SPARK[DGX Spark services]
     end
-    NAS[(VLAN 30 backup NAS)]
+    NAS[(Backup NAS - Home + VLAN 20, no routing)]
+    subgraph GST[Guest/IoT - VLAN 30, isolated]
+      IOT[TV / IoT / visitors]
+    end
   end
   PC -->|HTTPS + OIDC| RP --> SPARK
   SPARK -->|allowlist pull only| PX --> EDGAR & HF
@@ -35,7 +38,7 @@ flowchart LR
 | T6 | Strangers' PRs run code via CI (public repo) | E | No self-hosted runner; GitHub-hosted runners only; fork-PR workflows need owner approval; read-only `GITHUB_TOKEN`; no `pull_request_target` with PR checkout | 0004 |
 | T6b | Site details of the home installation published in a public repo | I | Public-content rule; site details only in git-ignored `ops.local/` | 0004 |
 | T7 | Lateral movement from IoT/guest Wi-Fi | E | VLAN isolation; inter-VLAN deny except client→reverse proxy | 0012 |
-| T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disk | 0013 |
+| T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disks; time-window retention + new-snapshot guard against forged snapshots | 0013 |
 | T9 | Unauthenticated access to model APIs | S | All APIs behind gateway with OIDC/API keys from Keycloak | 0009 |
 
 ## Agent-specific threats (see [docs/ai/agent-system.md](ai/agent-system.md))
@@ -47,3 +50,4 @@ flowchart LR
 | T13 | Fluent but wrong numbers in reports (hallucination, look-ahead) | T | Claims verifier with `fact_id` + `as_of`; G5v point-in-time tests | 0017, 0016 |
 | T14 | Runaway agent loop exhausts unified memory / GPU | D | Per-step token, tool-call and time budgets; LiteLLM rate limits; container memory limits | 0017, 0006 |
 | T15 | Agent routes around a guardrail (e.g. rebuilds a denied command in Python, writes to `$TEMP`) — observed in Decisya | T/E | No interpreters for subagents; deny → freeze; full audit log outside the agent's reach; honeytokens; bypass = High finding | 0019 |
+| T16 | Backup target compromised: via a NAS administrator account, a co-hosted workload, or the NAS routing between its networks | I/T/D | NAS admins human-only with 2FA, no vendor relay/remote access, SSH per session; default-deny forwarding + per-interface packet filters, checked nightly; separate folders, accounts and container networks per workload; offline copy kept off-site. Accepted: NAS root can read backup content (prune/copy keys live there) | 0013 |

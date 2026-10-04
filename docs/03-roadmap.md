@@ -2,7 +2,7 @@
 
 ## Planning basis (updated 2026-10-03)
 - **Spark delivery (D):** not before **2026-11-15**, no guarantee. All Spark work is scheduled relative to **D**, not to calendar dates.
-- **Interim host:** Windows 11 desktop (x64), WSL2, Intel UHD 630 + **NVIDIA RTX 2060** (Turing, CUDA-capable, small VRAM). Too weak for real model serving or performance numbers; good enough for code, configuration, data work, small GPU tests and plumbing. Turing has no FP8/FP4, so no Spark performance can be inferred from it.
+- **Interim host:** Windows 11 desktop (x64), WSL2, **NVIDIA RTX 2060** (Turing, CUDA-capable, small VRAM). Too weak for real model serving or performance numbers; good enough for code, configuration, data work, small GPU tests and plumbing. Turing has no FP8/FP4, so no Spark performance can be inferred from it.
 - **Principle:** the critical path to a useful system is mostly **not compute**. Everything that doesn't need the Spark's GPU or 128 GB is done before D, so cutover is a deployment, not a project.
 
 ## Two tracks
@@ -52,7 +52,7 @@ Storage layout (desktop, decided 2026-10-03):
 | Drive | Type | Holds | Why |
 |---|---|---|---|
 | **C:** | Internal NVMe (~108 GB free after cleanup) | Docker Desktop disk (virtual disk limit 64 GB), Ubuntu WSL2 distro (sparse VHD) | Databases and builds need the fastest disk |
-| **E:** | USB SSD, WD Elements SE, 1 TB | Ollama models (`OLLAMA_MODELS`), NuGet/uv caches (`NUGET_PACKAGES`, `UV_CACHE_DIR`), raw SEC downloads, Parquet/dev datasets | Fast enough for bulk data, keeps C: free |
+| **E:** | USB SSD, 1 TB | Ollama models (`OLLAMA_MODELS`), NuGet/uv caches (`NUGET_PACKAGES`, `UV_CACHE_DIR`), raw SEC downloads, Parquet/dev datasets | Fast enough for bulk data, keeps C: free |
 | **D:** | Internal HDD, 2 TB | restic backup target (restore drill until the NAS exists), cold archives | Backups must sit on a different physical disk than the data |
 | F: | USB drive | not used | — |
 
@@ -82,7 +82,7 @@ Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows upda
 - WP3n.2 NAS ready (ADR-0013): `aetherspark-backup` on the dedicated SSD volume, rest-server container (append-only), NAS port 2 → router LAN port on VLAN 20, NAS firewall; buy two 2 TB external USB HDDs (rotating offline + off-site copy) and a UPS sized for Spark + router + NAS. **No 10 GbE switch in v1.**
 - WP3n.3 Egress proxy + nftables allowlist built and tested on the desktop (same config later on the Spark)
 - WP3n.4 Physical: free router LAN port and cable run to the Spark location, power, ventilation
-- **Gate G3n:** runbook "Done when" checklist complete; a test device on the AetherSpark network reaches only allowlisted hosts through the proxy.
+- **Gate G3n:** the "Done when" checklists of the network and NAS runbooks are complete (incl. first backup + restore test); the egress proxy + nftables allowlist pass their tests on the desktop (WP3n.3). Outbound traffic from the AetherSpark network is allowed at router level by design (ADR-0012); the allowlist is enforced on the host.
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
 - WP3.1 Compose base: Traefik (TLS, step-ca), Keycloak, Postgres 18 + pgvector, Redis
@@ -115,6 +115,7 @@ Deterministic parts don't need a real model:
 - WP6.3 Join VLAN 20 (already prepared in P3n)
 - WP6.4 Deploy compose stack from nightly arm64 images, restore volumes; re-run the CPU/GPU parity test on Blackwell
 - WP6.5 Apply memory budget (container limits, `--gpu-memory-utilization`)
+- WP6.6 Backup target cutover (ADR-0013 Amendment 2): Spark repository + credentials, remove the desktop-phase binding, restrict the backup port to the Spark, **TLS with an internal-CA certificate** (NFR-SEC-05), alert webhook to ntfy
 - **Gate G6:** NFR-OPS-01/03/05 verified on Spark.
 
 ### P5b — Serving, tuning, evals *(D+1 week … D+5 weeks)*
@@ -147,7 +148,7 @@ As of 2026-10-03. One-time hardware (Spark, NAS, switch, UPS, disks) not include
 | Claude subscription (dev agents) | already paid — not incremental | | |
 | **Total** | **≈ USD 25 + CHF 12** | **≈ USD 25 + CHF 21** | **≈ USD 69 + CHF 34** |
 
-Assumptions: electricity ≈ CHF 0.29/kWh (EKZ 2026, derived from published savings; verify against the actual bill — Horgen may be served by another utility); router and NAS already run 24/7 for home use, so they add no extra cost; no extra switch or firewall (ADR-0012); the 10-year Sharadar tier is **not** enough (FY2011+ needs data from 2010).
+Assumptions: electricity ≈ CHF 0.29/kWh (local utility tariff 2026, derived from published savings; verify against the actual bill — details in `ops.local/site.md`); router and NAS already run 24/7 for home use, so they add no extra cost; no extra switch or firewall (ADR-0012); the 10-year Sharadar tier is **not** enough (FY2011+ needs data from 2010).
 
 ## Future initiatives (outside this roadmap)
 | Initiative | Idea | Earliest start | Precondition |

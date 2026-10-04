@@ -10,4 +10,4 @@ Public summary of what it does (ADR-0012):
 5. Local DNS on the router for the reserved home zone `home.arpa` (RFC 8375); clients get the router as DNS via DHCP.
 6. Verify each step with PowerShell checks; back up the configuration again.
 
-Status: **Pending** (paused 2026-10-03).
+Status: **Ready** (local runbook revised and reviewed 2026-10-04).
