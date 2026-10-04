@@ -7,6 +7,7 @@ Public summary of what it does (ADR-0012):
 2. Harden: UPnP off, WPS off, no port forwards, admin only from the Home network.
 3. Create the **AetherSpark** network (VLAN 20, wired only) and a **Guest/IoT** network (VLAN 30, Wi-Fi, isolated).
 4. Firewall: Home → AetherSpark only HTTPS (and SSH from the admin desktop); AetherSpark → Home denied.
-5. Verify each step with PowerShell checks; back up the configuration again.
+5. Local DNS on the router for the reserved home zone `home.arpa` (RFC 8375); clients get the router as DNS via DHCP.
+6. Verify each step with PowerShell checks; back up the configuration again.
 
 Status: **Pending** (paused 2026-10-03).
