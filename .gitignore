@@ -1,0 +1,32 @@
+# Data and secrets never go into git (ADR-0010, ADR-0015)
+data/
+*.parquet
+*.dump
+*.age
+secrets/
+.env
+.env.*
+!.env.example
+
+# .NET build output
+bin/
+obj/
+.vs/
+*.user
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Agent logs and local Claude settings
+.agent-logs/
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
