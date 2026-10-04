@@ -32,7 +32,8 @@ flowchart LR
 | T3 | Malicious/compromised model weights or pickle payloads | T | safetensors only; pin revision SHA; checksum verify; no `trust_remote_code` unless reviewed | 0006 |
 | T4 | Supply chain in containers / Python / NuGet | T | Pinned digests and SHAs, lockfiles, Grype scan in CI, Dependabot PRs; agents cannot add packages | 0005, 0016 |
 | T5 | Secret leakage to GitHub | I | Secrets never in git (manifest only), gitleaks pre-commit + CI, runner without cloud creds | 0004, 0010 |
-| T6 | Self-hosted runner compromise via PR from fork | E | Private repo; runner only for `main`/protected branches; ephemeral runner container | 0004 |
+| T6 | Strangers' PRs run code via CI (public repo) | E | No self-hosted runner; GitHub-hosted runners only; fork-PR workflows need owner approval; read-only `GITHUB_TOKEN`; no `pull_request_target` with PR checkout | 0004 |
+| T6b | Site details of the home installation published in a public repo | I | Public-content rule; site details only in git-ignored `ops.local/` | 0004 |
 | T7 | Lateral movement from IoT/guest Wi-Fi | E | VLAN isolation; inter-VLAN deny except client→reverse proxy | 0012 |
 | T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disk | 0013 |
 | T9 | Unauthenticated access to model APIs | S | All APIs behind gateway with OIDC/API keys from Keycloak | 0009 |

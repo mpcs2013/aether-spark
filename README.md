@@ -17,6 +17,11 @@ Target host: **NVIDIA DGX Spark** (GB10 Grace Blackwell, 128 GB unified LPDDR5x,
 | [docs/ai/agent-system.md](docs/ai/agent-system.md) | Multi-agent design: dev plane + runtime plane, one governance model |
 | [docs/adr/](docs/adr/) | Architecture Decision Records |
 
+## What may be public (repo is public, ADR-0004)
+- **Yes:** design, ADRs, code, generic runbooks, synthetic test fixtures.
+- **No:** data, model weights, licensed prices, secrets (plain or sealed), `.env` files — and **site details**: device models/firmware, IP ranges, ports, desktop specifics, personal or employment information. Those live in `ops.local/` (git-ignored, backed up with the desktop backup).
+- GitHub secret scanning with push protection and the gitleaks pre-commit hook are the safety net, not the rule.
+
 ## Working rules
 
 1. Every foundational choice is an ADR. Status: `Proposed` → `Accepted` → (`Superseded`).

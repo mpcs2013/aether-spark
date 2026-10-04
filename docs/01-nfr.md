@@ -27,7 +27,7 @@ Physics note: decode speed is bounded by memory bandwidth (~273 GB/s). Upper bou
 ## Reliability & operability
 | ID | Requirement | Verification |
 |---|---|---|
-| NFR-OPS-01 | Full stack from zero with one command (`just up`) | CI smoke job on self-hosted runner |
+| NFR-OPS-01 | Full stack from zero with one command (`just up`) | CI smoke job (GitHub-hosted) + local `just up` on desktop/Spark |
 | NFR-OPS-02 | RPO ≤ 24 h for databases and configs; models/raw data re-downloadable (RPO n/a) | Nightly restic snapshot + verify |
 | NFR-OPS-03 | RTO ≤ 4 h from bare DGX OS to working stack | Restore drill per quarter (runbook) |
 | NFR-OPS-04 | All services emit OTel traces/metrics/logs with correlation id across gateway → MCP → DB | Trace present in Grafana for smoke query |
