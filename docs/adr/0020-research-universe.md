@@ -4,6 +4,12 @@
 ## In plain words
 The universe is defined by a rule applied at each point in time, not by today's company list. Companies that later went bankrupt, were acquired or shrank stay in, so backtests are not flattered by survivors only.
 
+## Where it applies
+| Environment | Universe |
+|---|---|
+| **PROD — DGX Spark** | The full universe defined below (numbers tier + text tier, FY2011 → present) |
+| **DEV — desktop** | Only the dev sample (~100 hard companies × 10 years), a hand-picked subset of the same universe; same rules, schema and code |
+
 ## Decision
 ### Membership rule (point in time)
 - A company is in the universe for fiscal year *Y* if its 10-K for *Y* reports **public float ≥ USD 700 M** (`dei:EntityPublicFloat`, i.e. large accelerated filer), using the value as known at that 10-K's acceptance time (`known_at`, ADR-0007). No licensed index-membership data needed.
