@@ -2,6 +2,7 @@
 
 ## Planning basis (updated 2026-10-03)
 - **Spark delivery (D):** not before **2026-11-15**, no guarantee. All Spark work is scheduled relative to **D**, not to calendar dates.
+- **Procurement (2026-10-05):** the DGX Spark is out of stock; waiting for restock at the chosen retailer. Fallback: if it cannot be ordered by **2026-11-15**, buy an OEM system with the same GB10 chip and 128 GB (plan, ADRs and NFRs unchanged). Prices and retailer details are kept locally (`ops.local/site.md`).
 - **Interim host:** Windows 11 desktop (x64), WSL2, **NVIDIA RTX 2060** (Turing, CUDA-capable, small VRAM). Too weak for real model serving or performance numbers; good enough for code, configuration, data work, small GPU tests and plumbing. Turing has no FP8/FP4, so no Spark performance can be inferred from it.
 - **Principle:** the critical path to a useful system is mostly **not compute**. Everything that doesn't need the Spark's GPU or 128 GB is done before D, so cutover is a deployment, not a project.
 
