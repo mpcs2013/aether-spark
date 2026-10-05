@@ -15,4 +15,4 @@ Public summary of what it does (ADR-0013, ADR-0010, ADR-0011, ADR-0012):
 10. Weekly encrypted copy to two rotating offline USB disks (one kept away from home), readable without the NAS.
 11. Coexistence checks with another project's workload on the same NAS (separate folders, accounts, networks and ports).
 
-Status: **Pending** (written 2026-10-04).
+Status: **Ready** (local runbook written and reviewed 2026-10-04).
