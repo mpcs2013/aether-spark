@@ -20,7 +20,7 @@ Physics note: decode speed is bounded by memory bandwidth (~273 GB/s). Upper bou
 | NFR-PERF-01 | Interactive model: ≥ 40 tok/s single-stream decode | MoE with ~3–5 B active params (theoretical ceiling ~60–90 tok/s at FP8/FP4) |
 | NFR-PERF-02 | Interactive model: TTFT ≤ 2 s for 8k-token prompt | Prefill is compute-bound; Blackwell FP4/FP8 is strong here |
 | NFR-PERF-03 | Batch reasoning model (dense ≤ 70 B, FP4): runs unattended; no interactive SLA | 70 B FP4 ≈ 35 GB/token → ceiling ~7 tok/s |
-| NFR-PERF-04 | Embedding throughput ≥ 1 000 chunks/s (512 tokens) | Full re-index of 10 years of filings for a 500-company universe in < 4 h |
+| NFR-PERF-04 | Embedding throughput ≥ 150 chunks/s (512 tokens), stretch goal 1 000 chunks/s; final value set by the WP1.4 benchmark | Full re-index of the ADR-0020 text tier (~6–8 M chunks) in ≤ 15 h, one unattended run; nightly increments take minutes. Changed 2026-10-05 from 1 000 chunks/s: embedding shares the ~273 GB/s memory bandwidth with the LLMs, so 1 000/s is likely 5–10× too high |
 | NFR-PERF-05 | XBRL ingest ≥ 50 000 facts/s into ClickHouse | Polars + batched inserts |
 | NFR-PERF-06 | Vector search p95 ≤ 50 ms at 10 M vectors (top-k 50, filtered) | HNSW in pgvector; revisit ADR-0007 if missed |
 
