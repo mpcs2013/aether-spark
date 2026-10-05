@@ -33,3 +33,6 @@ Thumbs.db
 
 # Site-specific details of the home installation (public repo, ADR-0004)
 ops.local/
+
+# Scratch output folder of Claude desktop sessions (may contain site details)
+Claude outputs/
