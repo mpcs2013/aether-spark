@@ -40,3 +40,6 @@ Secrets are sealed envelopes. Git holds only the **list** of envelopes (names, o
 
 ## Amendment (2026-10-04) — infrastructure credentials
 This ADR covers **application secrets**. Infrastructure credentials (router and NAS administrators, NAS service accounts, notification mail, the desktop-phase and offline-copy restic repositories) are managed by hand by the owner in an end-to-end encrypted password manager. They are never stored in git or in ops files, and never used by platform services. Exception: maintenance keys that a scheduled job on the NAS needs are generated on the NAS and stay there (ADR-0013 Amendment 2). Second-factor seeds are kept on a separate device; 2FA backup codes and the offline-copy password are printed and stored off-site with the offline recovery key. An interactive admin session may hold a secret in a session variable and is closed afterwards; services never do (change 2).
+
+## Amendment (2026-10-11) — developer credentials
+Developer credentials, such as the read-only token for private build packages (ADR-0009 amendment 1), are neither application secrets nor infrastructure credentials. They grant the least access possible, expire, stay in the developer's credential store, reach builds only as build secrets in an interactive session, and are never used by services or dev agents. They are not listed in the manifest.

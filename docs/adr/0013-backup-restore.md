@@ -45,5 +45,8 @@ Found while reviewing the site runbook (read-only `infra-admin`, `architect` and
 - **Keys on the NAS (accepted risk).** Prune, check and the offline copy run on the NAS with their own keys stored there. A NAS administrator or root compromise can therefore **read** backup content, not only delete it (threat model T16). NAS administrator accounts are for humans only, use 2FA, are never exposed through a vendor relay or remote access, and are never used by automated deployments, including other projects' workloads on the same NAS.
 - **Offline-copy password.** It must be recoverable without the NAS or the Spark: password manager plus a printed copy stored off-site with the offline recovery key (ADR-0010).
 
+## Amendment 3 (2026-10-11) — private build packages
+Backup content also includes the local folder feed of pinned private packages (ADR-0009 amendment 1), so a release tag can be rebuilt without the private feed.
+
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), the backup volume goes above 80 %, or a co-hosted workload breaks its memory trigger.

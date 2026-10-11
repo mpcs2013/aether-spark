@@ -1,5 +1,5 @@
 # ADR-0004: GitHub public repo + GitHub-hosted CI (no self-hosted runner)
-- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-04 (repo made public; supersedes "private repo + self-hosted runner")
+- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-04 (repo made public; supersedes "private repo + self-hosted runner") · **Amendment 2** Accepted 2026-10-11 (private build dependencies)
 
 ## Context
 The repository was made **public** (GitHub Free: rulesets on private repos need a paid plan; public repos also get free secret scanning, push protection, CodeQL and unlimited GitHub-hosted Actions minutes). A self-hosted runner attached to a public repo would let pull requests from anyone run code on our machines.
@@ -20,3 +20,6 @@ The repository was made **public** (GitHub Free: rulesets on private repos need 
 
 ## Revisit trigger
 The repo needs non-public content (data, customer information, licensed material) → move to private + paid plan.
+
+## Amendment 2 (2026-10-11) — private build dependencies
+Private build dependencies (ADR-0009 amendment 1) are not repo content and do not fire the revisit trigger. Workflows that restore them declare `packages: read`. GitHub warns that forks of a public repository may be able to access private packages granted to it; accepted, since only compiled packages are exposed.
