@@ -1,5 +1,5 @@
 # ADR-0009: Identity — Keycloak OIDC everywhere
-- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03
+- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium)
 
 ## In plain words
 Keycloak is the reception desk: people and agents check in once and get a badge (token); every other component only checks the badge.
@@ -20,8 +20,32 @@ Realm export (clients, roles, scopes, agent service accounts, flows) in `deploy/
 ### Change 3 — break-glass admin
 One emergency admin account in the `master` realm, credentials stored offline, never used day to day; use is logged and reviewed. Runbook: `docs/runbooks/keycloak-break-glass.md` (P3a).
 
-### Extraction-ready (reuse)
+### Extraction-ready (reuse) — superseded by amendment 1
 Identity code (JWT validation, client-credentials token handling, realm-as-code fixtures and guard tests) lives in a self-contained `AetherSpark.Identity` project with no domain dependencies, so it can later move into a shared identity kit together with Decisya's (see roadmap, "Future initiatives").
 
 ## Consequences
 Good: one login system, reproducible from git, stolen tokens expire fast. Bad: Keycloak becomes a hard dependency at startup; the break-glass process needs discipline.
+
+## Amendment 1 — identity code from the shared kit Ostium (2026-10-11)
+In plain words: the badge checks and the robot logins are no longer built here. AetherSpark takes them from Ostium, the shared identity kit, and only says how they are set up.
+
+- **What AetherSpark consumes:** packages from Ostium, a private repository with a private GitHub Packages feed.
+  - `Ostium.Authentication.Jwt`: token validation for MCP servers and the agent host (change 1 rules), with a required, fail-closed audience per MCP server.
+  - `Ostium.Backchannel`: trust of the internal CA root, read from a file, for Keycloak metadata and keys.
+  - `Ostium.Keycloak.Realm`: the realm guard engine and per-client invariants. AetherSpark supplies its own cases and an explicit allow-list of agent service-account clients (confidential, client credentials only, no redirect URIs).
+  - `Ostium.Keycloak.Testing`: the Keycloak test fixture, fed with AetherSpark's realm file and image pins.
+  - `Ostium.ServiceAccounts`: client-credentials token handling for agents. One named client per agent, a per-process cache keyed by client and MCP server, renewal before expiry, and fail-closed when Keycloak is unreachable (bounded retries, never an expired token). Each token request carries the MCP server's `resource` and its audience scope. Keycloak is not expected to honour `resource`; Ostium verifies this. The audience therefore comes from one optional client scope per MCP server with an audience mapper, requested per token. A realm guard case checks that every agent client's optional audience scopes equal its MCP servers in `policy/agents.yaml` (ADR-0017). Revisit when Keycloak supports resource indicators. Ostium designs the package from AetherSpark's requirements; AetherSpark validates it with real agents in P5a.
+- **What stays in AetherSpark:** `AetherSpark.Identity` holds composition only: configuration (audiences, names, the agent client list), the realm JSON and its guard cases, and each MCP server's protected-resource metadata and `WWW-Authenticate` value (MCP authorization). No reusable identity mechanism is written here.
+- **No BFF, for now:** if AetherSpark builds its own .NET web interface, it uses `Ostium.Bff` and amends this ADR.
+- **Supply chain:**
+  - Exact version pins; package source mapping sends `Ostium.*` to the private feed only; NuGet lock files with locked-mode restore.
+  - CI restores with `GITHUB_TOKEN` (`packages: read`, granted per package through Actions access); Dependabot reuses the same grant, so there is no stored secret (ADR-0004). GitHub warns that forks of a public repository may be able to access private packages granted to it. Accepted residual: only compiled packages are exposed; Ostium's source stays private.
+  - Local restores use a dedicated, expiring token with only `read:packages`, not the general GitHub login. It stays in the OS credential store or a keyring, is never written in plain text to a NuGet config, and is never given to services or dev agents (`secret_guard.py` denies reading it). ADR-0010 lists it as a developer credential.
+  - Production builds on the Spark (ADR-0004) run in an interactive session started by the owner. The token is passed as a build secret, never stored in an image layer, a Compose file or the manifest. The feed host is on the egress allowlist for builds only (ADR-0012).
+  - Ostium never deletes or overwrites a published version. The one exception is a version containing a secret or personal data, which Ostium announces first, with a replacement. The pinned `Ostium.*` packages of each release tag are kept in a local folder feed that is backed up (ADR-0013), so a rebuild works without the private feed; a withdrawn version is removed from it.
+  - Release evidence: signed tags, checked by Ostium's publish workflow; a CycloneDX SBOM inside each package; the source commit in each package's metadata. Consumers verify what they restore through lock-file content hashes. They cannot check the tag signature themselves (accepted residual). Ostium fixes do not appear in GitHub's advisory database: Ostium announces each security release to its consumers, with the affected and fixed versions, the severity and whether to update before the next deployment, and Dependabot proposes the update.
+- **When:** Ostium stays at 0.x until AetherSpark and Decisya have consumed and validated the shared blocks. AetherSpark consumes a block once Ostium signals it ready for AetherSpark. If a block AetherSpark needs is not ready, the AetherSpark phase waits; no local copy is written. Before a block runs on the Spark, its tests have run on linux-arm64.
+- **Replaces:** the "Extraction-ready" section above; "pattern from Decisya `realm-guard-cases.json`" in change 2, since the guard engine now comes from Ostium; "JWT validation ported from Decisya" in ADR-0002's component split.
+- **Consequences:**
+  - Good: one copy of identity code for all projects; security fixes reach AetherSpark as package updates; agent token handling is built once, with the kit's tests.
+  - Bad: outsiders can read the public repo but not build it (private packages); forks may be able to restore the compiled packages (accepted); while Ostium is at 0.x, AetherSpark depends on its release pace.

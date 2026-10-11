@@ -41,7 +41,7 @@ Both planes use the **same five governance primitives**. Learning one teaches th
 | D12 | Host by default; sandbox optional, recommended on named triggers (new 3rd-party package, external content) | ADR-0011 | Same |
 | D13 | Pin every CI/hook dependency by SHA/digest; image CVE scan with Grype from a digest-pinned image | ADR-0014, ADR-0015 | Same (ADR-0005 amended Trivy → Grype) |
 | D14 | Report exact compiler/test errors with codes and stop | CLAUDE.md working agreements | Same |
-| D15 | Packages added only by Marco; agents report package + reason | `identity-dev.md`, `platform-dev.md`, hook #39 | Same, for NuGet **and** `uv add` |
+| D15 | Packages added only by Marco; agents report package + reason | `identity-dev.md`, `platform-dev.md`, hook #39 | Same, for NuGet **and** `uv add`. `Ostium.*` additions and version bumps are `dependency`-class changes made by the owner only |
 
 ## 3. Improvements over Decisya
 

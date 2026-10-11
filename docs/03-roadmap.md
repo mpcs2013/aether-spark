@@ -86,7 +86,7 @@ Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows upda
 - **Gate G3n:** the "Done when" checklists of the network and NAS runbooks are complete (incl. first backup + restore test); the egress proxy + nftables allowlist pass their tests on the desktop (WP3n.3). Outbound traffic from the AetherSpark network is allowed at router level by design (ADR-0012); the allowlist is enforced on the host.
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
-- **Before P3a starts:** amend ADR-0009 to decide whether `AetherSpark.Identity` builds on the first blocks of the shared identity kit Ostium (JWT validation, Keycloak test fixture, realm guard tests) instead of writing its own
+- ADR-0009 amendment 1 (2026-10-11): `AetherSpark.Identity` consumes the shared identity kit Ostium (JWT validation, back-channel trust, Keycloak test fixture, realm guard) instead of writing its own; agent service accounts come from Ostium for P5a. Precondition: Ostium marks the needed blocks ready for AetherSpark; otherwise the phase waits and no local copy is written. Service accounts must be ready before WP5a.2.
 - WP3.1 Compose base: Traefik (TLS, step-ca), Keycloak, Postgres 18 + pgvector, Redis
 - WP3.2 Observability: Aspire dashboard (dev); LGTM compose profile defined, not run on PC
 - WP3.3 Secrets (ADR-0010): manifest, `just secrets generate`, age-encrypted dev store, tmpfs Docker secrets in `just up`, offline recovery key created
@@ -155,7 +155,7 @@ Assumptions: electricity ≈ CHF 0.29/kWh (local utility tariff 2026, derived fr
 ## Future initiatives (outside this roadmap)
 | Initiative | Idea | Earliest start | Precondition |
 |---|---|---|---|
-| **Shared identity kit "Ostium"** (Keycloak + BFF) | Private repo with reusable packages, starting from Decisya's identity code (moved, not copied; Decisya switches to the packages): realm-as-code + guard tests, Testcontainers Keycloak fixture, JWT validation (ServiceDefaults extension), client-credentials token handling, BFF (cookie session, Redis ticket store, YARP forwarding, antiforgery) as an optional package, `dotnet new` template | Started 2026-10-11, ahead of plan | Stays 0.x (breaking changes allowed) until both Decisya and AetherSpark consume and validate the shared blocks; AetherSpark decides before P3a (ADR-0009 amendment) whether to build on it |
+| **Shared identity kit "Ostium"** (Keycloak + BFF) | Private repo with reusable packages, starting from Decisya's identity code (moved, not copied; Decisya switches to the packages): realm-as-code + guard tests, Testcontainers Keycloak fixture, JWT validation (ServiceDefaults extension), client-credentials token handling, BFF (cookie session, Redis ticket store, YARP forwarding, antiforgery) as an optional package, `dotnet new` template | Started 2026-10-11, ahead of plan | Stays 0.x (breaking changes allowed) until both Decisya and AetherSpark consume and validate the shared blocks; AetherSpark consumes it (ADR-0009 amendment 1) |
 
 ## Definition of Done (every work package)
 Code + tests + ADR/doc updated + CI green + OTel instrumented + runbook entry if operable + both VS Code and CLI paths documented side by side (ADR-0018).

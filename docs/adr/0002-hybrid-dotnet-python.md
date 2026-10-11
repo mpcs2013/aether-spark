@@ -20,6 +20,8 @@ Owner's core expertise and existing stack is .NET 10, Aspire 13, Wolverine, EF C
 | Evaluation harness, notebooks | Python | Metrics and analysis ecosystem |
 | Model serving and gateway | Neither | Upstream vLLM / LiteLLM containers; configuration only |
 
+*Note (2026-10-11):* JWT validation and the Keycloak test fixture come from the shared identity kit Ostium, no longer ported from Decisya (ADR-0009 amendment 1).
+
 ### Boundary rules
 1. **The boundary is data, not calls.** Python writes to ClickHouse, Postgres or Parquet; C# reads through read-only roles. C# may *trigger* a Python job (Wolverine-scheduled container run with arguments) and read its status from a `job_runs` table and the exit code. No HTTP or RPC API between C# and Python code; no pickles.
 2. **Contracts are defined once.** JSON Schema files in `contracts/` are the source for shared types; C# records and Pydantic models are generated from them. CI fails when generated code is stale (`just contracts --check`). ClickHouse/Postgres DDL is the contract for tables.

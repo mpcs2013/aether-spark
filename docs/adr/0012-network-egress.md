@@ -41,3 +41,6 @@ No router firmware security update for 12 months, or a second Spark / NAS-heavy 
 - The router's operating-system branch is reported to leave vendor maintenance at the end of 2026, with no extended life announced yet (dates in the local site file). The 12-month trigger above stays; plan a replacement from 2027. The design is unaffected.
 - Inside the router, the AetherSpark network uses explicit firewall rules, not the router's "network isolation" option, because that option overrides firewall rules and would also block the allowed Home → Spark traffic. The Guest/IoT network uses isolation.
 - Any host attached to two networks (the backup target) must not route between them (ADR-0013 Amendment 2).
+
+## Amendment (2026-10-11) — private package feed
+The private package feed of the shared identity kit (ADR-0009 amendment 1) is allowed for build-time restores only. Runtime containers never reach it.
