@@ -42,5 +42,14 @@ No router firmware security update for 12 months, or a second Spark / NAS-heavy 
 - Inside the router, the AetherSpark network uses explicit firewall rules, not the router's "network isolation" option, because that option overrides firewall rules and would also block the allowed Home → Spark traffic. The Guest/IoT network uses isolation.
 - Any host attached to two networks (the backup target) must not route between them (ADR-0013 Amendment 2).
 
+## Amendment (2026-10-11) — router and upstream, as set up
+Found while running the site runbook.
+- The router's "network isolation" option was found switched on for the Home network after the firmware update. It must be off on Home and AetherSpark: it silently drops all traffic between networks before any firewall rule is evaluated. Separation comes from the explicit rules; Guest/IoT keeps isolation.
+- The router's firewall has no "all protocols" choice. Each deny rule therefore exists for TCP/UDP and as an ICMP twin. The router's own allow-all rules between local networks stay below the explicit rules.
+- Home ports carry no tags of the other networks. The router's automatic trunking was on by default and is off; otherwise a Home host could send tagged frames into AetherSpark.
+- UPnP is checked per network after every firmware update (it was found on for Home).
+- The local DNS server forwards only to a privacy-respecting, filtering public resolver; Guest/IoT clients use that resolver directly. Installing the DNS package offers to open its port to the internet. That offer is always declined (a rule created by accident on 2026-10-11 was removed): the router exposes no service to the internet.
+- The upstream ISP router has no port sharing, exposed host, UPnP or remote access, and installs firmware updates automatically.
+
 ## Amendment (2026-10-11) — private package feed
 The private package feed of the shared identity kit (ADR-0009 amendment 1) is allowed for build-time restores only. Runtime containers never reach it.

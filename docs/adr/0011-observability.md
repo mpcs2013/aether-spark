@@ -16,7 +16,7 @@ Logs, metrics and traces carry events, sizes, timings, ids and token counts only
 `grafana/otel-lgtm` (Grafana, Loki, Tempo, Prometheus/Mimir, OTel Collector in one image) within the 8 GB platform budget; operational retention **30 days**. Split into separate services only on measured need.
 
 ### Change 3 — few, actionable alerts to the phone
-Disk > 85 %, unified-memory pressure, nightly backup failed, certificate expiring < 14 days, service down > 5 min, plus the agent alerts of ADR-0019. Delivery via self-hosted ntfy (or email); the message states what broke, never data.
+Disk > 85 %, unified-memory pressure, nightly backup failed, certificate expiring < 14 days, service down > 5 min, plus the agent alerts of ADR-0019. Delivery via self-hosted ntfy (or email); the message states what broke, never data. *(See amendment 2026-10-11 for the NAS.)*
 
 ### Change 4 — separate agent activity log (ADR-0019)
 - Its own append-only stream (`agent-audit`), apart from operational logs: every agent tool call (who, tool, arguments hash, result size, verdict, latency, run id), every deny, every budget overrun, every honeytoken touch.
@@ -25,3 +25,6 @@ Disk > 85 %, unified-memory pressure, nightly backup failed, certificate expirin
 
 ## Consequences
 Good: one view across C# and Python; research data never duplicated into telemetry; agent behaviour reviewable for a year. Bad: debugging without content is harder (use run ids to look up content in the primary store, access-controlled).
+
+## Amendment (2026-10-11) — alerts from the NAS
+Until ntfy runs on the Spark, the NAS's scheduled jobs alert by email, only on failure. Mail is sent through the owner's own mail domain from a send-only address, with one revocable sending token per device. The NAS vendor's cloud notification channel is not used: its messages carry internal addresses through the vendor's mail service. From cutover, the NAS also notifies ntfy on the Spark; email stays as the fallback.
