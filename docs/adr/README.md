@@ -16,7 +16,7 @@
 | 0013 | Backup: restic to a dedicated NAS SSD volume (append-only), weekly offline USB disk | Accepted; amendments 1–2 Accepted 2026-10-04 (second off-site disk; NAS as dual-homed container host); amendment 3 Accepted 2026-10-11 (private package feed copy); amendment 4 Accepted 2026-10-12 (NAS network controls as measured) |
 | 0014 | Quant compute: Polars GPU engine, CPU reference + parity test | Accepted |
 | 0015 | Cloud LLM (Claude) for code only, never data | Accepted |
-| 0016 | Dev-time agent pipeline adapted from Decisya | Accepted (design) |
+| 0016 | Dev-time agent pipeline adapted from Decisya | Accepted (design); amendment 1 Accepted 2026-10-16 (shared core Norma instead of a copy) |
 | 0017 | Runtime agent governance: server-side lanes, quarantine, verifier; roster grows by evidence | Accepted (conditional) |
 | 0018 | VS Code as the primary IDE (docs: VS Code \| CLI) | Accepted |
 | 0019 | Agent oversight: prevent, detect, respond (no interpreters, deny → freeze, honeytokens, kill switch) | Accepted |

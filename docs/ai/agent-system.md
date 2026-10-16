@@ -1,7 +1,7 @@
 # Agent System Design — one governance model, two planes
 
 - **Status:** Design (planning). Implementation: dev plane in P2 (WP2.6), runtime plane in P5a (WP5a.2–5a.5).
-- **Lineage:** adapted from Decisya's Claude Code setup (`decisya/docs/ai/README.md`, `agents-review.md`, ADR-0010/0011/0014/0015). Decisya scripts are **copied and adapted**, not shared (decision 2026-10-03); divergence is tracked in §8.
+- **Lineage:** adapted from Decisya's Claude Code setup (`decisya/docs/ai/README.md`, `agents-review.md`, ADR-0010/0011/0014/0015). Since 2026-10-16 the shared parts come from **Norma**, a signed and locked shared core, instead of a copy (ADR-0016 amendment 1); this document describes the design that AetherSpark's project layer and additions realise.
 - **ADRs:** [0015](../adr/0015-cloud-llm-for-code-only.md) · [0016](../adr/0016-dev-agent-pipeline.md) · [0017](../adr/0017-runtime-agent-governance.md)
 
 ## 1. The idea
@@ -80,7 +80,7 @@ Both planes use the **same five governance primitives**. Learning one teaches th
 | tech-writer | — (post-merge) | `docs/**` prose, `CHANGELOG.md`, `README.md` | sonnet | Decisya |
 | infra-admin | G4 (infra) | `ops.local/runbooks/**` (git-ignored site runbooks); public summaries stay with devops | opus | **new** (2026-10-04) |
 
-**Interim read-only agents (2026-10-04, until WP2.6):** `infra-admin`, `architect` and `security-reviewer` exist in `.claude/agents/` with tools `Read, Grep, Glob, WebSearch, WebFetch` only — no Edit/Write, no shell (ADR-0019). They review and report; the main session applies accepted changes. Write lanes come with `boundaries.json` in WP2.6. The definitions are generic (public repo); site facts are read from `ops.local/` at run time.
+**Interim read-only agents (2026-10-04, until WP2.6):** `infra-admin`, `architect` and `security-reviewer` exist in `.claude/agents/` with tools `Read, Grep, Glob, WebSearch, WebFetch` only — no Edit/Write, no shell (ADR-0019). They review and report; the main session applies accepted changes. Write lanes come with `boundaries.json` in WP2.6, when AetherSpark locks Norma; then the core `architect` and `security-reviewer` replace these two, with AetherSpark's checks in their project addenda, and `infra-admin` stays in the project layer. The definitions are generic (public repo); site facts are read from `ops.local/` at run time.
 
 Shared deny for every project agent: `docs/ai/pipeline/**`, `.claude/**`, `CLAUDE.md`, `policy/invariants.md`, `data/**`, `deploy/secrets/**`.
 
@@ -224,14 +224,14 @@ Metrics: citation precision, verifier BLOCK rate, injection success rate (target
 
 | When | Step |
 |---|---|
-| P2 (WP2.6) | Copy Decisya `.claude/` scripts (gates, lint, roster, hooks, commitlint, prepush) → adapt paths, lanes, classes; add `data_guard.py`, budgets lint, identity-tied approvals; write CLAUDE.md from §3/§4 |
-| P2 | First issue through the pipeline = the agent setup itself (ci-tooling class, G3+G6) — same bootstrap Decisya did with #35 |
+| WP2.6 (waits for Norma) | Lock the first Norma version that covers AetherSpark's needs (core, .NET pack, a Python pack when available); write the project layer (`project.json`, `boundaries.json`, CLAUDE.md from §3/§4); add `data_guard.py`, budgets lint and identity-tied approvals as a pack, overlay guards or core options |
+| WP2.6 | First issue through the pipeline = the lock and project layer itself (ci-tooling class, G3+G6) |
 | P4a | quant-validator + `xbrl-golden-test`, `point-in-time-test` skills go live with the data plane |
 | P5a (WP5a.2–5a.5) | `policy/agents.yaml`, agent host, verifier, eval harness; runtime agents behind G5v |
 
-## 8. Divergence log (copy-and-adapt)
+## 8. Divergence log (closed 2026-10-16)
 
-Because scripts are copied, fixes don't flow automatically. Rule: when a guardrail bug is fixed in either repo, open a mirror issue in the other with label `port`. Track here:
+No copy was made, so nothing needs porting: the shared parts come from Norma as locked versions (ADR-0016 amendment 1). The log below is kept for history.
 
 | Date | Decisya change | Ported? | Notes |
 |---|---|---|---|
