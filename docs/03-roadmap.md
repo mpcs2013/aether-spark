@@ -75,8 +75,9 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - WP2.3 Python workspace: `uv` workspace, `ruff`, `mypy --strict`, `pytest`
 - WP2.4 Devcontainer (Ubuntu 24.04) matching DGX OS userland
 - WP2.5 GitHub repo (public, ADR-0004), `main` ruleset (id in `ops.local/site.md`), CI on GitHub-hosted runners incl. native arm64 (`ubuntu-24.04-arm`), fork-PR approval, secret scanning + push protection, Grype, gitleaks, Dependabot, SHA-pinned actions
-- WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016): copy/adapt Decisya `.claude/`, add `data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint (ADR-0019); CLAUDE.md; first issue through its own pipeline
-- **Gate G2:** `just ci` green locally and in GitHub Actions; CI builds amd64 + arm64; `lint.py` + `roster.py --check` green; hook denial tests prove lanes and data guard.
+- WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016 amendment 1): **waits for Norma**, the shared Claude Code core, instead of copying Decisya `.claude/`. When a Norma version covers AetherSpark's needs: lock it (`core.lock.json`, tag signature checked by the owner); add the project layer (`project.json`, `boundaries.json`, CLAUDE.md, domain skills, implementer agents) and AetherSpark's additions as a Python pack or overlay (`data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint, ADR-0019); first issue through its own pipeline. Until then: the three interim read-only agents only.
+- **Gate G2:** `just ci` green locally and in GitHub Actions; CI builds amd64 + arm64.
+- **Gate G2b** (when WP2.6 lands): `lint.py` + `roster.py --check` green; core-lock test green; hook denial tests prove lanes and data guard.
 
 ### P3n — Network & hardware readiness *(12 Oct – before D)*
 - WP3n.1 Router: firmware update (VLAN support), three networks (Home / AetherSpark VLAN 20 / Guest-IoT VLAN 30), firewall rules, local DNS zone `home.arpa` on the router — [runbooks/network-setup.md](runbooks/network-setup.md) (ADR-0012)
