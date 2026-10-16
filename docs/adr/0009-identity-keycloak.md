@@ -1,5 +1,5 @@
 # ADR-0009: Identity — Keycloak OIDC everywhere
-- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium)
+- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium) · **Amendment 2** Accepted 2026-10-16 (signed release evidence)
 
 ## In plain words
 Keycloak is the reception desk: people and agents check in once and get a badge (token); every other component only checks the badge.
@@ -15,7 +15,7 @@ Keycloak is the reception desk: people and agents check in once and get a badge 
 Access tokens ≤ 5 min, RS256/ES256 only; validation of `iss`, `aud`, `exp`, algorithm allow-list (same rule as Decisya CLAUDE.md). Agents renew automatically via client credentials.
 
 ### Change 2 — realm as code
-Realm export (clients, roles, scopes, agent service accounts, flows) in `deploy/keycloak/aetherspark-realm.json`, imported at start; no manual admin-console changes. Secrets are not in the file (generated and kept off git, ADR-0010). Realm guard tests (pattern from Decisya `realm-guard-cases.json`) fail CI on risky settings (e.g. implicit flow, wildcard redirect URIs, long token lifetimes).
+Realm export (clients, roles, scopes, agent service accounts, flows) in `deploy/keycloak/aetherspark-realm.json`, imported at start; no manual admin-console changes. Secrets are not in the file (generated and kept off git, ADR-0010). Realm guard tests (pattern from Decisya `realm-guard-cases.json`) fail CI on risky settings (e.g. implicit flow, wildcard redirect URIs, long token lifetimes). *(Guard engine from Ostium; AetherSpark keeps its cases: amendment 1.)*
 
 ### Change 3 — break-glass admin
 One emergency admin account in the `master` realm, credentials stored offline, never used day to day; use is logged and reviewed. Runbook: `docs/runbooks/keycloak-break-glass.md` (P3a).
@@ -49,3 +49,12 @@ In plain words: the badge checks and the robot logins are no longer built here. 
 - **Consequences:**
   - Good: one copy of identity code for all projects; security fixes reach AetherSpark as package updates; agent token handling is built once, with the kit's tests.
   - Bad: outsiders can read the public repo but not build it (private packages); forks may be able to restore the compiled packages (accepted); while Ostium is at 0.x, AetherSpark depends on its release pace.
+
+## Amendment 2 — signed release evidence (2026-10-16)
+In plain words: the owner checks, by hand and against a pinned key, that each Ostium package is exactly the one Ostium released.
+
+- **Signed hashes:** each Ostium release has a checksums file with one line per package and its SHA-512, as in the lock file. The file is signed with the owner's tag key in the SSH namespace `ostium-checksums` and committed to Ostium's `main` through a reviewed pull request. The key is held outside GitHub and outside Ostium's CI.
+- **Pinned key:** AetherSpark pins the key in an allowed-signers file in this repository, allowed for the namespaces `git` and `ostium-checksums`, and does not rely on GitHub's "Verified" badge. The owner checks the fingerprint against the key on his own machine before pinning it. A key change is announced before the first release signed with the new key. A suspected compromise is announced at once, with the versions signed since the last known-good release, and says for each whether it is re-signed or must not be used.
+- **Check per version change:** every `Ostium.*` version change is owner-only (agent-system D15). For each one, the owner runs the check script kept in Ostium on the development machine: the tag signature, the checksums signature, each hash against the lock file, and the SourceLink commit against the tag commit. The result is recorded in the pull request before merge.
+- **Replaces:** in amendment 1's release-evidence bullet, "They cannot check the tag signature themselves (accepted residual)."
+- **Consequences:** one manual step per version change; in exchange, a package that does not match the signed release is caught before it is merged.
