@@ -11,6 +11,7 @@ All targets apply to the DGX Spark production host unless marked *(dev)*. Each N
 | NFR-SEC-04 | No secret material in git (only the manifest); values age-encrypted on the Spark, read from files, never env vars or images (ADR-0010) | `gitleaks` pre-commit + CI; manifest check in CI |
 | NFR-SEC-05 | All internal traffic TLS (internal CA) | Certificate inventory check |
 | NFR-SEC-06 | Every MCP tool call is audit-logged (who, tool, args hash, result size, latency) | Audit log query in smoke test |
+| NFR-SEC-07 | Access tokens ≤ 5 min, RS256/ES256 only, audience bound to one MCP server | Realm guard tests in CI; negative tests reject expired, wrong-audience and wrong-algorithm tokens |
 
 ## Performance (initial targets, re-baselined after Phase 6 benchmarks)
 Physics note: decode speed is bounded by memory bandwidth (~273 GB/s). Upper bound ≈ 273 GB/s ÷ bytes of *active* weights read per token.

@@ -41,6 +41,7 @@ flowchart LR
 | T7 | Lateral movement from IoT/guest Wi-Fi | E | VLAN isolation; inter-VLAN deny except client→reverse proxy | 0012 |
 | T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disks; time-window retention + new-snapshot guard against forged snapshots | 0013 |
 | T9 | Unauthenticated access to model APIs | S | All APIs behind gateway with OIDC/API keys from Keycloak | 0009 |
+| T9b | Token for one MCP server replayed at another, or an agent client given extra audiences | S/E | ≤ 5-min tokens; one optional audience scope per MCP server, requested per token; fail-closed audience check per server; realm guard case: audience scopes = MCP servers in `policy/agents.yaml`; `resource` is sent but not relied on | 0009, 0017 |
 
 ## Agent-specific threats (see [docs/ai/agent-system.md](ai/agent-system.md))
 | # | Threat | STRIDE | Control | ADR |

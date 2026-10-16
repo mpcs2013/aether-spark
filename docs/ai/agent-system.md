@@ -1,6 +1,6 @@
 # Agent System Design — one governance model, two planes
 
-- **Status:** Design (planning). Implementation: dev plane in P2 (WP2.6), runtime plane in P5 (WP5.4).
+- **Status:** Design (planning). Implementation: dev plane in P2 (WP2.6), runtime plane in P5a (WP5a.2–5a.5).
 - **Lineage:** adapted from Decisya's Claude Code setup (`decisya/docs/ai/README.md`, `agents-review.md`, ADR-0010/0011/0014/0015). Decisya scripts are **copied and adapted**, not shared (decision 2026-10-03); divergence is tracked in §8.
 - **ADRs:** [0015](../adr/0015-cloud-llm-for-code-only.md) · [0016](../adr/0016-dev-agent-pipeline.md) · [0017](../adr/0017-runtime-agent-governance.md)
 
@@ -41,7 +41,7 @@ Both planes use the **same five governance primitives**. Learning one teaches th
 | D12 | Host by default; sandbox optional, recommended on named triggers (new 3rd-party package, external content) | ADR-0011 | Same |
 | D13 | Pin every CI/hook dependency by SHA/digest; image CVE scan with Grype from a digest-pinned image | ADR-0014, ADR-0015 | Same (ADR-0005 amended Trivy → Grype) |
 | D14 | Report exact compiler/test errors with codes and stop | CLAUDE.md working agreements | Same |
-| D15 | Packages added only by Marco; agents report package + reason | `identity-dev.md`, `platform-dev.md`, hook #39 | Same, for NuGet **and** `uv add`. `Ostium.*` additions and version bumps are `dependency`-class changes made by the owner only |
+| D15 | Packages added only by Marco; agents report package + reason | `identity-dev.md`, `platform-dev.md`, hook #39 | Same, for NuGet **and** `uv add`. `Ostium.*` additions and version bumps are `dependency`-class changes made by the owner only; each carries the owner's signed-checksums check result in the PR (ADR-0009 amendment 2) |
 
 ## 3. Improvements over Decisya
 
@@ -70,7 +70,7 @@ Both planes use the **same five governance primitives**. Learning one teaches th
 | product-owner | G1 | `docs/requirements/**` | sonnet | Decisya |
 | architect | G2 | `docs/architecture/**`, `docs/adr/**`, `src/**/Contracts/**` | opus | Decisya |
 | security-reviewer | G3, G6, phase-exit compliance | `docs/security/**`, `docs/compliance/**` | opus | Decisya (+ compliance-auditor folded in) |
-| backend-dev | G4 | `src/dotnet/**` (agent host, MCP servers, ingester), `tests/dotnet/**` | sonnet | Decisya (+ identity JWT part) |
+| backend-dev | G4 | `src/dotnet/**` (agent host, MCP servers, ingester), `tests/dotnet/**` | sonnet | Decisya (identity: configuration of Ostium packages only, ADR-0009 amendment 1) |
 | data-engineer | G4 | `src/python/pipelines/**`, `deploy/clickhouse/**`, `deploy/postgres/**` migrations, `tests/python/**` | sonnet | **new** |
 | ml-engineer | G4 | `deploy/models/**`, `deploy/litellm/**`, `src/python/evals/**`, `policy/agents.yaml` (proposals only, see §5.4) | sonnet | **new** |
 | platform-dev | G4 | `src/dotnet/AetherSpark.AppHost/**`, `deploy/compose/**`, `deploy/keycloak/**`, Testcontainers fixtures | sonnet | Decisya (+ realm from identity-dev) |
@@ -113,8 +113,8 @@ flowchart LR
 | **data-pipeline** (new) | `src/python/pipelines/**`, `deploy/clickhouse/**`, migrations | G0–G7, **G5v mandatory** |
 | **model-config** (new) | `deploy/models/**`, `deploy/litellm/**`, `policy/agents.yaml` | G0, G3, G4, **G5v = eval regression**, G6, G7 |
 | docs-only | `docs/**`, `*.md` | G0, G7 |
-| ci-tooling | `.github/**`, `.claude/**`, build props, pre-commit | G0, G3, G6, G7 |
-| dependency | `Directory.Packages.props`, `pyproject.toml`/`uv.lock` only | G0, G6, G7 |
+| ci-tooling | `.github/**`, `.claude/**`, build props, `nuget.config`, pre-commit | G0, G3, G6, G7 |
+| dependency | `Directory.Packages.props`, `packages.lock.json`, `pyproject.toml`/`uv.lock` only | G0, G6, G7 |
 | **infra** (new) | `ops.local/runbooks/**`, `docs/runbooks/*-setup.md`, network/backup ADRs | G0, G2 architect (ADR fit), G3 security-reviewer (threat delta), G4 infra-admin, G6, G7. The owner executes every step by hand; agents never touch devices |
 
 ### 4.4 Enforcement layers (dev plane)
@@ -123,7 +123,7 @@ flowchart LR
 |---|---|---|
 | `settings.json` deny | `git push`, `rm -rf` variants, Read of `.env*`, user-secrets, `~/.ssh`, `data/**`, `*.parquet`, `/srv/**` | Read denies don't cover Bash |
 | `agent_boundaries.py` | Writes outside lane; package installs (`dotnet add package`, `uv add`, `pip install`, `npm i`); Docker outside allow-list | Pattern-based |
-| `secret_guard.py` | Shell reads of secrets (incl. `age -d`, `/srv/secrets`, `*.age`, key paths) | Pattern-based |
+| `secret_guard.py` | Shell reads of secrets (incl. `age -d`, `/srv/secrets`, `*.age`, key paths, the package-restore token in the credential store or NuGet credential files) | Pattern-based |
 | `data_guard.py` (**I3**) | Shell reads/copies of data paths, DB dump commands (`pg_dump`, `clickhouse-client --query` against non-test hosts), `curl` to internal hosts | Pattern-based |
 | `gates.py --ci` (**I2**) | Merge without passed gates or owner-approved skips | Depends on runner integrity (T6) |
 | `lint.py`, `roster.py --check` | Config drift, budget overruns (**I1**) | Checks config, not behaviour |
@@ -131,7 +131,7 @@ flowchart LR
 
 ### 4.5 Skills (port list)
 
-Port and adapt: `issue`, `adr-writer`, `architecture-note`, `threat-model`, `asvs-checklist` (scoped to API/MCP chapters V4, V8, V9, V10, V13, V16), `aspire-apphost`, `testcontainers`, `keycloak`, `otel-instrumentation`, `runbook`, `traceability`, `phase-exit-audit`.
+Port and adapt: `issue`, `adr-writer`, `architecture-note`, `threat-model`, `asvs-checklist` (scoped to API/MCP chapters V4, V8, V9, V10, V13, V16), `aspire-apphost`, `testcontainers`, `keycloak` (adapted: realm JSON, guard cases and Ostium configuration; no identity code), `otel-instrumentation`, `runbook`, `traceability`, `phase-exit-audit`.
 Drop: `isolation-test` (no tenancy), `api-contract` → replaced by `mcp-contract`, `module-scaffold` → `mcp-server-scaffold`.
 New: `mcp-server-scaffold`, `mcp-contract` (tool schemas, pagination, size caps), `xbrl-golden-test`, `point-in-time-test`, `clickhouse-migration`, `model-profile` (vLLM serving profile + memory budget check), `eval-run`, `agent-policy` (edit `agents.yaml` safely).
 
@@ -191,6 +191,7 @@ agents:
     model: interactive
     keycloak_client: agent-filing-reader      # client-credentials, scopes below
     scopes: [filings:read]
+    mcp_servers: [filings]                     # audience scopes; realm guard compares
     tools: [filings.get_section]
     untrusted_input: true                      # => no write scopes allowed (lint)
     output_schema: schemas/filing_extract.v1.json
@@ -198,12 +199,14 @@ agents:
   quant-analyst:
     model: interactive
     batch_model: reasoner
+    keycloak_client: agent-quant-analyst
     scopes: [fundamentals:read, vector:read]
+    mcp_servers: [fundamentals, vector-search]
     tools: [fundamentals.query_template, vector.search]
     db_role: ro_fundamentals                   # statement_timeout, row limit in role
     budgets: { max_tokens: 16000, max_tool_calls: 40, timeout_s: 300 }
 ```
-Lint rules: no wildcard tools; `untrusted_input: true` ⇒ no `*:write` scope; every tool must exist in an MCP contract; every agent has budgets and an output schema.
+Lint rules: no wildcard tools; `untrusted_input: true` ⇒ no `*:write` scope; every tool must exist in an MCP contract; every agent has budgets and an output schema; `mcp_servers` equals the servers of the agent's tools. The realm guard checks that each agent client's audience scopes equal its `mcp_servers` (ADR-0009 amendment 1).
 
 ### 5.5 Implementation stack (Proposed, ADR-0017)
 .NET 10 agent host; `Microsoft.Extensions.AI` `IChatClient` against the LiteLLM OpenAI-compatible endpoint (same vendor-neutral pattern as Decisya ADR-0004); Wolverine durable sagas for run state and resumability; C# MCP SDK clients; OTel GenAI semantic conventions for spans. Agent-framework library choice (e.g. Microsoft Agent Framework vs hand-rolled orchestration) is decided by a spike in P5, not now.
@@ -224,7 +227,7 @@ Metrics: citation precision, verifier BLOCK rate, injection success rate (target
 | P2 (WP2.6) | Copy Decisya `.claude/` scripts (gates, lint, roster, hooks, commitlint, prepush) → adapt paths, lanes, classes; add `data_guard.py`, budgets lint, identity-tied approvals; write CLAUDE.md from §3/§4 |
 | P2 | First issue through the pipeline = the agent setup itself (ci-tooling class, G3+G6) — same bootstrap Decisya did with #35 |
 | P4a | quant-validator + `xbrl-golden-test`, `point-in-time-test` skills go live with the data plane |
-| P5 (WP5.4) | `policy/agents.yaml`, agent host, verifier, eval harness; runtime agents behind G5v |
+| P5a (WP5a.2–5a.5) | `policy/agents.yaml`, agent host, verifier, eval harness; runtime agents behind G5v |
 
 ## 8. Divergence log (copy-and-adapt)
 

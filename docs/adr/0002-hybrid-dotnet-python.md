@@ -10,11 +10,11 @@ Owner's core expertise and existing stack is .NET 10, Aspire 13, Wolverine, EF C
 | Component | Language | Reason |
 |---|---|---|
 | Aspire AppHost (dev loop, `aspire publish` → Compose) | C# | Orchestrates both languages; Python integration with `uv` verified in WP2.2 |
-| MCP servers | C# | Official C# MCP SDK; Keycloak scope authZ and JWT validation ported from Decisya |
+| MCP servers | C# | Official C# MCP SDK; Keycloak scope authZ; JWT validation from Ostium (note below) |
 | Agent host (run records, budgets, durable workflows) | C# | Wolverine sagas, Microsoft.Extensions.AI (Decisya ADR-0004 pattern) |
 | Claims verifier | C# | Deterministic re-query; exact `decimal` comparison |
 | EDGAR fetcher and scheduler | C# | Rate limiting, retry, idempotent jobs (Polly, Wolverine) |
-| ServiceDefaults (OTel), Testcontainers fixtures, architecture tests | C# | Reused from Decisya |
+| ServiceDefaults (OTel), Testcontainers fixtures, architecture tests | C# | Reused from Decisya; Keycloak fixture from Ostium (note below) |
 | XBRL parsing and normalization | Python | Arelle; Polars |
 | Factors, screens, backtests, anomaly statistics | Python | Polars, NumPy; GPU engine (cuDF) on the Spark |
 | Evaluation harness, notebooks | Python | Metrics and analysis ecosystem |

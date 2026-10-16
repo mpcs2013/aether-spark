@@ -91,7 +91,8 @@ Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows upda
 - WP3.2 Observability: Aspire dashboard (dev); LGTM compose profile defined, not run on PC
 - WP3.3 Secrets (ADR-0010): manifest, `just secrets generate`, age-encrypted dev store, tmpfs Docker secrets in `just up`, offline recovery key created
 - WP3.4 Backup: restic job + restore drill against a dev volume, target = NAS
-- **Gate G3:** `just up` from clean WSL2 works; restore drill passes; OIDC login to one sample service.
+- WP3.5 Private packages (ADR-0009 amendments 1–2): `nuget.config` source mapping (`Ostium.*` → private feed only); lock files with locked-mode restore; Actions access granted per package; a read-only, expiring local token in the OS credential store; the local folder feed of pinned `Ostium.*` packages included in the WP3.4 backup; the first `Ostium.*` pin merged with the owner's signed-checksums check recorded in the PR
+- **Gate G3:** `just up` from clean WSL2 works; restore drill passes; OIDC login to one sample service; locked-mode restore green in CI and from the local folder feed alone.
 
 ### P4a — Data plane, CPU *(≈ 10 Nov – 1 Dec; continues across D)*
 - WP4.1 Schema: ClickHouse bitemporal fact tables (`valid_date`, `known_date`), Postgres reference data and lineage
@@ -104,18 +105,18 @@ Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows upda
 
 ### P5a — Intelligence plane, build against stub *(≈ 10 Nov – 8 Dec, desktop)* — **moved forward**
 Deterministic parts don't need a real model:
-- WP5a.1 MCP servers (.NET, streamable HTTP): `filings`, `fundamentals`, `vector-search` (pgvector, test embeddings), `repo` (no `fetch`, ADR-0008); `fundamentals` as a fixed query-template catalogue; contracts, pagination, size caps; Keycloak scope authZ + negative tests
-- WP5a.2 `policy/agents.yaml` + policy lint; agent host skeleton (Microsoft.Extensions.AI → LiteLLM → Ollama tiny model); Wolverine run records; budgets
+- WP5a.1 MCP servers (.NET, streamable HTTP): `filings`, `fundamentals`, `vector-search` (pgvector, test embeddings), `repo` (no `fetch`, ADR-0008); `fundamentals` as a fixed query-template catalogue; contracts, pagination, size caps; Keycloak scope authZ + negative tests; token validation with `Ostium.Authentication.Jwt` (fail-closed audience per server); protected-resource metadata and `WWW-Authenticate` from `AetherSpark.Identity`
+- WP5a.2 `policy/agents.yaml` + policy lint; agent host skeleton (Microsoft.Extensions.AI → LiteLLM → Ollama tiny model); Wolverine run records; budgets; agent tokens via `Ostium.ServiceAccounts`; one optional audience client scope per MCP server; realm guard case: each agent client's audience scopes = its MCP servers in `policy/agents.yaml`
 - WP5a.3 Claims verifier (deterministic) + its tests; quarantined-reader schema validation
 - WP5a.5 Agent oversight (ADR-0019): `agent-audit` stream, deny → stop run, honeytokens, `just agents-off` kill switch + test
 - WP5a.4 Eval harness + golden question set + injection set written (scored at D)
-- **Gate G5a:** end-to-end run completes with the tiny model (answer quality ignored); verifier BLOCKs a seeded wrong claim; scope tests deny cross-lane calls.
+- **Gate G5a:** end-to-end run completes with the tiny model (answer quality ignored); verifier BLOCKs a seeded wrong claim; scope tests deny cross-lane calls; a token issued for one MCP server is rejected by every other.
 
 ### P6 — Spark provisioning & cutover *(D … D+5 days)*
 - WP6.1 Firmware/DGX OS updates, disk layout, Docker + NVIDIA container toolkit check
 - WP6.2 Ansible host role (users, SSH keys, firewall, node-exporter, OTel collector)
 - WP6.3 Join VLAN 20 (already prepared in P3n)
-- WP6.4 Deploy compose stack from nightly arm64 images, restore volumes; re-run the CPU/GPU parity test on Blackwell
+- WP6.4 Build prod images on the Spark from the release tag (native arm64, ADR-0004) in an owner-started session, with the feed token passed as a build secret (ADR-0009 amendment 1, ADR-0012); confirm every pinned `Ostium.*` block has passed linux-arm64 tests; deploy, restore volumes; re-run the CPU/GPU parity test on Blackwell
 - WP6.5 Apply memory budget (container limits, `--gpu-memory-utilization`)
 - WP6.6 Backup target cutover (ADR-0013 Amendment 2): Spark repository + credentials, remove the desktop-phase binding, restrict the backup port to the Spark, **TLS with an internal-CA certificate** (NFR-SEC-05), alert webhook to ntfy
 - **Gate G6:** NFR-OPS-01/03/05 verified on Spark.
