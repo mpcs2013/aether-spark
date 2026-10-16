@@ -1,5 +1,5 @@
 # ADR-0012: Network segmentation & egress control
-- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`)
+- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed)
 
 ## In plain words
 The router separates the home into three networks and keeps the internet out. The strict "only these websites" rule lives on the Spark itself, so it works with any router.

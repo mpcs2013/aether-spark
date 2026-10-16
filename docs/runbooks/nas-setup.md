@@ -8,7 +8,7 @@ Public summary of what it does (ADR-0013, ADR-0010, ADR-0011, ADR-0012):
 3. Accounts: one dedicated admin for containers; one service account with access to the backup folder only.
 4. Second NAS network port on the **AetherSpark** network. NAS firewall rules per interface, so the management UI and file sharing are never reachable from that network.
 5. Dedicated shared folder on its own volume, no file-sharing protocols, not part of any other backup task.
-6. **restic rest-server** container: append-only, private repositories, published port bound to one interface address (the container runtime bypasses the NAS firewall), memory limit, read-only filesystem, no container-runtime socket, not privileged, no host networking. A check confirms the NAS does not route between networks.
+6. **restic rest-server** container: append-only, private repositories, memory limit, read-only filesystem, no container-runtime socket, not privileged, no host networking, container network without address translation. The NAS's own per-interface firewall is the inbound control: on the AetherSpark interface only the backup port, from that network (from cutover: from the Spark only); on the Home interface only from the desktop, during the desktop phase. IP forwarding is off on the AetherSpark interface. The nightly maintenance job checks all of this (ADR-0013 Amendment 4).
 7. Retention (`forget`/`prune`) runs on the NAS with a separate credential that the backup client never holds.
 8. First backup, a proof that deletion is refused, and a full restore with hash comparison.
 9. Schedules staggered with the other workloads; failure alerts that carry no data.

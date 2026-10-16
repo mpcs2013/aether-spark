@@ -1,5 +1,5 @@
 # ADR-0011: Observability — OpenTelemetry end to end
-- **Status:** Accepted (with changes 1–4) · **Date:** 2026-10-03
+- **Status:** Accepted (with changes 1–4) · **Date:** 2026-10-03 · **Amendment** 2026-10-11 (NAS alerts by own-domain email)
 
 ## In plain words
 Logs = the diary, metrics = the gauges, traces = a parcel-tracking number that follows one request through every service. All in one standard (OpenTelemetry), shown in Grafana.

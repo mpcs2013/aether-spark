@@ -1,5 +1,5 @@
 # ADR-0010: Secrets — generated, age-encrypted, kept off git
-- **Status:** Accepted · **Date:** 2026-10-03 (replaces the Proposed "sops + age in git" version)
+- **Status:** Accepted · **Date:** 2026-10-03 (replaces the Proposed "sops + age in git" version) · **Amendments** 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials)
 
 ## In plain words
 Secrets are sealed envelopes. Git holds only the **list** of envelopes (names, owners, rotation), never the envelopes. The sealed envelopes live on the Spark and in backups on the LAN; only two keys can open them.
