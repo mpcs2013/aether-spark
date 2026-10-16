@@ -52,16 +52,16 @@ Storage layout (desktop, decided 2026-10-03):
 
 | Drive | Type | Holds | Why |
 |---|---|---|---|
-| **C:** | Internal NVMe (~108 GB free after cleanup) | Docker Desktop disk (virtual disk limit 64 GB), Ubuntu WSL2 distro (sparse VHD) | Databases and builds need the fastest disk |
+| **C:** | Internal NVMe | Docker Desktop disk (virtual disk limit 64 GB), Ubuntu WSL2 distro (sparse VHD) | Databases and builds need the fastest disk |
 | **E:** | USB SSD, 1 TB | Ollama models (`OLLAMA_MODELS`), NuGet/uv caches (`NUGET_PACKAGES`, `UV_CACHE_DIR`), raw SEC downloads, Parquet/dev datasets | Fast enough for bulk data, keeps C: free |
 | **D:** | Internal HDD, 2 TB | restic backup target (restore drill until the NAS exists), cold archives | Backups must sit on a different physical disk than the data |
 | F: | USB drive | not used | — |
 
 USB SSD rules: NTFS (not exFAT: no journal), fixed drive letter `E:`, USB selective suspend off, never unplug while WSL/Docker run. Weekly `just clean` (Docker prune).
-Not run on the desktop: vLLM, embeddings at full scale, arm64 images on every PR (QEMU too slow → **amd64 on PR, multi-arch nightly**).
+Not run on the desktop: vLLM, embeddings at full scale, arm64 image builds (CI builds them on GitHub-hosted native arm64 runners, ADR-0005 amendment).
 Runs on the desktop GPU, **to be verified in P2** (WSL2 GPU passthrough + RAPIDS support for Turing): Polars GPU engine for the first CPU/GPU parity test (ADR-0014), small embedding model, Ollama on GPU.
 GPU rule (6 GB VRAM): **one GPU job at a time** — the test LLM, the embedding model and the Polars GPU parity test do not run together; Ollama unloads idle models (`OLLAMA_KEEP_ALIVE=5m`).
-Risk: the desktop runs a preview (Insider-channel) Windows build; a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDIA driver version once it works, and note the build in the P2 runbook.
+Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDIA driver version once it works, and note the build in the P2 runbook.
 
 ## Phases
 

@@ -6,7 +6,7 @@ Decisya runs a proven issue → gates → verdict pipeline with lanes and hooks 
 1. Adopt Decisya techniques D1–D15 ([agent-system.md §2](../ai/agent-system.md#2-what-we-take-from-decisya-proven-there)).
 2. **Copy and adapt** the scripts (`gates.py`, `lint.py`, `roster.py`, `prepush.py`, `commitlint.py`, hooks) into this repo; no shared package. Divergence is logged in agent-system.md §8 with `port`-labelled mirror issues.
 3. Add improvements I1–I4, I9–I11: size budgets, identity-tied skip approvals in CI, `data_guard.py`, G5v domain-verification gate, dual roster rendering, budgets, Python tool lanes.
-4. Roster of 11 agents re-cut to this domain (agent-system.md §4.1); two new change classes `data-pipeline` and `model-config`.
+4. Roster of 11 agents re-cut to this domain (agent-system.md §4.1); two new change classes `data-pipeline` and `model-config`. *(2026-10-04: `infra-admin` added, so 12 agents, and a third new change class `infra`; agent-system.md §4.1, §4.3.)*
 5. Host development by default; sandbox optional on Decisya ADR-0011 triggers.
 ## Consequences
 - Good: day-one discipline without Decisya's retrofit cost; same mental model across both repos.
