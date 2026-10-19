@@ -1,5 +1,5 @@
 # ADR-0010: Secrets — generated, age-encrypted, kept off git
-- **Status:** Accepted · **Date:** 2026-10-03 (replaces the Proposed "sops + age in git" version) · **Amendments** 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials)
+- **Status:** Accepted · **Date:** 2026-10-03 (replaces the Proposed "sops + age in git" version) · **Amendments** 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials), 2026-10-19 (workstation backup key)
 
 ## In plain words
 Secrets are sealed envelopes. Git holds only the **list** of envelopes (names, owners, rotation), never the envelopes. The sealed envelopes live on the Spark and in backups on the LAN; only two keys can open them.
@@ -43,3 +43,6 @@ This ADR covers **application secrets**. Infrastructure credentials (router and 
 
 ## Amendment (2026-10-11) — developer credentials
 Developer credentials, such as the read-only token for private build packages (ADR-0009 amendment 1), are neither application secrets nor infrastructure credentials. They grant the least access possible, expire, stay in the developer's credential store, reach builds only as build secrets in an interactive session, and are never used by services or dev agents. They are not listed in the manifest.
+
+## Amendment (2026-10-19) — workstation backup key
+The infrastructure credentials of the 2026-10-04 amendment also cover the workstation backup (ADR-0013 Amendment 5): its repository password and backup-server login. Second exception: the scheduled backup job on the desktop reads both from the owner's OS credential store (user-scoped, machine-bound encryption). The job is not a platform service. The stored copy is outside every project folder, is never written to a file in plain form, and dev agents are denied reading it (`secret_guard.py`). Both are rotated if the desktop is suspected compromised.

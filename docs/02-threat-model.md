@@ -25,6 +25,7 @@ flowchart LR
   SPARK -->|allowlist pull only| PX --> EDGAR & HF
   PC -->|git push| GH
   SPARK -->|restic, append-only| NAS
+  PC -->|restic, append-only (workstation backup)| NAS
 ```
 
 ## Threats & controls
@@ -39,7 +40,7 @@ flowchart LR
 | T6 | Strangers' PRs run code via CI (public repo) | E | No self-hosted runner; GitHub-hosted runners only; fork-PR workflows need owner approval; read-only `GITHUB_TOKEN`; no `pull_request_target` with PR checkout | 0004 |
 | T6b | Site details of the home installation published in a public repo | I | Public-content rule; site details only in git-ignored `ops.local/` | 0004 |
 | T7 | Lateral movement from IoT/guest Wi-Fi | E | VLAN isolation; inter-VLAN deny except client→reverse proxy | 0012 |
-| T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disks; time-window retention + new-snapshot guard against forged snapshots | 0013 |
+| T8 | Ransomware / accidental deletion | D | Append-only restic repo on NAS + offline rotating disks; time-window retention + new-snapshot guard against forged snapshots; the desktop's local-only data in the workstation backup with the same controls (ADR-0013 Amendment 5) | 0013 |
 | T9 | Unauthenticated access to model APIs | S | All APIs behind gateway with OIDC/API keys from Keycloak | 0009 |
 | T9b | Token for one MCP server replayed at another, or an agent client given extra audiences | S/E | ≤ 5-min tokens; one optional audience scope per MCP server, requested per token; fail-closed audience check per server; realm guard case: audience scopes = MCP servers in `policy/agents.yaml`; `resource` is sent but not relied on | 0009, 0017 |
 
@@ -52,4 +53,4 @@ flowchart LR
 | T13 | Fluent but wrong numbers in reports (hallucination, look-ahead) | T | Claims verifier with `fact_id` + `as_of`; G5v point-in-time tests | 0017, 0016 |
 | T14 | Runaway agent loop exhausts unified memory / GPU | D | Per-step token, tool-call and time budgets; LiteLLM rate limits; container memory limits | 0017, 0006 |
 | T15 | Agent routes around a guardrail (e.g. rebuilds a denied command in Python, writes to `$TEMP`) — observed in Decisya | T/E | No interpreters for subagents; deny → freeze; full audit log outside the agent's reach; honeytokens; bypass = High finding | 0019 |
-| T16 | Backup target compromised: via a NAS administrator account, a co-hosted workload, or the NAS routing between its networks | I/T/D | NAS admins human-only with 2FA, no vendor relay/remote access, SSH per session; the NAS per-interface firewall as the inbound control, forwarding off on the AetherSpark interface, backup container without outbound connections, all checked nightly; separate folders, accounts and container networks per workload; offline copy kept off-site. Accepted: NAS root can read backup content (prune/copy keys live there); further residual risks in ADR-0013 Amendment 4 | 0013 |
+| T16 | Backup targets (AetherSpark and the owner's workstation backup, ADR-0013 Amendment 5) compromised: via a NAS administrator account, a co-hosted workload, or the NAS routing between its networks | I/T/D | NAS admins human-only with 2FA, no vendor relay/remote access, SSH per session; the NAS per-interface firewall as the inbound control, forwarding off on the AetherSpark interface, backup container without outbound connections, all checked nightly; separate folders, accounts and container networks per workload; the workstation backup is a separate Home-side service with its own folder, keys, port and quota, allowed from the desktop only, and the AetherSpark interface allows none of its ports, checked nightly; offline copy kept off-site. Accepted: NAS root can read backup content of both repositories (prune/copy keys live there); further residual risks in ADR-0013 Amendment 4 | 0013 |

@@ -1,6 +1,6 @@
 # Runbook — Home network setup (site-specific, kept local)
 
-The step-by-step network runbook contains the concrete router model, firmware, subnets, ports and firewall rules of the home installation. Because this repository is **public**, that runbook lives in `ops.local/runbooks/network-setup.md` (git-ignored, backed up with the desktop backup — ADR-0013).
+The step-by-step network runbook contains the concrete router model, firmware, subnets, ports and firewall rules of the home installation. Because this repository is **public**, that runbook lives in `ops.local/runbooks/network-setup.md` (git-ignored, backed up with the workstation backup — ADR-0013 amendment 5).
 
 Public summary of what it does (ADR-0012):
 1. Back up the router configuration; update firmware to a version with VLAN / multi-network support.

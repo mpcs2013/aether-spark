@@ -75,7 +75,7 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - WP2.3 Python workspace: `uv` workspace, `ruff`, `mypy --strict`, `pytest`
 - WP2.4 Devcontainer (Ubuntu 24.04) matching DGX OS userland
 - WP2.5 GitHub repo (public, ADR-0004), `main` ruleset (id in `ops.local/site.md`), CI on GitHub-hosted runners incl. native arm64 (`ubuntu-24.04-arm`), fork-PR approval, secret scanning + push protection, Grype, gitleaks, Dependabot, SHA-pinned actions
-- WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016 amendment 1): **waits for Norma**, the shared Claude Code core, instead of copying Decisya `.claude/`. When a Norma version covers AetherSpark's needs: lock it (`core.lock.json`, tag signature checked by the owner); add the project layer (`project.json`, `boundaries.json`, CLAUDE.md, domain skills, implementer agents) and AetherSpark's additions as a Python pack or overlay (`data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint, ADR-0019); first issue through its own pipeline. Until then: the three interim read-only agents only.
+- WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016 amendment 1): **waits for Norma**, the shared Claude Code core, instead of copying Decisya `.claude/`. When a Norma version covers AetherSpark's needs: lock it (`core.lock.json`, tag signature checked by the owner); add the project layer (`project.json`, `boundaries.json`, CLAUDE.md, domain skills, implementer agents) and AetherSpark's additions as a Python pack or overlay (`data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint, ADR-0019); first issue through its own pipeline. The git-ignored development-usage folder starts here; the workstation backup (ADR-0013 amendment 5) must cover it from the first record. Until then: the three interim read-only agents only.
 - **Gate G2:** `just ci` green locally and in GitHub Actions; CI builds amd64 + arm64.
 - **Gate G2b** (when WP2.6 lands): `lint.py` + `roster.py --check` green; core-lock test green; hook denial tests prove lanes and data guard.
 
@@ -84,6 +84,7 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - WP3n.2 NAS ready (ADR-0013): `aetherspark-backup` on the dedicated SSD volume, rest-server container (append-only), NAS port 2 → router LAN port on VLAN 20, NAS firewall; buy two 2 TB external USB HDDs (rotating offline + off-site copy) and a UPS sized for Spark + router + NAS. **No 10 GbE switch in v1.**
 - WP3n.3 Egress proxy + nftables allowlist built and tested on the desktop (same config later on the Spark)
 - WP3n.4 Physical: free router LAN port and cable run to the Spark location, power, ventilation
+- WP3n.5 (owner-run, outside AetherSpark's gates) Workstation backup target (ADR-0013 amendment 5); precondition of WP2.6 and WP6.6
 - **Gate G3n:** the "Done when" checklists of the network and NAS runbooks are complete (incl. first backup + restore test); the egress proxy + nftables allowlist pass their tests on the desktop (WP3n.3). Outbound traffic from the AetherSpark network is allowed at router level by design (ADR-0012); the allowlist is enforced on the host.
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
@@ -119,7 +120,7 @@ Deterministic parts don't need a real model:
 - WP6.3 Join VLAN 20 (already prepared in P3n)
 - WP6.4 Build prod images on the Spark from the release tag (native arm64, ADR-0004) in an owner-started session, with the feed token passed as a build secret (ADR-0009 amendment 1, ADR-0012); confirm every pinned `Ostium.*` block has passed linux-arm64 tests; deploy, restore volumes; re-run the CPU/GPU parity test on Blackwell
 - WP6.5 Apply memory budget (container limits, `--gpu-memory-utilization`)
-- WP6.6 Backup target cutover (ADR-0013 Amendment 2): Spark repository + credentials, remove the desktop-phase binding, restrict the backup port to the Spark, **TLS with an internal-CA certificate** (NFR-SEC-05), alert webhook to ntfy
+- WP6.6 Backup target cutover (ADR-0013 Amendment 2): Spark repository + credentials; confirm the desktop's local-only data is in the workstation backup (Amendment 5) **before** removing the desktop-phase binding; remove the desktop-phase binding, restrict the backup port to the Spark, **TLS with an internal-CA certificate** (NFR-SEC-05), alert webhook to ntfy
 - **Gate G6:** NFR-OPS-01/03/05 verified on Spark.
 
 ### P5b — Serving, tuning, evals *(D+1 week … D+5 weeks)*
