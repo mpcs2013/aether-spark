@@ -123,7 +123,7 @@ flowchart LR
 |---|---|---|
 | `settings.json` deny | `git push`, `rm -rf` variants, Read of `.env*`, user-secrets, `~/.ssh`, `data/**`, `*.parquet`, `/srv/**` | Read denies don't cover Bash |
 | `agent_boundaries.py` | Writes outside lane; package installs (`dotnet add package`, `uv add`, `pip install`, `npm i`); Docker outside allow-list | Pattern-based |
-| `secret_guard.py` | Shell reads of secrets (incl. `age -d`, `/srv/secrets`, `*.age`, key paths, the package-restore token in the credential store or NuGet credential files) | Pattern-based |
+| `secret_guard.py` | Shell reads of secrets (incl. `age -d`, `/srv/secrets`, `*.age`, key paths, the package-restore token and the workstation backup credentials in the credential store, NuGet credential files) | Pattern-based |
 | `data_guard.py` (**I3**) | Shell reads/copies of data paths, DB dump commands (`pg_dump`, `clickhouse-client --query` against non-test hosts), `curl` to internal hosts | Pattern-based |
 | `gates.py --ci` (**I2**) | Merge without passed gates or owner-approved skips | Depends on runner integrity (T6) |
 | `lint.py`, `roster.py --check` | Config drift, budget overruns (**I1**) | Checks config, not behaviour |

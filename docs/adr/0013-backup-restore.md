@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11)
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -29,7 +29,7 @@ Every night the Spark sends a backup to the NAS. The NAS accepts new backups but
 - **Quarterly restore drill** (NFR-OPS-03): restore to a clean machine/VM, start the stack, run smoke tests; result recorded in `docs/runbooks/restore-drill.md`.
 
 ### Desktop phase (Track A)
-Desktop backups go to the same NAS target (tests the real path early); local HDD `D:` as fallback.
+Desktop-phase backups of AetherSpark's own test data go to the same NAS target (tests the real path early); local HDD `D:` as fallback. The desktop's local-only data: Amendment 5.
 
 ## Consequences
 - Good: a compromised Spark cannot destroy its backups; one copy is always offline; no new NAS hardware.
@@ -58,5 +58,17 @@ Found while running the site runbook; reviewed twice by the `security-reviewer` 
 - **Accepted residual risks.** Until cutover, a host in the AetherSpark network that routes via the NAS reaches the same backup service on its Home address (same authentication). The container can still send one-way UDP/ICMP (no replies; content is encrypted by restic on the client) and can reach the NAS's own services over its internal bridge (controls: human-only admins with 2FA, SSH per session). A changed firewall or forwarding setting is noticed within a day. The runtime's process-count limit is not enforced on this NAS operating system; the memory limit is. Containers never see the real client address, so co-hosted workloads cannot filter by client IP: the NAS firewall is their control as well.
 - **Verified (desktop phase, 2026-10-11).** Deleting through the backup service is refused (HTTP 403); a full restore is byte-identical; the fake-snapshot guard stops the maintenance job without deleting anything; a repository check with the NAS-side key finds no errors.
 
+## Amendment 5 (2026-10-19) — desktop data in a shared workstation backup
+The desktop holds data that exists nowhere else and is not in git: `ops.local/` (site details, ADR-0004), the router and NAS configuration backups, and from WP2.6 the git-ignored folder with development-usage records. The owner's other projects on the same desktop have the same kind of folders. Until now this data went into the desktop-phase repository by hand; that repository's scheduled job only starts with WP3.4, and its binding on the NAS Home address is removed at cutover (Amendment 2). Reviewed by the read-only `architect` and `security-reviewer` agents (2026-10-19).
+- **One workstation backup for all projects.** The owner runs it, not AetherSpark. It covers the desktop-only folders of every project. Runtime data on a server keeps its own backup (for the Spark: this ADR).
+- **Target.** A second restic rest-server on the NAS, append-only, with its own shared folder on a different volume from `aetherspark-backup`, its own repository, client login and prune key. It is published on the NAS Home address only, and the NAS firewall allows it from the desktop only. It shares no port, folder, account, container network or key with the AetherSpark backup, and the Amendment 4 invariant holds: the AetherSpark interface allows none of its ports. As in Amendment 4, containers on the NAS can reach it over their bridge; per-repository authentication and append-only mode are the controls there. Its maintenance runs on the NAS like the AetherSpark one: time-window retention, the fake-snapshot guard, checks and failure mail. The nightly network check covers its port and container network as well. A folder quota keeps it and the other workloads on its volume from filling the volume for each other. Plain HTTP on the Home network until WP6.6, then TLS with an internal-CA certificate, as for the AetherSpark target.
+- **Copies.** The weekly offline copy includes it as an encrypted repository; the copy-3 rule excludes only unencrypted app data. Its restore drill runs quarterly with the AetherSpark one. It is not part of NFR-OPS-03; its drill result is recorded in the local runbook.
+- **Schedule.** Daily in the evening while the desktop is on, with catch-up after a missed start. The freshness check allows for days the desktop stays off.
+- **Keys.** The repository password and the backup-server login are kept in the password manager; the repository password is also on the off-site recovery sheet (ADR-0010). The scheduled job reads both from the owner's OS credential store (ADR-0010 amendment 2026-10-19), so any program running as the owner can use them. Dev agents are denied reading them by the secret guard (`secret_guard.py`, from WP2.6). They allow reading every snapshot of every project, history included, and adding snapshots (the fake-snapshot guard catches forged ones). They cannot delete or rewrite snapshots.
+- **Content.** A folder list kept with the job; once each project's shared-core configuration names its git-ignored data folder, the list is read from there. Device configuration backups contain credential material and are kept only inside the encrypted repository. Never a project's secret files (sealed values, age keys, `.env`), never the stored job credentials, and never repositories that are already in git.
+- **Order.** The workstation backup is set up first: until then the desktop's local-only data has no scheduled backup. It must be in place before WP2.6 (first usage records) and before WP6.6 (cutover). From then on the desktop-phase repository holds only AetherSpark's own test data until cutover.
+- **Site details** (volume, port, accounts, quota, tasks, schedule) are in the local site files.
+- Bad: one more container and one more port on the NAS, on the Home side; one repository holds every project's local-only data, so a desktop or NAS-administrator compromise reaches all projects (threat T16).
+
 ## Revisit trigger
-The vendor ends security updates for the NAS operating system (dates in the local site file), the backup volume goes above 80 %, or a co-hosted workload breaks its memory trigger.
+The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.

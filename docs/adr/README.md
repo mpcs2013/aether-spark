@@ -10,10 +10,10 @@
 | 0007 | Data stores: Postgres 18/pgvector, ClickHouse; Redis optional | Accepted |
 | 0008 | MCP architecture & tool security (no web fetch in v1, template-only queries) | Accepted |
 | 0009 | Identity: Keycloak OIDC (5-min tokens, realm as code, break-glass; identity code from Ostium) | Accepted; amendments 1–2 Accepted |
-| 0010 | Secrets: generated, age-encrypted, kept off git (manifest only) | Accepted; amended 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials) |
+| 0010 | Secrets: generated, age-encrypted, kept off git (manifest only) | Accepted; amended 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials), 2026-10-19 (workstation backup key) |
 | 0011 | Observability: OpenTelemetry → Grafana (no research content; agent activity log 1 y) | Accepted; amended 2026-10-11 (NAS alerts by own-domain email) |
 | 0012 | Network: 3 networks on the home router; egress allowlist on the Spark; 1 GbE v1 | Accepted; amended 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (private package feed, build-time only; router and upstream as set up) |
-| 0013 | Backup: restic to a dedicated NAS SSD volume (append-only), weekly offline USB disk | Accepted; amendments 1–2 Accepted 2026-10-04 (second off-site disk; NAS as dual-homed container host); amendment 3 Accepted 2026-10-11 (private package feed copy); amendment 4 Accepted 2026-10-12 (NAS network controls as measured) |
+| 0013 | Backup: restic to a dedicated NAS SSD volume (append-only), weekly offline USB disk | Accepted; amendments 1–2 Accepted 2026-10-04 (second off-site disk; NAS as dual-homed container host); amendment 3 Accepted 2026-10-11 (private package feed copy); amendment 4 Accepted 2026-10-12 (NAS network controls as measured); amendment 5 Accepted 2026-10-19 (desktop data in a shared workstation backup) |
 | 0014 | Quant compute: Polars GPU engine, CPU reference + parity test | Accepted |
 | 0015 | Cloud LLM (Claude) for code only, never data | Accepted |
 | 0016 | Dev-time agent pipeline adapted from Decisya | Accepted (design); amendment 1 Accepted 2026-10-16 (shared core Norma instead of a copy) |

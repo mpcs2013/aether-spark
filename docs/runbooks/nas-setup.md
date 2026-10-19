@@ -1,6 +1,6 @@
 # Runbook — NAS setup as backup target (site-specific, kept local)
 
-The step-by-step NAS runbook contains the concrete NAS model, OS version, addresses, accounts, firewall rules and schedules of the home installation. Because this repository is **public**, that runbook lives in `ops.local/runbooks/nas-setup.md` (git-ignored, backed up with the desktop backup — ADR-0013).
+The step-by-step NAS runbook contains the concrete NAS model, OS version, addresses, accounts, firewall rules and schedules of the home installation. Because this repository is **public**, that runbook lives in `ops.local/runbooks/nas-setup.md` (git-ignored, backed up with the workstation backup — ADR-0013 amendment 5).
 
 Public summary of what it does (ADR-0013, ADR-0010, ADR-0011, ADR-0012):
 1. Back up the NAS configuration; update the NAS OS and its container runtime; confirm the vendor still ships security updates for the model.
@@ -14,5 +14,6 @@ Public summary of what it does (ADR-0013, ADR-0010, ADR-0011, ADR-0012):
 9. Schedules staggered with the other workloads; failure alerts that carry no data.
 10. Weekly encrypted copy to two rotating offline USB disks (one kept away from home), readable without the NAS.
 11. Coexistence checks with another project's workload on the same NAS (separate folders, accounts, networks and ports).
+12. Workstation backup target for the desktop's local-only data of all projects (ADR-0013 Amendment 5): a second append-only rest-server with its own folder, keys and maintenance, on the Home side and allowed from the desktop only; included in the weekly offline copy. *To be written and reviewed.*
 
-Status: **Ready** (local runbook written and reviewed 2026-10-04).
+Status: **Ready** for steps 1–11 (local runbook written and reviewed 2026-10-04); step 12 planned.

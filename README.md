@@ -19,7 +19,7 @@ Target host: **NVIDIA DGX Spark** (GB10 Grace Blackwell, 128 GB unified LPDDR5x,
 
 ## What may be public (repo is public, ADR-0004)
 - **Yes:** design, ADRs, code, generic runbooks, synthetic test fixtures.
-- **No:** data, model weights, licensed prices, secrets (plain or sealed), `.env` files — and **site details**: device models/firmware, IP ranges, ports, desktop specifics, personal or employment information. Those live in `ops.local/` (git-ignored, backed up with the desktop backup).
+- **No:** data, model weights, licensed prices, secrets (plain or sealed), `.env` files — and **site details**: device models/firmware, IP ranges, ports, desktop specifics, personal or employment information. Those live in `ops.local/` (git-ignored, backed up with the workstation backup, ADR-0013 amendment 5).
 - GitHub secret scanning with push protection and the gitleaks pre-commit hook are the safety net, not the rule.
 - Building requires read access to the private identity packages (ADR-0009 amendment 1); design and code stay readable by anyone.
 
