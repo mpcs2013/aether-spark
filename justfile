@@ -1,4 +1,7 @@
-set shell := ["bash", "-euo", "pipefail", "-c"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
+
+# Members of the uv workspace are not dependencies of the root, so sync them all
+uv := "uv run --all-packages"
 
 # List the recipes
 default:
@@ -7,10 +10,22 @@ default:
 # Recipes named in the docs whose work package has not landed yet fail loudly
 [private]
 pending wp what:
-    @echo "not implemented yet: {{what}} ({{wp}})" >&2; exit 1
+    {{ error("not implemented yet: " + what + " (" + wp + ")") }}
 
-# Lint, type-check, build and test everything (Gate G2)
-ci: (pending "WP2.2/2.3/2.5" "ci")
+# Lint, type-check, build and test everything (Gate G2; the .NET half lands with WP2.2)
+ci: (pending "WP2.2/2.5" "ci")
+
+# Python: lint, format check, strict type check, tests
+py-ci:
+    {{ uv }} ruff check
+    {{ uv }} ruff format --check
+    {{ uv }} mypy src/python
+    {{ uv }} pytest
+
+# Python: apply formatting and safe lint fixes
+py-fix:
+    {{ uv }} ruff check --fix
+    {{ uv }} ruff format
 
 # Bring the dev stack up (Gate G3)
 up: (pending "WP3.1" "up")
