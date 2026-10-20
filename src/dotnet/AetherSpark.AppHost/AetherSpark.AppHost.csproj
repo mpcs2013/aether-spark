@@ -3,5 +3,18 @@
     <OutputType>Exe</OutputType>
     <!-- No CLI bundle yet; revisit when `aspire publish` to Compose is set up (ADR-0003) -->
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <!-- The SDK adds dashboard and DCP packages for the build machine's platform, so one lock file
+         cannot fit Windows and Linux (ADR-0005 amendment 2) -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
+
+  <!-- Ostium.* hashes are checked against the lock file (ADR-0009), which this project does not have -->
+  <Target Name="ForbidOstiumWithoutLockFile" BeforeTargets="CollectPackageReferences">
+    <ItemGroup>
+      <_OstiumReference Include="@(PackageReference)"
+                        Condition="$([System.String]::Copy('%(Identity)').StartsWith('Ostium.'))" />
+    </ItemGroup>
+    <Error Condition="'@(_OstiumReference)' != ''"
+           Text="The AppHost has no lock file, so it must not reference Ostium.* packages (ADR-0005 amendment 2, ADR-0009): @(_OstiumReference)" />
+  </Target>
 </Project>
