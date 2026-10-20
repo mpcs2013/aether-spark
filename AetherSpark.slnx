@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/dotnet/AetherSpark.AppHost/AetherSpark.AppHost.csproj" />
+    <Project Path="src/dotnet/AetherSpark.ServiceDefaults/AetherSpark.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/dotnet/AetherSpark.ServiceDefaults.Tests/AetherSpark.ServiceDefaults.Tests.csproj" />
+  </Folder>
+</Solution>

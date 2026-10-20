@@ -12,8 +12,8 @@ default:
 pending wp what:
     {{ error("not implemented yet: " + what + " (" + wp + ")") }}
 
-# Lint, type-check, build and test everything (Gate G2; the .NET half lands with WP2.2)
-ci: (pending "WP2.2/2.5" "ci")
+# Lint, type-check, build and test everything (Gate G2 also needs GitHub Actions, WP2.5)
+ci: dotnet-ci py-ci
 
 # Python: lint, format check, strict type check, tests
 py-ci:
@@ -21,6 +21,12 @@ py-ci:
     {{ uv }} ruff format --check
     {{ uv }} mypy src/python
     {{ uv }} pytest
+
+# .NET: locked restore, build (warnings are errors), tests
+dotnet-ci:
+    dotnet restore AetherSpark.slnx --locked-mode
+    dotnet build AetherSpark.slnx --no-restore
+    dotnet test --solution AetherSpark.slnx --no-build
 
 # Python: apply formatting and safe lint fixes
 py-fix:
