@@ -1,0 +1,7 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.2">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- No CLI bundle yet; revisit when `aspire publish` to Compose is set up (ADR-0003) -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+</Project>
