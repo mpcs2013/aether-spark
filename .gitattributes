@@ -1,2 +1,6 @@
 * text=auto eol=lf
-*.{png,jpg,parquet,safetensors,gguf} binary
+*.png binary
+*.jpg binary
+*.parquet binary
+*.safetensors binary
+*.gguf binary
