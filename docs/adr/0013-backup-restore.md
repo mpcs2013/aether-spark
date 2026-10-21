@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -69,6 +69,16 @@ The desktop holds data that exists nowhere else and is not in git: `ops.local/` 
 - **Order.** The workstation backup is set up first: until then the desktop's local-only data has no scheduled backup. It must be in place before WP2.6 (first usage records) and before WP6.6 (cutover). From then on the desktop-phase repository holds only AetherSpark's own test data until cutover.
 - **Site details** (volume, port, accounts, quota, tasks, schedule) are in the local site files.
 - Bad: one more container and one more port on the NAS, on the Home side; one repository holds every project's local-only data, so a desktop or NAS-administrator compromise reaches all projects (threat T16).
+
+## Amendment 6 (2026-10-21) — usage-capture copy job (exchange G-004)
+From WP2.6, every project on the shared core writes one usage capture per issue end into its git-ignored `usage.local/` folder (exchange G-003). Greenlight needs those captures, and no Claude session may read another project's folder. A one-way copy job next to the workstation backup (Amendment 5) brings them into Greenlight's local intake folder.
+- **What it copies.** Daily, on the workstation backup's schedule: only regular files named `capture-*.json` directly in each listed folder, each at most 1 MiB, into the intake folder for that project id. Subfolders, symbolic links, junctions, other reparse points and larger files are refused and logged. Never the capture ledger, the status-tracking records or reports, or anything else.
+- **Write-once.** It only reads on the source side and never deletes or changes anything there. A file already in the intake with the same SHA-256 is skipped; a known name with a different hash stops the run with an error. Every run logs the files copied, skipped and refused, with their hashes.
+- **Folder list.** Project id → capture folder, in the local site files next to the workstation backup's folder list (Amendment 5, Content).
+- **Code.** AetherSpark writes and maintains it: one Python file, standard library only, with no data and no paths, in `deploy/workstation/`, reviewed per pull request and tested on fixtures only. No Claude session runs it against a project folder.
+- **What runs.** The owner copies the reviewed file into a folder of their own, outside every project and every session's working or additional directories, and records its SHA-256 from the reviewed commit. The scheduled task runs under the owner's account, checks that hash before each run, stops on a mismatch, and starts Python in isolated mode (`-I`), so no module from the working folder or the user site is loaded. A new version is reviewed, copied and recorded the same way.
+- **Start.** When the first project writes captures, after the Norma release that ships the capture (G-004 point 5). AetherSpark's folder joins at WP2.6.
+- Bad: one more owner-run job that reads every project's capture folder with the owner's rights (threat T17).
 
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.
