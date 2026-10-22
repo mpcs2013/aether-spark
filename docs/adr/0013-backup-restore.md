@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review)
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22)
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -85,6 +85,11 @@ From WP2.6, every project on the shared core writes one usage capture per issue 
 - **Where the hash comes from.** The file and its SHA-256 come from GitHub at the reviewed merge commit, checked to be on `main`, never from the local clone, whose git configuration a session can change.
 - **Content.** Besides the file rules, the job checks every capture against G-004 format 1.0.0 and its cross-checks, with `project_id` equal to the folder list's and `capture_id` equal to the file name; free-text fields are capped more tightly than the schema. Anything else is refused, so only issue numbers and token counts can reach Greenlight.
 - **Log.** Refused files are logged with their name and reason, not a hash, since they are never read; names that look like captures but do not match are counted. Copied files are made read-only in the intake.
+
+*Amended 2026-10-22 (#22), after Norma and Greenlight reviewed the caps, and a second `security-reviewer` pass:*
+- **Caps.** `agent` is a name or `plugin:name` (up to 100 characters); `model` may end in one bracketed suffix such as `[1m]` (up to 100 characters). The caps stay in the job until the capture format's next major version takes them in.
+- **Refused markers.** Each refused file leaves a content-free marker in that project's intake folder, so Greenlight can list the gap: one per project, capture name and reason code, written once, holding the capture id (or none), a reason code from a fixed list and the first run time. It never holds content, a hash of the refused file, or a file name outside the capture form. Names outside the capture form share one marker per project and reason code, so a file name cannot carry data through the marker name. At most 100 refusals per project and run are marked; an existing marker must match the five fields, or the project stops.
+- **Isolation.** An error in one project (a hash conflict, an invalid marker, an unexpected failure) stops that project only, and the run exits with an error; a crafted capture cannot stop the copy for the other projects.
 
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.
