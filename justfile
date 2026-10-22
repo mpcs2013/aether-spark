@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/workstation
+    {{ uv }} mypy src/python deploy/workstation tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -32,6 +32,10 @@ dotnet-ci:
 py-fix:
     -{{ uv }} ruff check --fix
     {{ uv }} ruff format
+
+# Use the repo's git hooks (gitleaks pre-commit); once per clone
+hooks:
+    git config core.hooksPath .githooks
 
 # Bring the dev stack up (Gate G3)
 up: (pending "WP3.1" "up")
