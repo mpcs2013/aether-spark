@@ -6,6 +6,7 @@ import copy
 import importlib.util
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -21,6 +22,11 @@ ID_A = "20261021T090000Z-0123abcd"
 ID_B = "20261021T100000Z-4567ef01"
 NAME_A = f"capture-{ID_A}.json"
 NAME_B = f"capture-{ID_B}.json"
+LATER = "2026-10-21T09:00:01Z"  # one second after ID_A's capture time
+AFTER = "2026-10-21T10:00:00Z"  # after ID_A's capture time
+TAB = "a\tb"
+BEFORE_YEAR_1 = "0001-01-01T00:00:00+01:00"  # valid text, but before year 1 once in UTC
+AFTER_YEAR_9999 = "9999-12-31T23:59:59-01:00"
 
 
 def _load() -> ModuleType:
@@ -107,8 +113,18 @@ class Layout:
         return [r for r in records if kind is None or r["event"] == kind]
 
     def intake_names(self) -> list[str]:
+        """Captures in the intake; refused markers are read with markers()."""
         folder = self.intake / "GL-0003"
-        return sorted(p.name for p in folder.iterdir()) if folder.exists() else []
+        if not folder.exists():
+            return []
+        return sorted(p.name for p in folder.iterdir() if not p.name.startswith("refused-"))
+
+    def markers(self) -> list[dict[str, Any]]:
+        folder = self.intake / "GL-0003"
+        if not folder.exists():
+            return []
+        paths = sorted(folder.glob("refused-*.json"))
+        return [json.loads(p.read_text(encoding="utf-8")) for p in paths]
 
 
 @pytest.fixture
@@ -196,13 +212,91 @@ def test_other_names_are_not_read(layout: Layout, name: str) -> None:
     "name",
     ["capture-ledger.json", "capture-20261021T090000Z-0123ABCD.json", "capture-٢٠٢٦.json"],
 )
-def test_capture_like_names_are_counted_as_ignored(layout: Layout, name: str) -> None:
+def test_capture_like_name_leaves_a_marker_without_the_name(layout: Layout, name: str) -> None:
     layout.put(name, b"x")
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.intake_names() == []
-    assert [e["count"] for e in layout.events("ignored")] == [1]
-    assert name not in layout.log.read_text(encoding="utf-8")
+    assert [(m["capture_id"], m["reason"]) for m in layout.markers()] == [(None, "name-form")]
+    marker_text = "".join(p.read_text(encoding="utf-8") for p in layout.intake.rglob("refused-*"))
+    for text in (marker_text, layout.log.read_text(encoding="utf-8")):
+        assert name not in text
+        assert json.dumps(name)[1:-1] not in text
+
+
+# --- refused markers (exchange A-006) -------------------------------------------------------
+
+
+def test_marker_has_exactly_the_five_fields(layout: Layout) -> None:
+    layout.put(data=b"not json")
+
+    layout.run()
+
+    (marker,) = layout.markers()
+    assert marker == {
+        "marker_version": "1.0.0",
+        "project_id": "GL-0003",
+        "capture_id": ID_A,
+        "reason": "not-json",
+        "first_seen": marker["first_seen"],
+    }
+    assert re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", marker["first_seen"]
+    )
+
+
+def test_marker_is_written_once_and_read_only(layout: Layout) -> None:
+    layout.put(data=b"not json")
+    layout.run()
+    (path,) = (layout.intake / "GL-0003").glob("refused-*.json")
+    first = path.read_bytes()
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert list((layout.intake / "GL-0003").glob("refused-*.json")) == [path]
+    assert path.read_bytes() == first
+    assert not path.stat().st_mode & stat.S_IWUSR
+    assert len(layout.events("marker")) == 1
+
+
+def test_new_reason_for_the_same_file_gives_a_new_marker(layout: Layout) -> None:
+    layout.put(data=b"not json")
+    layout.run()
+    layout.put(data=b" " * (cc.MAX_BYTES + 1))
+
+    layout.run()
+
+    assert sorted(m["reason"] for m in layout.markers()) == ["not-json", "too-large"]
+
+
+def test_marker_name_depends_on_project_name_and_code() -> None:
+    names = {
+        cc.marker_name("GL-0003", NAME_A, "schema"),
+        cc.marker_name("GL-0004", NAME_A, "schema"),
+        cc.marker_name("GL-0003", NAME_B, "schema"),
+        cc.marker_name("GL-0003", NAME_A, "cap"),
+    }
+    assert len(names) == 4
+    assert all(re.fullmatch(r"refused-[0-9a-f]{16}\.json", n) for n in names)
+
+
+def test_marker_name_taken_by_a_folder_stops(layout: Layout) -> None:
+    layout.put(data=b"not json")
+    (layout.intake / "GL-0003" / cc.marker_name("GL-0003", NAME_A, "not-json")).mkdir(parents=True)
+
+    assert layout.run() == cc.EXIT_ERROR
+
+
+def test_every_marker_reason_is_a_known_code(layout: Layout, tmp_path: Path) -> None:
+    layout.put(data=b"not json")
+    layout.put(NAME_B, data=b" " * (cc.MAX_BYTES + 1))
+    layout.put("capture-ledger.json", b"x")
+    (layout.source / "capture-20261021T110000Z-89abcdef.json").mkdir()
+
+    layout.run()
+
+    reasons = sorted(m["reason"] for m in layout.markers())
+    assert reasons == ["name-form", "not-json", "not-regular", "too-large"]
+    assert set(reasons) <= set(cc.REASON_CODES)
 
 
 # --- file rules -----------------------------------------------------------------------------
@@ -241,6 +335,7 @@ def test_folder_link_with_a_capture_name_is_refused(layout: Layout, tmp_path: Pa
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.intake_names() == []
+    assert [m["reason"] for m in layout.markers()] == ["link"]
 
 
 def test_hard_linked_file_is_refused(layout: Layout, tmp_path: Path) -> None:
@@ -250,6 +345,7 @@ def test_hard_linked_file_is_refused(layout: Layout, tmp_path: Path) -> None:
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.events("refused")[0]["reason"] == "more than one hard link"
+    assert [m["reason"] for m in layout.markers()] == ["hard-link"]
 
 
 def test_symbolic_link_is_refused(layout: Layout, tmp_path: Path) -> None:
@@ -280,6 +376,7 @@ def test_file_swapped_between_check_and_read_is_refused(
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.events("refused")[0]["reason"] == "changed while being read"
+    assert [m["reason"] for m in layout.markers()] == ["changed-while-read"]
 
 
 def test_capture_folder_behind_a_junction_or_link_is_refused(
@@ -294,6 +391,7 @@ def test_capture_folder_behind_a_junction_or_link_is_refused(
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.intake_names() == []
+    assert [(m["capture_id"], m["reason"]) for m in layout.markers()] == [(None, "link")]
 
 
 # --- intake side ----------------------------------------------------------------------------
@@ -339,48 +437,62 @@ def _entry(index: int, **changes: Any) -> Callable[[dict[str, Any]], None]:
     return lambda c: _entries(c)[index].update(changes)
 
 
-CONTENT_CASES: dict[str, Callable[[dict[str, Any]], None]] = {
-    "extra field": lambda c: c.update(branch="issue/42-secret-fix"),
-    "missing field": _without("issue"),
-    "other project": lambda c: c.update(project_id="GL-0002"),
-    "id differs from name": lambda c: c.update(capture_id=ID_B),
-    "id not from captured_at": lambda c: c.update(captured_at="2026-10-21T09:00:01Z"),
-    "issue zero": lambda c: c.update(issue=0),
-    "issue boolean": lambda c: c.update(issue=True),
-    "major version 2": lambda c: c.update(format_version="2.0.0"),
-    "window after capture": lambda c: c["window"].update(to="2026-10-21T10:00:00Z"),
-    "window missing while complete": lambda c: c.update(window=None),
-    "missing with entries": lambda c: c.update(
+CONTENT_CASES: dict[str, tuple[str, Callable[[dict[str, Any]], None]]] = {
+    "extra field": ("schema", lambda c: c.update(branch="issue/42-secret-fix")),
+    "missing field": ("schema", _without("issue")),
+    "other project": ("project-mismatch", lambda c: c.update(project_id="GL-0002")),
+    "project id not a string": ("schema", lambda c: c.update(project_id=3)),
+    "time before year 1 in UTC": ("schema", lambda c: c.update(captured_at=BEFORE_YEAR_1)),
+    "time after year 9999 in UTC": ("schema", lambda c: c.update(captured_at=AFTER_YEAR_9999)),
+    "bracket inside model": ("cap", _entry(0, model="claude[1m]-x")),
+    "upper-case suffix": ("cap", _entry(0, model="claude[1M]")),
+    "two plugin levels": ("cap", _entry(1, agent="a:b:c")),
+    "empty plugin": ("cap", _entry(1, agent=":agent")),
+    "id differs from name": ("cross-check", lambda c: c.update(capture_id=ID_B)),
+    "id not from captured_at": ("cross-check", lambda c: c.update(captured_at=LATER)),
+    "issue zero": ("schema", lambda c: c.update(issue=0)),
+    "issue boolean": ("schema", lambda c: c.update(issue=True)),
+    "major version 2": ("schema", lambda c: c.update(format_version="2.0.0")),
+    "window after capture": ("cross-check", lambda c: c["window"].update(to=AFTER)),
+    "window missing while complete": ("cross-check", lambda c: c.update(window=None)),
+    "missing with entries": ("cross-check", lambda c: c.update(
         window=None, usage=dict(c["usage"], status="missing", missing_reason="sandbox run")
-    ),
-    "partial without reason": lambda c: c["usage"].update(status="partial"),
-    "reason not printable": lambda c: c["usage"].update(status="partial", missing_reason="a\tb"),
-    "negative count": _entry(0, input_tokens=-1),
-    "boolean count": _entry(0, output_tokens=False),
-    "float count": _entry(0, output_tokens=1.5),
-    "one TTL part": lambda c: c["usage"]["by_model"][0].pop("cache_creation_1h_tokens"),
-    "TTL sum": _entry(0, cache_creation_5m_tokens=1),
-    "agent on main": _entry(0, agent="architect"),
-    "model with spaces": _entry(0, model="my secret value"),
-    "model too long": _entry(0, model="m" * 101),
-    "duplicate entry": lambda c: c["usage"]["by_model"].append(copy.deepcopy(_entries(c)[1])),
-    "too many entries": lambda c: c["usage"]["by_model"].extend(
+    )),
+    "partial without reason": ("cross-check", lambda c: c["usage"].update(status="partial")),
+    "reason not printable": ("cap", lambda c: c["usage"].update(status="partial",
+                                                                missing_reason=TAB)),
+    "reason empty": ("schema", lambda c: c["usage"].update(status="partial", missing_reason="")),
+    "negative count": ("schema", _entry(0, input_tokens=-1)),
+    "boolean count": ("schema", _entry(0, output_tokens=False)),
+    "float count": ("schema", _entry(0, output_tokens=1.5)),
+    "one TTL part": ("cross-check", lambda c: _entries(c)[0].pop("cache_creation_1h_tokens")),
+    "TTL sum": ("cross-check", _entry(0, cache_creation_5m_tokens=1)),
+    "agent on main": ("cross-check", _entry(0, agent="architect")),
+    "model not a string": ("schema", _entry(0, model=5)),
+    "model with spaces": ("cap", _entry(0, model="my secret value")),
+    "model too long": ("cap", _entry(0, model="m" * 101)),
+    "agent too long": ("cap", _entry(1, agent="a" * 101)),
+    "agent with a slash": ("cap", _entry(1, agent="plugin/agent")),
+    "duplicate entry": ("cross-check", lambda c: _entries(c).append(copy.deepcopy(_entries(c)[1]))),
+    "too many entries": ("cap", lambda c: _entries(c).extend(
         {"model": f"m{i}", "source": "main", "input_tokens": 0, "output_tokens": 0,
          "cache_read_tokens": 0, "cache_creation_tokens": 0}
         for i in range(cc.MAX_ENTRIES)
-    ),
+    )),
 }  # fmt: skip
 
 
 @pytest.mark.parametrize("case", sorted(CONTENT_CASES))
 def test_capture_outside_the_format_is_refused(layout: Layout, case: str) -> None:
+    code, change = CONTENT_CASES[case]
     value = capture()
-    CONTENT_CASES[case](value)
+    change(value)
     layout.put(data=encode(value))
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.intake_names() == []
     assert len(layout.events("refused")) == 1
+    assert [(m["capture_id"], m["reason"]) for m in layout.markers()] == [(ID_A, code)]
 
 
 @pytest.mark.parametrize(
@@ -399,6 +511,19 @@ def test_file_that_is_not_a_plain_capture_is_refused(layout: Layout, data: bytes
 
     assert layout.run() == cc.EXIT_REFUSED
     assert layout.intake_names() == []
+    expected = "schema" if data == b"[]" else "not-json"
+    assert [m["reason"] for m in layout.markers()] == [expected]
+
+
+def test_plugin_agent_and_bracketed_model_pass(layout: Layout) -> None:
+    value = capture()
+    _entries(value)[0]["model"] = "claude-opus-5-5[1m]"
+    _entries(value)[1]["agent"] = "marketing:brand-review"
+    layout.put(data=encode(value))
+
+    assert layout.run() == cc.EXIT_OK
+    assert layout.intake_names() == [NAME_A]
+    assert layout.markers() == []
 
 
 def test_valid_variants_are_copied(layout: Layout) -> None:
@@ -478,3 +603,156 @@ def test_runs_in_isolated_mode_without_site(layout: Layout) -> None:
 
     assert result.returncode == cc.EXIT_OK, result.stderr
     assert layout.intake_names() == [NAME_A]
+
+
+# --- review of #22: robustness, flood, planted markers --------------------------------------
+
+
+def test_integer_past_the_digit_limit_is_refused_as_not_json(layout: Layout) -> None:
+    layout.put(data=encode(capture()).replace(b'"issue": 42', b'"issue": ' + b"1" * 5000))
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert [m["reason"] for m in layout.markers()] == ["not-json"]
+
+
+def test_caps_pass_at_100_characters(layout: Layout) -> None:
+    value = capture()
+    _entries(value)[0]["model"] = "m" * 96 + "[1m]"
+    _entries(value)[1]["agent"] = "p" * 50 + ":" + "a" * 49
+    layout.put(data=encode(value))
+
+    assert layout.run() == cc.EXIT_OK
+    assert layout.intake_names() == [NAME_A]
+
+
+def test_one_failing_project_does_not_stop_the_others(layout: Layout, tmp_path: Path) -> None:
+    other = tmp_path / "other" / "usage.local"
+    other.mkdir(parents=True)
+    (other / NAME_A).write_bytes(encode(capture(project_id="GL-0001")))
+    (layout.intake / "GL-0001" / NAME_A).mkdir(parents=True)  # makes GL-0001 stop
+    layout.folders.write_text(f"GL-0001\t{other}\nGL-0003\t{layout.source}\n", encoding="utf-8")
+    layout.put()
+
+    assert layout.run() == cc.EXIT_ERROR
+    assert layout.intake_names() == [NAME_A]
+    assert [e["project"] for e in layout.events("error")] == ["GL-0001"]
+
+
+def test_unexpected_error_in_one_project_is_isolated(
+    layout: Layout, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = tmp_path / "other" / "usage.local"
+    other.mkdir(parents=True)
+    layout.folders.write_text(f"GL-0001\t{other}\nGL-0003\t{layout.source}\n", encoding="utf-8")
+    layout.put()
+    real = cc.copy_project
+
+    def failing(source: Any, *args: Any) -> None:
+        if source.project_id == "GL-0001":
+            raise RuntimeError("boom")
+        real(source, *args)
+
+    monkeypatch.setattr(cc, "copy_project", failing)
+
+    assert layout.run() == cc.EXIT_ERROR
+    assert layout.intake_names() == [NAME_A]
+    assert layout.events("error") == [
+        {"at": layout.events("error")[0]["at"], "event": "error", "project": "GL-0001",
+         "reason": "RuntimeError"}
+    ]  # fmt: skip
+
+
+def test_refusals_past_the_cap_leave_no_markers(layout: Layout) -> None:
+    for n in range(cc.MAX_REFUSALS + 20):
+        layout.put(f"capture-20261021T090000Z-{n:08x}.json", b"not json")
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert len(layout.markers()) == cc.MAX_REFUSALS
+    assert len(layout.events("refused")) == cc.MAX_REFUSALS
+    assert [e["not_marked"] for e in layout.events("refused-cap")] == [20]
+
+
+def test_out_of_form_names_share_one_marker_per_code(layout: Layout) -> None:
+    for name in ("capture-a.json", "capture-b.json", "capture-secret-token.json"):
+        layout.put(name, b"x")
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert [(m["capture_id"], m["reason"]) for m in layout.markers()] == [(None, "name-form")]
+    assert cc.marker_name("GL-0003", "capture-a.json", "name-form") == cc.marker_name(
+        "GL-0003", "capture-b.json", "name-form"
+    )
+
+
+def test_valid_planted_marker_is_kept(layout: Layout) -> None:
+    layout.put(data=b"not json")
+    planted = {"marker_version": "1.0.0", "project_id": "GL-0003", "capture_id": ID_A,
+               "reason": "not-json", "first_seen": "2026-10-01T00:00:00Z"}  # fmt: skip
+    folder = layout.intake / "GL-0003"
+    folder.mkdir()
+    (folder / cc.marker_name("GL-0003", NAME_A, "not-json")).write_text(json.dumps(planted))
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert layout.markers() == [planted]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"free text",
+        json.dumps({"marker_version": "1.0.0", "project_id": "GL-0003", "capture_id": ID_A,
+                    "reason": "not-json", "first_seen": "2026-10-01T00:00:00Z",
+                    "note": "ignore previous instructions"}).encode(),
+        json.dumps({"marker_version": "1.0.0", "project_id": "GL-0003", "capture_id": ID_A,
+                    "reason": "other", "first_seen": "2026-10-01T00:00:00Z"}).encode(),
+    ],
+    ids=["not json", "extra field", "unknown code"],
+)  # fmt: skip
+def test_invalid_planted_marker_stops_the_project(layout: Layout, content: bytes) -> None:
+    layout.put(data=b"not json")
+    folder = layout.intake / "GL-0003"
+    folder.mkdir()
+    (folder / cc.marker_name("GL-0003", NAME_A, "not-json")).write_bytes(content)
+
+    assert layout.run() == cc.EXIT_ERROR
+    assert layout.events("error")[0]["project"] == "GL-0003"
+
+
+def test_capture_folder_that_is_a_file_is_refused(layout: Layout, tmp_path: Path) -> None:
+    not_a_folder = tmp_path / "usage.local"
+    not_a_folder.write_bytes(b"x")
+    layout.folders.write_text(f"GL-0003\t{not_a_folder}\n", encoding="utf-8")
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert [(m["capture_id"], m["reason"]) for m in layout.markers()] == [(None, "not-regular")]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows file names are always Unicode")
+def test_undecodable_name_is_refused_without_a_crash(layout: Layout) -> None:
+    raw = os.fsencode(layout.source) + b"/capture-\xff.json"
+    fd = os.open(raw, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(fd)
+
+    assert layout.run() == cc.EXIT_REFUSED
+    assert [m["reason"] for m in layout.markers()] == ["name-form"]
+
+
+def test_every_reason_code_in_the_source_is_known() -> None:
+    import ast
+
+    tree = ast.parse(JOB.read_text(encoding="utf-8"))
+    codes: set[str] = set()
+    # Code literal positions: RefusedError(code, …), _require(…, …, code), x.refuse(_, code, _)
+    positions = {"RefusedError": 0, "_require": 2, "refuse": 1}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        index = positions.get(name or "")
+        if index is None or len(node.args) <= index:
+            continue
+        arg = node.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            codes.add(arg.value)
+    assert {"link", "name-form", "cap", "cross-check"} <= codes, "the test no longer reads codes"
+    assert codes <= set(cc.REASON_CODES)

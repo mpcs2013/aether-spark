@@ -9,9 +9,14 @@ Copies each project's usage captures one way into Greenlight's intake folder (ex
 |---|---|
 | `--folders` | Folder list: one line per project, `<project id><TAB><capture folder>`; `#` lines are comments |
 | `--intake` | Greenlight's intake root (must exist; one subfolder per project id is created) |
-| `--log` | Run log, appended as JSON lines: copied, skipped, refused, ignored, conflict, with hashes; no paths |
+| `--log` | Run log, appended as JSON lines: copied, skipped, refused, marker, conflict, with hashes; no paths |
 
-Exit codes: `0` done, `2` done with refused or ignored files (look at the log), `1` stopped on an error. The wrapper `run-capture-copy.ps1` adds `3` (hash mismatch) and `4` (interpreter or job file missing).
+Exit codes: `0` done, `2` done with refused files (look at the log), `1` an error stopped the run or at least one project. An error in one project (a hash conflict, a planted marker, an unexpected failure) stops that project only; the others are still copied. The wrapper `run-capture-copy.ps1` adds `3` (hash mismatch) and `4` (interpreter or job file missing).
+
+**Refused markers.** For each refused file the job also writes `refused-<16 hex>.json` into that project's intake folder, so Greenlight can list the gap.
+- **Name:** derived from the project id, the capture name and the reason code, and written once, so a file refused on every daily run gives one marker. A name outside the capture form does not enter the derivation: all such names in a project share one marker per reason code, so a file name cannot carry anything to Greenlight.
+- **Fields, five only:** `marker_version` (`1.0.0`), `project_id`, `capture_id` (`null` when the name is not in the capture form), `reason` (one of `link`, `not-regular`, `hard-link`, `too-large`, `changed-while-read`, `name-form`, `not-json`, `schema`, `cross-check`, `cap`, `project-mismatch`) and `first_seen` (UTC, ending in `Z`). Never content, a hash of the refused file, or a file name outside the capture form.
+- **Limits:** at most 100 refusals per project and run are logged and marked; more are counted in one `refused-cap` log line. A marker that already exists must have exactly these fields, or the project stops.
 
 ### Why the setup is elevated
 A Claude session that runs Bash works under the same Windows account as the scheduled task. Anything that account can write, a session can change: a job file in a user folder, the hash in a task the user registered, or a `.pth` file in a per-user Python. So the job, its wrapper and the interpreter live where only Administrators can write, and the task is registered from an elevated shell. The account still only reads and runs them.
