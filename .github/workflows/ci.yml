@@ -47,6 +47,33 @@ jobs:
 
       - run: just ci
 
+  # The dev container builds and passes `just ci` on both architectures (WP2.4; arm64 = the Spark)
+  devcontainer:
+    name: devcontainer (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: docker build -t aetherspark-dev .devcontainer
+
+      # The container user (uid 1654) differs from the runner's; it writes tool caches here
+      - run: chmod -R a+rwX .
+
+      - run: >
+          docker run --rm -v "$PWD:/workspace" -w /workspace aetherspark-dev
+          sh -c 'git config --global --add safe.directory /workspace && just ci'
+
   # Windows-only checks of the workstation jobs (reparse points, junctions, file ids)
   python-windows:
     name: just py-ci (windows)
