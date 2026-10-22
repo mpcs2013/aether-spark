@@ -49,5 +49,12 @@ secrets *args: (pending "WP3.3" "secrets")
 # Stop all agent runs (ADR-0019)
 agents-off: (pending "WP5a.5" "agents-off")
 
-# Prune Docker build cache and dangling images
-clean: (pending "WP2.4" "clean")
+# Prune Docker build cache and dangling images (weekly, roadmap storage rules)
+clean:
+    docker builder prune -f
+    docker image prune -f
+
+# Build the dev container and run `just ci` inside it (CLI path; VS Code: Reopen in Container)
+container-ci:
+    docker build -t aetherspark-dev .devcontainer
+    docker run --rm -v "{{ justfile_directory() }}:/workspace" -w /workspace aetherspark-dev sh -c "git config --global --add safe.directory /workspace && just ci"

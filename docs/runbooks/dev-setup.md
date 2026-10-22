@@ -1,6 +1,6 @@
 # Dev setup (P2, interim desktop)
 
-Once per machine, before the first `just ci`. Windows 11 host for now; the Ubuntu WSL2 distro and the devcontainer (WP2.4) repeat the certificate step on their side. GPU passthrough and the pinned NVIDIA driver build are added here when WP2.4 verifies them (roadmap §Interim desktop).
+Once per machine, before the first `just ci`. The Windows 11 host runs the dev loop directly; the Ubuntu WSL2 distro and the dev container (WP2.4) give the Linux userland of DGX OS (sections at the end).
 
 ## Tools
 | Tool | Version | Install (Windows) | Check |
@@ -44,9 +44,33 @@ dotnet run --project src/dotnet/AetherSpark.AppHost
 
 The login token changes on every run.
 
+## WSL2 and the GPU (WP2.4)
+1. **Budget first.** `%USERPROFILE%\.wslconfig` holds the roadmap budget, before the distro is installed:
+   ```ini
+   [wsl2]
+   memory=32GB
+   processors=6
+   ```
+   Then `wsl --shutdown` (this also stops Docker Desktop's VM for a moment).
+2. **Distro by name.** `wsl --install -d Ubuntu-24.04`, then `wsl --set-default Ubuntu-24.04`. Plain `Ubuntu` now installs a newer release than DGX OS uses.
+3. **No sparse disk.** WSL refuses `--set-sparse` because of possible data corruption; do not force it with `--allow-unsafe`. The disk file grows and does not shrink by itself; if the system drive runs short, compact it by hand: `wsl --shutdown`, then in `diskpart`: `select vdisk file="<distro folder>\ext4.vhdx"`, `attach vdisk readonly`, `compact vdisk`, `detach vdisk`.
+4. **Docker.** Docker Desktop → Settings → Resources → WSL integration → on for `Ubuntu-24.04`.
+5. **Check, inside Ubuntu:** `nproc` prints `6`; `free -g` shows about 31 GB; `nvidia-smi` sees the GPU; `docker run --rm --gpus all ubuntu:24.04 nvidia-smi` sees it from a container.
+
+**Driver pin.** GPU passthrough was verified on 2026-10-22 with NVIDIA driver **610.60**. A Windows update can change WSL2 or the driver (roadmap §Interim desktop): after one, repeat step 5; if it fails, roll the driver back to 610.60. Not yet verified: RAPIDS / the Polars GPU engine on Turing (with the first CPU/GPU parity test, ADR-0014).
+
+## Dev container (WP2.4)
+`.devcontainer/` builds Ubuntu 24.04 (the DGX OS userland) with the repo's toolchain, every input pinned by digest or checksum: the .NET SDK image matching `global.json`, uv, just and gitleaks at CI's versions. CI builds it and runs `just ci` inside on amd64 and arm64, so the same definition works on the Spark.
+- **VS Code:** Command Palette → Dev Containers: Reopen in Container. The container installs the extensions it needs.
+- **CLI:** `just container-ci` builds the image and runs `just ci` inside, with the repo mounted.
+- **Kept apart from the host:** the container's Python environment (`/home/app/.venv`) and .NET build output (`/home/app/artifacts`) live outside the workspace, so the host's `.venv` and `bin/obj` are never touched.
+- **Not yet in the container:** Docker access (needed when the AppHost starts containers, P3a) and the GPU (added with the first GPU job, P4a).
+
 ## Done when
 - [ ] Tool checks above pass
 - [ ] `git config core.hooksPath` prints `.githooks`
 - [ ] `dotnet dev-certs https --check --trust` exits 0
 - [ ] `just ci` green
 - [ ] Dashboard opens at port 17080 without a resource-service error
+- [ ] WSL2 checks (step 5) pass
+- [ ] `just container-ci` green

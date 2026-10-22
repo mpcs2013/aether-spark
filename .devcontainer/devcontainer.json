@@ -1,0 +1,22 @@
+{
+  // Ubuntu 24.04 (DGX OS userland) with the pinned toolchain; see docs/runbooks/dev-setup.md
+  "name": "AetherSpark",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "app",
+  "updateRemoteUserUID": true,
+  "postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && just --version && uv --version && dotnet --version && gitleaks version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "github.vscode-github-actions",
+        "anthropic.claude-code"
+      ]
+    }
+  }
+}
