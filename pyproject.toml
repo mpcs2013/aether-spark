@@ -34,5 +34,5 @@ strict = true
 python_version = "3.12"
 
 [tool.pytest.ini_options]
-testpaths = ["src/python"]
+testpaths = ["src/python", "deploy/workstation"]
 addopts = "-ra --strict-markers --strict-config"

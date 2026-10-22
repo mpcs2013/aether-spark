@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review)
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -79,6 +79,12 @@ From WP2.6, every project on the shared core writes one usage capture per issue 
 - **What runs.** The owner copies the reviewed file into a folder of their own, outside every project and every session's working or additional directories, and records its SHA-256 from the reviewed commit. The scheduled task runs under the owner's account, checks that hash before each run, stops on a mismatch, and starts Python in isolated mode (`-I`), so no module from the working folder or the user site is loaded. A new version is reviewed, copied and recorded the same way.
 - **Start.** When the first project writes captures, after the Norma release that ships the capture (G-004 point 5). AetherSpark's folder joins at WP2.6.
 - Bad: one more owner-run job that reads every project's capture folder with the owner's rights (threat T17).
+
+*Amended 2026-10-21, after the `security-reviewer` review of the job's code:*
+- **Where it runs.** A folder of the owner's own is only a Claude Code permission boundary: a session running Bash under the same account could change the job, the recorded hash in the task, or a per-user Python. The job, its wrapper and its folder list therefore sit in a folder only Administrators can write; the interpreter is an all-users Python under Program Files, started with `-I -S`; the task is registered from an elevated shell, and an unelevated refusal test (job folder, interpreter, task) runs at setup and after Windows updates.
+- **Where the hash comes from.** The file and its SHA-256 come from GitHub at the reviewed merge commit, checked to be on `main`, never from the local clone, whose git configuration a session can change.
+- **Content.** Besides the file rules, the job checks every capture against G-004 format 1.0.0 and its cross-checks, with `project_id` equal to the folder list's and `capture_id` equal to the file name; free-text fields are capped more tightly than the schema. Anything else is refused, so only issue numbers and token counts can reach Greenlight.
+- **Log.** Refused files are logged with their name and reason, not a hash, since they are never read; names that look like captures but do not match are counted. Copied files are made read-only in the intake.
 
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.
