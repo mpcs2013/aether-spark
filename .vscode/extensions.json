@@ -1,0 +1,17 @@
+{
+  // Baseline extensions (ADR-0018); the dev container installs the ones that run inside it
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+    "ms-vscode-remote.remote-wsl",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode-remote.remote-ssh",
+    "ms-azuretools.vscode-containers",
+    "anthropic.claude-code",
+    "redhat.vscode-yaml",
+    "tamasfe.even-better-toml",
+    "github.vscode-github-actions"
+  ]
+}

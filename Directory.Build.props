@@ -12,4 +12,9 @@
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
+  <!-- The dev container builds outside the workspace, so its bin/obj never mix with the host's (WP2.4) -->
+  <PropertyGroup Condition="'$(AETHERSPARK_ARTIFACTS)' != ''">
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(AETHERSPARK_ARTIFACTS)</ArtifactsPath>
+  </PropertyGroup>
 </Project>
