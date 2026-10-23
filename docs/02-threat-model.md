@@ -14,7 +14,7 @@ flowchart LR
       PC[Dev PC / VS Code]; Phone[Mobile]
     end
     subgraph SRV[AetherSpark network - VLAN 20, wired]
-      PX[Egress proxy]; RP[Reverse proxy + OIDC]; SPARK[DGX Spark services]
+      PXR[Runtime egress proxy]; PXO[Ops egress proxy<br/>owner-started only]; RP[Reverse proxy + OIDC]; SPARK[DGX Spark services]
     end
     NAS[(Backup NAS - Home + VLAN 20, no routing)]
     subgraph GST[Guest/IoT - VLAN 30, isolated]
@@ -22,7 +22,8 @@ flowchart LR
     end
   end
   PC -->|HTTPS + OIDC| RP --> SPARK
-  SPARK -->|allowlist pull only| PX --> EDGAR & HF
+  SPARK -->|ingestion jobs, runtime list| PXR --> EDGAR
+  SPARK -->|owner-started jobs, ops list| PXO --> HF
   PC -->|git push| GH
   SPARK -->|restic, append-only| NAS
   PC -->|restic, append-only (workstation backup)| NAS
@@ -31,7 +32,7 @@ flowchart LR
 ## Threats & controls
 | # | Threat | STRIDE | Control | ADR |
 |---|---|---|---|---|
-| T1 | Prompt/data exfiltration via an agent tool making outbound HTTP | I | Default-deny egress on VLAN 20; agents have no web tool at all in v1 (no `fetch` MCP server) | 0012, 0008 |
+| T1 | Prompt/data exfiltration via an agent tool making outbound HTTP | I | No route out for agent, MCP, serving and database containers (internal networks; host firewall in CI and on the Spark); proxy only for ingestion jobs (runtime list, identifiers from the universe only) and owner-started jobs (ops list); no `fetch` MCP server. The router itself allows outbound from VLAN 20, so the control is on the host ([egress design](architecture/egress.md)) | 0012, 0008 |
 | T2 | Prompt injection in filings/web content causes destructive tool calls | T/E | MCP read-only by default; write tools require human confirmation; tool allowlist per agent | 0008 |
 | T3 | Malicious/compromised model weights or pickle payloads | T | safetensors only; pin revision SHA; checksum verify; no `trust_remote_code` unless reviewed | 0006 |
 | T4 | Supply chain in containers / Python / NuGet | T | Pinned digests and SHAs, lockfiles, Grype scan in CI, Dependabot PRs; agents cannot add packages | 0005, 0016 |
@@ -49,7 +50,7 @@ flowchart LR
 |---|---|---|---|---|
 | T10 | Research data or results sent to a cloud LLM by a dev agent | I | Read denies + `data_guard.py`; synthetic/public fixtures only; data outside repo | 0015 |
 | T11 | Dev agent writes outside its lane or self-approves a gate | T/E | `agent_boundaries.py`; verdict written only by owner; CI accepts skips only with owner approval on the PR | 0016 |
-| T12 | Prompt injection in a filing steers a runtime agent to exfiltrate or alter data | T/I/E | Quarantined reader (no tools beyond read, schema-only output); scope-based authZ in MCP; egress deny | 0017 |
+| T12 | Prompt injection in a filing steers a runtime agent to exfiltrate or alter data | T/I/E | Quarantined reader (no tools beyond read, schema-only output); scope-based authZ in MCP; egress deny (agents join no proxy network; no agent tool enqueues ingestion) | 0017, 0012 |
 | T13 | Fluent but wrong numbers in reports (hallucination, look-ahead) | T | Claims verifier with `fact_id` + `as_of`; G5v point-in-time tests | 0017, 0016 |
 | T14 | Runaway agent loop exhausts unified memory / GPU | D | Per-step token, tool-call and time budgets; LiteLLM rate limits; container memory limits | 0017, 0006 |
 | T15 | Agent routes around a guardrail (e.g. rebuilds a denied command in Python, writes to `$TEMP`) — observed in Decisya | T/E | No interpreters for subagents; deny → freeze; full audit log outside the agent's reach; honeytokens; bypass = High finding | 0019 |

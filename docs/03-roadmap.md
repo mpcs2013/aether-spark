@@ -82,10 +82,10 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 ### P3n — Network & hardware readiness *(12 Oct – before D)*
 - WP3n.1 Router: firmware update (VLAN support), three networks (Home / AetherSpark VLAN 20 / Guest-IoT VLAN 30), firewall rules, local DNS zone `home.arpa` on the router — [runbooks/network-setup.md](runbooks/network-setup.md) (ADR-0012)
 - WP3n.2 NAS ready (ADR-0013): `aetherspark-backup` on the dedicated SSD volume, rest-server container (append-only), NAS port 2 → router LAN port on VLAN 20, NAS firewall; buy two 2 TB external USB HDDs (rotating offline + off-site copy) and a UPS sized for Spark + router + NAS. **No 10 GbE switch in v1.**
-- WP3n.3 Egress proxy + nftables allowlist built and tested on the desktop (same config later on the Spark)
+- WP3n.3 Egress control ([design](architecture/egress.md), ADR-0012 amendment 2026-10-23): runtime and ops proxies, named flows, Compose policy lint; layers 1–2 built and tested on the desktop, all three layers in CI on amd64 + arm64; the same files are applied on the Spark in WP6.2
 - WP3n.4 Physical: free router LAN port and cable run to the Spark location, power, ventilation
 - WP3n.5 (owner-run, outside AetherSpark's gates) Workstation backup target (ADR-0013 amendment 5); precondition of WP2.6 and WP6.6
-- **Gate G3n:** the "Done when" checklists of the network and NAS runbooks are complete (incl. first backup + restore test); the egress proxy + nftables allowlist pass their tests on the desktop (WP3n.3). Outbound traffic from the AetherSpark network is allowed at router level by design (ADR-0012); the allowlist is enforced on the host.
+- **Gate G3n:** the "Done when" checklists of the network and NAS runbooks are complete (incl. first backup + restore test); the egress tests pass per environment as listed in the [design](architecture/egress.md): the desktop set on the desktop, the CI set (incl. the break-it test M1) in CI on amd64 and arm64 (WP3n.3). Outbound traffic from the AetherSpark network is allowed at router level by design (ADR-0012); the allowlist is enforced on the host.
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
 - ADR-0009 amendment 1 (2026-10-11): `AetherSpark.Identity` consumes the shared identity kit Ostium (JWT validation, back-channel trust, Keycloak test fixture, realm guard) instead of writing its own; agent service accounts come from Ostium for P5a. Precondition: Ostium marks the needed blocks ready for AetherSpark; otherwise the phase waits and no local copy is written. Service accounts must be ready before WP5a.2.
@@ -94,7 +94,7 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - WP3.3 Secrets (ADR-0010): manifest, `just secrets generate`, age-encrypted dev store, tmpfs Docker secrets in `just up`, offline recovery key created
 - WP3.4 Backup: restic job + restore drill against a dev volume, target = NAS
 - WP3.5 Private packages (ADR-0009 amendments 1–2): `nuget.config` source mapping (`Ostium.*` → private feed only); lock files with locked-mode restore; Actions access granted per package; a read-only, expiring local token in the OS credential store; the local folder feed of pinned `Ostium.*` packages included in the WP3.4 backup; the first `Ostium.*` pin merged with the owner's signed-checksums check recorded in the PR
-- **Gate G3:** `just up` from clean WSL2 works; restore drill passes; OIDC login to one sample service; locked-mode restore green in CI and from the local folder feed alone.
+- **Gate G3:** `just up` from clean WSL2 works; restore drill passes; OIDC login to one sample service; locked-mode restore green in CI and from the local folder feed alone; `just egress-test` and the egress lints green with Traefik, Keycloak and restic in the stack.
 
 ### P4a — Data plane, CPU *(≈ 10 Nov – 1 Dec; continues across D)*
 - WP4.1 Schema: ClickHouse bitemporal fact tables (`valid_date`, `known_date`), Postgres reference data and lineage
@@ -112,16 +112,16 @@ Deterministic parts don't need a real model:
 - WP5a.3 Claims verifier (deterministic) + its tests; quarantined-reader schema validation
 - WP5a.5 Agent oversight (ADR-0019): `agent-audit` stream, deny → stop run, honeytokens, `just agents-off` kill switch + test
 - WP5a.4 Eval harness + golden question set + injection set written (scored at D)
-- **Gate G5a:** end-to-end run completes with the tiny model (answer quality ignored); verifier BLOCKs a seeded wrong claim; scope tests deny cross-lane calls; a token issued for one MCP server is rejected by every other.
+- **Gate G5a:** end-to-end run completes with the tiny model (answer quality ignored); verifier BLOCKs a seeded wrong claim; scope tests deny cross-lane calls; a token issued for one MCP server is rejected by every other; `just egress-test` and the egress lints green with MCP servers, LiteLLM and Ollama in the stack.
 
 ### P6 — Spark provisioning & cutover *(D … D+5 days)*
 - WP6.1 Firmware/DGX OS updates, disk layout, Docker + NVIDIA container toolkit check
-- WP6.2 Ansible host role (users, SSH keys, firewall, node-exporter, OTel collector)
+- WP6.2 Ansible host role (users, SSH keys, firewall, node-exporter, OTel collector); applies `deploy/host/` (`DOCKER-USER` rules, host `INPUT` and `OUTPUT` default-deny, Docker daemon and fwupd proxy settings, resolver limited to `home.arpa`, apt sources switched to HTTPS, phone-home units disabled; ADR-0012 amendment 2026-10-23)
 - WP6.3 Join VLAN 20 (already prepared in P3n)
 - WP6.4 Build prod images on the Spark from the release tag (native arm64, ADR-0004) in an owner-started session, with the feed token passed as a build secret (ADR-0009 amendment 1, ADR-0012); confirm every pinned `Ostium.*` block has passed linux-arm64 tests; deploy, restore volumes; re-run the CPU/GPU parity test on Blackwell
 - WP6.5 Apply memory budget (container limits, `--gpu-memory-utilization`)
 - WP6.6 Backup target cutover (ADR-0013 Amendment 2): Spark repository + credentials; confirm the desktop's local-only data is in the workstation backup (Amendment 5) **before** removing the desktop-phase binding; remove the desktop-phase binding, restrict the backup port to the Spark, **TLS with an internal-CA certificate** (NFR-SEC-05), alert webhook to ntfy
-- **Gate G6:** NFR-OPS-01/03/05 verified on Spark.
+- **Gate G6:** NFR-OPS-01/03/05 verified on Spark; the egress tests listed for the Spark in the [design](architecture/egress.md) pass there, incl. the 24 h router capture (P1).
 
 ### P5b — Serving, tuning, evals *(D+1 week … D+5 weeks)*
 - WP5b.1 Execute WP1.4 benchmark (vLLM vs SGLang; model shortlist incl. GLM-4.7-Flash and QwQ-32B baseline; scenarios: single resident, two models resident, swap batch — c4.md); fix ADR-0006 to Accepted

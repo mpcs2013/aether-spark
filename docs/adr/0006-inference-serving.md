@@ -19,7 +19,9 @@ The engine is the kitchen, the gateway is the waiter, the aliases are the menu. 
 | `reasoner` | not available — returns a clear "not available in dev" error | large reasoning model (batch window) |
 
 - **Swap policy (default):** one resident `interactive` model; `reasoner` jobs are queued (Wolverine) and run in a batch window that unloads `interactive`, loads the reasoner, drains the queue and restores. Replaced if the benchmark's "two models resident" scenario fits the 70 GB LLM budget.
-- **Model files:** safetensors only (GGUF allowed for Ollama in dev), pinned revision, checksum verified, no `trust_remote_code` without review; stored on `/srv/models` (Spark) or `E:` (desktop), never in images; downloaded only via the egress proxy (ADR-0012).
+- **Model files:** safetensors only (GGUF allowed for Ollama in dev), pinned revision, checksum verified, no `trust_remote_code` without review; stored on `/srv/models` (Spark) or `E:` (desktop), never in images; downloaded only via the egress proxy (ADR-0012; since the amendment of 2026-10-23 the ops egress proxy, by one-shot pull jobs; serving mounts the store read-only).
+
+*Note (2026-10-23):* in dev, Ollama runs **as a container** with the GPU (passthrough verified 2026-10-22), not on Windows, so the stack's egress rules cover it (ADR-0012 amendment 2026-10-23). It joins internal networks only; model downloads go through the ops egress proxy in an owner-started session. The table's "Ollama on Windows" reads accordingly.
 
 ## Decision — pending benchmark (WP1.4 protocol, run in WP5b.1)
 - Engine: **vLLM** (default candidate) vs **SGLang** (challenger); TensorRT-LLM only if both miss NFR-PERF-01/02.
