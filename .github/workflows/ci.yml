@@ -1,9 +1,10 @@
 name: ci
 
+# Pull requests only: with "branch must be up to date" (ruleset), the merged tree is the tree a PR
+# tested, so a second run on main would only repeat it. Manual runs test everything.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 # ADR-0004: read-only GITHUB_TOKEN, no other secrets
 permissions:
@@ -11,11 +12,50 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
+  # Decides which jobs a change needs. A change to this workflow, or a manual run, runs everything.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.c.outputs.code }}
+      python: ${{ steps.c.outputs.python }}
+      devcontainer: ${{ steps.c.outputs.devcontainer }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: c
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          if [ "$EVENT" != pull_request ]; then
+            printf 'code=true\npython=true\ndevcontainer=true\n' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          printf '%s\n' "$files"
+          # Code: anything beyond docs and repo settings; the other filters look at these files only
+          code_files=$(printf '%s\n' "$files" | grep -Ev '^$|^(docs/|LICENSE$|\.vscode/|\.github/rulesets/|\.github/dependabot\.yml$)|\.md$' || true)
+          any() { printf '%s\n' "$code_files" | grep -Eq "$1"; }
+          all=false; any '^\.github/workflows/' && all=true
+          code=$all; [ -n "$code_files" ] && code=true
+          # Python on Windows: the workstation jobs and the Python workspace
+          python=$all; any '^(src/python/|deploy/workstation/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          # Dev container: its definition and the toolchain pins it builds on
+          devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\n' "$code" "$python" "$devcontainer" | tee -a "$GITHUB_OUTPUT"
+
   build:
     name: just ci (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +90,8 @@ jobs:
   # The dev container builds and passes `just ci` on both architectures (WP2.4; arm64 = the Spark)
   devcontainer:
     name: devcontainer (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.devcontainer == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +119,8 @@ jobs:
   # Windows-only checks of the workstation jobs (reparse points, junctions, file ids)
   python-windows:
     name: just py-ci (windows)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -108,3 +152,18 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo
           ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git --no-banner --redact .
+
+  # The one required check: fails if any job failed or was cancelled; a job skipped because its
+  # area did not change counts as passed. Jobs skipped by `if` report no check of their own, so
+  # requiring them directly would leave docs-only PRs pending forever.
+  ci-result:
+    if: always()
+    needs: [changes, build, devcontainer, python-windows, gitleaks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then exit 1; fi
