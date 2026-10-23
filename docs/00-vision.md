@@ -34,5 +34,5 @@ A self-hosted platform where local LLMs reason over local data (filings, market 
 | Source code on GitHub | Collaboration, history, Actions syntax | ADR-0004: no data/weights/plaintext secrets in repo |
 | Private build packages (shared identity kit) from GitHub Packages | One copy of identity code across projects | ADR-0009 amendment 1, ADR-0012: build-time restore only, exact pins + lock-file hashes; runtime never reaches the feed |
 | Outbound fetch of public data (SEC EDGAR, model weights from Hugging Face/NGC) | Data and models must be obtained once | ADR-0012: allowlisted egress proxy; pull-only; no outbound payloads with private data |
-| OS/container package updates | Security patching | Same egress proxy, allowlisted registries |
+| OS/container package updates | Security patching | Ops egress proxy, allowlisted registries, owner-started; on the Spark the host itself is default-deny outbound (ADR-0012 amendment 2026-10-23) |
 | Dev agents on Claude (code only) | Dev productivity; code already on GitHub | ADR-0015: no data, results or secrets in cloud prompts; `data_guard.py` |

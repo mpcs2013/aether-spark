@@ -5,7 +5,7 @@ All targets apply to the DGX Spark production host unless marked *(dev)*. Each N
 ## Privacy & security
 | ID | Requirement | Verification |
 |---|---|---|
-| NFR-SEC-01 | No inference request, prompt, document or query result leaves the LAN | Egress firewall default-deny; egress proxy logs show only allowlisted hosts; quarterly test with blocked WAN |
+| NFR-SEC-01 | No inference request, prompt, document or query result leaves the LAN | No route out for stack containers (internal networks; host firewall in CI and on the Spark; host `OUTPUT` default-deny on the Spark); outside owner-started ops sessions, proxy logs show only runtime-list hosts; the egress tests per environment in the [design](architecture/egress.md), incl. a cold start with the WAN cut; quarterly test with blocked WAN |
 | NFR-SEC-02 | All UIs and APIs require OIDC auth (Keycloak); no anonymous endpoints except health checks on internal VLAN | Automated endpoint scan in CI |
 | NFR-SEC-03 | MCP servers use least-privilege credentials (read-only DB roles by default; filesystem allowlist) | Integration tests attempt writes / path traversal → must fail |
 | NFR-SEC-04 | No secret material in git (only the manifest); values age-encrypted on the Spark, read from files, never env vars or images (ADR-0010) | `gitleaks` pre-commit + CI; manifest check in CI |
