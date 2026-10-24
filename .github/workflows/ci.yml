@@ -23,6 +23,7 @@ jobs:
       code: ${{ steps.c.outputs.code }}
       python: ${{ steps.c.outputs.python }}
       devcontainer: ${{ steps.c.outputs.devcontainer }}
+      egress: ${{ steps.c.outputs.egress }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,7 +38,7 @@ jobs:
         run: |
           set -eu
           if [ "$EVENT" != pull_request ]; then
-            printf 'code=true\npython=true\ndevcontainer=true\n' >> "$GITHUB_OUTPUT"; exit 0
+            printf 'code=true\npython=true\ndevcontainer=true\negress=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "$BASE...$HEAD")
           printf '%s\n' "$files"
@@ -50,7 +51,9 @@ jobs:
           python=$all; any '^(src/python/|deploy/workstation/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
           # Dev container: its definition and the toolchain pins it builds on
           devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
-          printf 'code=%s\npython=%s\ndevcontainer=%s\n' "$code" "$python" "$devcontainer" | tee -a "$GITHUB_OUTPUT"
+          # Egress proxies and their tests
+          egress=$all; any '^(deploy/compose/egress/|tests/egress/)' && egress=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\n' "$code" "$python" "$devcontainer" "$egress" | tee -a "$GITHUB_OUTPUT"
 
   build:
     name: just ci (${{ matrix.arch }})
@@ -138,6 +141,31 @@ jobs:
 
       - run: just py-ci
 
+  # Egress layers 1 and 2 on both architectures (WP3n.3; arm64 = the Spark). Needs internet access.
+  egress:
+    name: egress-test (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.egress == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # E8 relies on Engine >= 26 (no external names on internal networks)
+      - run: docker version --format 'Docker Engine {{.Server.Version}}'
+
+      - run: bash tests/egress/run.sh
+
   gitleaks:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -158,7 +186,7 @@ jobs:
   # requiring them directly would leave docs-only PRs pending forever.
   ci-result:
     if: always()
-    needs: [changes, build, devcontainer, python-windows, gitleaks]
+    needs: [changes, build, devcontainer, python-windows, egress, gitleaks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -62,17 +62,18 @@ Rules the lint checks: the generated Compose's default network is removed by the
 - **IPv6:** dropped entirely from Docker bridges, in addition to `enable_ipv6: false`.
 - **Host `OUTPUT` on the Spark, default-deny:** loopback; host → Docker bridges; NTP to the router; DNS (port 53) to the router **only for the local resolver's own user** (`systemd-resolved`), which forwards only `~home.arpa` and has no default route, so no other process and no other name reaches the router's forwarder; apt (sources switched to HTTPS, `ports.ubuntu.com` for arm64), the Docker daemon's image pulls (`proxies` in `daemon.json`) and fwupd (its proxy setting) through the ops proxy's fixed address on `egress-ops`, so they work only while it runs; replies.
 - **Order at boot:** the rule set is a systemd unit ordered before `docker.service`, and Docker requires it, so no container with `restart:` starts before the rules exist. A reboot test proves it.
-- **Bootstrap (WP6.2):** pull or load the pinned Squid, BuildKit and base images, then enable host `OUTPUT` default-deny. Later digest bumps are pulled through the running ops proxy.
+- **Bootstrap (WP6.2):** build or load the egress proxy image, pull or load the pinned BuildKit and base images, then enable host `OUTPUT` default-deny. Later digest bumps are pulled through the running ops proxy.
 - **Every drop is logged**, rate-limited, with a prefix. Until WP5a.5 that is a kernel log line; from WP5a.5 the log shipper forwards it to the `agent-audit` stream (ADR-0019).
 
 ## The two proxies
 - **Runtime proxy** (profile `core`) and **ops proxy** (profile **`egress-ops`**, `just egress-ops up` / `down`) take their hosts from the literal allowlist below; L2 compares the proxies' files with it.
 - **NuGet restores** run with `NUGET_CERT_REVOCATION_MODE=offline`: package signatures are still verified, and restores stay pinned to lock-file hashes and the signed-checksums check (ADR-0009); certificate revocation lists, which use plain HTTP on port 80, are not fetched.
 - **Agents, LLM serving, MCP servers, the verifier and databases join neither proxy network.**
-- **SNI check:** each proxy reads the TLS ClientHello name without decrypting (`ssl_bump peek` at step 1) and splices the connection only if `ssl::server_name` matches the same allowlist as the `CONNECT` host; otherwise it terminates. No interception: the `ssl-bump` port needs a configured certificate, which is self-signed, never presented to clients and trusted by nobody. This stops a second site name inside an allowed tunnel (domain fronting through a CDN). **Build note:** `ssl_bump` needs Squid built with OpenSSL (Ubuntu's `squid-openssl` package; the default `squid` package uses GnuTLS). If the `ubuntu/squid` image does not support peek and splice, the proxies use an own image built from the pinned `ubuntu:24.04` base with `squid-openssl` at a pinned version; E6b proves which.
+- **SNI check:** each proxy reads the TLS ClientHello name without decrypting (`ssl_bump peek` at step 1) and splices the connection only if `ssl::server_name` matches the same allowlist as the `CONNECT` host; otherwise it terminates. No interception: allowed tunnels are only peeked at and spliced. This stops a second site name inside an allowed tunnel (domain fronting through a CDN).
+- **Refused `CONNECT`s:** on an `ssl-bump` port Squid 6 always accepts a refused `CONNECT` (`200`), opens no upstream connection and serves its `403` page inside TLS; the `ssl_bump` rules cannot change this (Squid forces a bump to deliver the error; only `407` is exempt). The certificate it uses is self-signed, made fresh in tmpfs at each start, trusted by nobody and signs nothing else (`generate-host-certificates=off`), so a client sees a TLS failure, or with verification off, Squid's `403`. The log shows `TCP_DENIED` with no bytes from upstream; E3, E4 and E6 check for exactly this.
 - **Hardening (both):** `CONNECT` to port 443 only, every other method denied; `dstdomain -n`; explicit denies for IP literals (IPv4, bracketed IPv6, integer and hex forms) and trailing-dot or look-alike names; `cache deny all`; `icp_port 0`, `htcp_port 0`, `snmp_port 0`; `pinger_enable off` where the build supports it; `http_access deny manager`; `via off`; `forwarded_for delete`; no `cache_peer`, no URL rewriters; listening on the internal network address only. `squid -k parse` runs in the tests, so an unsupported directive fails early.
 - **Upload volume alert (runtime proxy):** the ingester sends almost nothing upstream; a tunnel whose client-sent bytes exceed a small threshold raises an alert.
-- **Image:** Canonical's `ubuntu/squid:6.6-24.04_beta` (multi-arch), pinned by digest. Security fixes arrive as Ubuntu security notices for the `squid` package, not as upstream version numbers; digest bumps follow those notices.
+- **Image:** own image (`deploy/compose/egress/Dockerfile`), because `ssl_bump` needs Squid built with OpenSSL and Canonical's `ubuntu/squid` image ships the GnuTLS build. It installs Ubuntu's `squid-openssl` at an exact version from `noble-security` on the digest-pinned `ubuntu:24.04` base, over HTTPS with the CA bundle copied from a pinned stage; the build fails if Squid lacks OpenSSL. Not an Ubuntu snapshot date: `snapshot.ubuntu.com` does not serve `ports.ubuntu.com`, so arm64 could not use it. Security fixes arrive as Ubuntu security notices for the `squid` and `openssl` packages; the archive then drops the pinned version, the build fails, and the pin is bumped.
 
 ## Literal allowlists
 L2 compares each proxy's file with this table. Rows marked *to confirm* are redirect or CDN hosts whose exact names are fixed in the first "observe, then allow" run (see How it is built) and written here before L2 is switched on; until then they are not in any file.
@@ -96,8 +97,7 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | ops | `nuget.pkg.github.com` | private feed (ADR-0009 amendment 1) |
 | ops | `pypi.org`, `files.pythonhosted.org` | Python packages |
 | ops | `ports.ubuntu.com` | Ubuntu arm64 packages and security updates (the Spark; `security.ubuntu.com` does not serve arm64) |
-| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) |
-| ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
+| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) || ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
 | ops | XBRL taxonomy package hosts, *to confirm* | offline taxonomy download |
 
 ## Builds and image pulls
@@ -146,10 +146,10 @@ A report can carry text from an injected filing. If the browser rendered a remot
 |---|---|---|---|---|---|---|
 | E1 | Runtime client | `HTTPS` to `www.sec.gov` via the runtime proxy | 2xx/3xx from SEC | ✓ | ✓ | ✓ |
 | E2 | Runtime client | Without the proxy: TCP 443 by name and by address, ICMP, UDP 53/123/443, DoH and DoT (853) to public resolvers, IPv6; the bridge gateway address; on the desktop `host.docker.internal`, `gateway.docker.internal` and the Docker Desktop host addresses directly | All fail | ✓ | ✓ | ✓ |
-| E3 | Runtime client | Via the runtime proxy to a host on no list | `403`; `TCP_DENIED` logged | ✓ | ✓ | ✓ |
-| E4 | Runtime client | Via the runtime proxy to an ops host | `403` | ✓ | ✓ | ✓ |
+| E3 | Runtime client | Via the runtime proxy to a host on no list | Squid's `403` inside the tunnel (see Refused `CONNECT`s), TLS fails with verification on; `TCP_DENIED` logged | ✓ | ✓ | ✓ |
+| E4 | Runtime client | Via the runtime proxy to an ops host | Squid's `403` inside the tunnel | ✓ | ✓ | ✓ |
 | E5 | Ops client | Via the ops proxy to `github.com` with `egress-ops` up; after `down`; after `just up` alone | Allowed; unreachable; not running | ✓ | ✓ | ✓ |
-| E6 | Runtime client | `CONNECT` to IPv4, IPv6 and integer literals; to an allowed host on port 22; plain `GET`; `www.sec.gov.` and `www.sec.gov.evil.example` | `403` each | ✓ | ✓ | ✓ |
+| E6 | Runtime client | `CONNECT` to IPv4, IPv6 and integer literals; to an allowed host on port 22; plain `GET`; `www.sec.gov.` and `www.sec.gov.evil.example` | Squid's `403` each (inside the tunnel for `CONNECT`, directly for `GET`) | ✓ | ✓ | ✓ |
 | E6b | Runtime client | `CONNECT www.sec.gov:443`, then a TLS ClientHello naming another host | Terminated; logged | ✓ | ✓ | ✓ |
 | E7 | Agent-, MCP- and serving-type containers | Both proxies, direct `HTTPS`, the bridge gateway | All fail | ✓ | ✓ | ✓ |
 | E8 | Internal-only container | Look up `www.sec.gov` via Docker's resolver, the router and a public resolver | No answer from any (NXDOMAIN for a made-up name proves nothing) | ✓ | ✓ | ✓ |

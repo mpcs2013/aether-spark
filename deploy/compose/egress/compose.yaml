@@ -1,0 +1,58 @@
+# Egress proxies and their networks (docs/architecture/egress.md, WP3n.3). Joins the stack overlay in
+# P3a; until then it runs on its own for the egress tests (tests/egress/).
+name: aetherspark-egress
+
+x-proxy: &proxy
+  build: .
+  image: aetherspark/egress-proxy:local
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  mem_limit: 256m
+  pids_limit: 200
+  restart: unless-stopped
+  # Healthy once Squid accepts connections on its configured address, so `up --wait` means usable
+  healthcheck:
+    test: ["CMD", "bash", "-c", "a=$$(awk '/^http_port/ {print $$2; exit}' /etc/squid/squid.conf); exec 3<>/dev/tcp/$${a%:*}/$${a##*:}"]
+    interval: 30s
+    timeout: 3s
+    start_period: 30s
+    start_interval: 1s
+
+services:
+  egress-runtime:
+    <<: *proxy
+    volumes:
+      - ./runtime.conf:/etc/squid/squid.conf:ro
+      - ./runtime.allowlist:/etc/squid/allowlist.txt:ro
+    networks:
+      egress-runtime: { ipv4_address: 172.30.10.2 }
+      out-runtime: {}
+
+  egress-ops:
+    <<: *proxy
+    profiles: [egress-ops]
+    volumes:
+      - ./ops.conf:/etc/squid/squid.conf:ro
+      - ./ops.allowlist:/etc/squid/allowlist.txt:ro
+    networks:
+      egress-ops: { ipv4_address: 172.30.20.2 }
+      out-ops: {}
+
+networks:
+  # Clients reach the proxies here; no route out (layer 1). Clients get addresses from the upper
+  # half only, so the proxy's fixed address is never handed out first.
+  egress-runtime:
+    internal: true
+    enable_ipv6: false
+    ipam: { config: [{ subnet: 172.30.10.0/24, ip_range: 172.30.10.128/25 }] }
+  egress-ops:
+    internal: true
+    enable_ipv6: false
+    ipam: { config: [{ subnet: 172.30.20.0/24, ip_range: 172.30.20.128/25 }] }
+  # The proxies' way out; layer 3 limits it to public addresses on 443 and the resolver on 53
+  out-runtime:
+    enable_ipv6: false
+  out-ops:
+    enable_ipv6: false
