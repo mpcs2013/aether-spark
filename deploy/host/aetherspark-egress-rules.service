@@ -1,0 +1,22 @@
+# Layer 3 egress rules (docs/architecture/egress.md). Runs before the network and before Docker;
+# Docker requires it (RequiredBy), so no container starts without the rules, and Docker does not
+# start if they fail to load.
+[Unit]
+Description=AetherSpark egress firewall rules (layer 3)
+Documentation=https://github.com/mpcs2013/aether-spark/blob/main/docs/architecture/egress.md
+DefaultDependencies=no
+# After any other firewall service, so none of them loads over these rules at boot
+After=systemd-modules-load.service local-fs.target nftables.service netfilter-persistent.service ufw.service firewalld.service
+Before=network-pre.target docker.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Reads /etc/aetherspark/egress-rules.env itself
+ExecStart=/usr/local/sbin/aetherspark-egress-rules apply
+ExecReload=/usr/local/sbin/aetherspark-egress-rules apply
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=docker.service
