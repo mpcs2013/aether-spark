@@ -56,10 +56,14 @@ cleanup() {
 env_file=$(mktemp)
 trap cleanup EXIT
 
-# Build and pull first: with the rules in place, build steps on the default bridge have no way out
-# (on the Spark, builds go through the ops proxy)
-out=$(dc --profile egress-ops build 2>&1 && dc --profile egress-ops pull --ignore-buildable 2>&1) \
-    || { echo "$out"; echo "build or pull failed"; exit 1; }
+# Build and pull first: with the rules in place, build steps on the default bridge have no way out,
+# not even DNS. On a host that already has the rules (a second run on the Spark), build the images
+# beforehand; on the Spark, builds go through the ops proxy (WP6.4).
+out=$(dc --profile egress-ops build 2>&1 && dc --profile egress-ops pull --ignore-buildable 2>&1) || {
+    echo "$out"
+    echo "build or pull failed; if the layer-3 rules are already in place, that is them (see above)"
+    exit 1
+}
 
 # --- rules ----------------------------------------------------------------------------------
 cat > "$env_file" <<EOF

@@ -11,13 +11,22 @@
 #   check   exit 1 unless the rules are in place and Docker's DNS upstreams are set (see check)
 #   remove  take the rules out again (tests only: the break-it test and CI cleanup)
 #
-# Settings, from the environment (on a host: /etc/aetherspark/egress-rules.env, values in ops.local/):
+# Settings, from the environment or else /etc/aetherspark/egress-rules.env (values in ops.local/):
 #   AS_RESOLVERS     upstream resolvers the proxies may query on port 53 (IPv4, space separated);
 #                    also Docker's "dns" in /etc/docker/daemon.json
 #   AS_HOME_SUBNETS  sources allowed to open TCP 443 to the `ingress` network (space separated)
 #   AS_NAS_ADDR      backup target address for the `backup` network (empty: no backup flow)
 #   AS_NAS_PORT      backup target port
 set -euo pipefail
+
+# An installed host's settings, unless the caller passes its own
+SETTINGS=/etc/aetherspark/egress-rules.env
+if [ -z "${AS_RESOLVERS:-}" ] && [ -r "$SETTINGS" ]; then
+    set -a
+    # shellcheck source=/dev/null
+    . "$SETTINGS"
+    set +a
+fi
 
 # Docker bridges: the default bridge, unnamed networks, and the stack's named networks
 BRIDGES=(docker0 br-+ as-+)

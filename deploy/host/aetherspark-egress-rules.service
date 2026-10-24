@@ -12,7 +12,7 @@ Wants=network-pre.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-EnvironmentFile=/etc/aetherspark/egress-rules.env
+# Reads /etc/aetherspark/egress-rules.env itself
 ExecStart=/usr/local/sbin/aetherspark-egress-rules apply
 ExecReload=/usr/local/sbin/aetherspark-egress-rules apply
 
