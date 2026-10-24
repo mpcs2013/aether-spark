@@ -7,6 +7,14 @@ x-client: &client
   cap_drop: [ALL]
   cap_add: [NET_RAW]   # for the ICMP tests only
 
+x-python: &python
+  image: python:3.12.12-alpine3.22@sha256:848ba4413eb897e225159b8fc1b02094576cbae4aa73fc13142608ae2c8c0e32
+  entrypoint: ["sleep", "infinity"]
+  read_only: true
+  cap_drop: [ALL]
+  # Relative to the first Compose file's directory (deploy/compose/egress)
+  volumes: ["../../../tests/egress/udp.py:/udp.py:ro"]
+
 services:
   # E9: a container on a network outside the matrix (plain bridge, way out by Docker's defaults)
   client-plain:
@@ -22,6 +30,17 @@ services:
   probe-out:
     <<: *client
     networks: [out-runtime]
+
+  # E22: a genuine client on the proxies' way out, sending from a fixed source port...
+  sender-out:
+    <<: *python
+    networks: [out-runtime]
+
+  # ...and a container on another network forging that client's source address
+  forger-backup:
+    <<: *python
+    cap_add: [NET_RAW]   # Docker grants it by default; the test makes it explicit
+    networks: [backup]
 
   # E19: stands in for Traefik, published on 443 and on a port the rules do not allow
   web-ingress:

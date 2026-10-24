@@ -5,7 +5,8 @@
 Description=AetherSpark egress firewall rules (layer 3)
 Documentation=https://github.com/mpcs2013/aether-spark/blob/main/docs/architecture/egress.md
 DefaultDependencies=no
-After=systemd-modules-load.service local-fs.target
+# After any other firewall service, so none of them loads over these rules at boot
+After=systemd-modules-load.service local-fs.target nftables.service netfilter-persistent.service ufw.service firewalld.service
 Before=network-pre.target docker.service
 Wants=network-pre.target
 

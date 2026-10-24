@@ -39,6 +39,8 @@ check E2 "DNS over TLS (853)" fail "$(outcome client-runtime nc -z -w 5 1.1.1.1 
 check E2 "UDP 123 out" fail "$(outcome client-runtime nc -u -z -w 5 1.1.1.1 123)"
 check E2 "UDP 443 out" fail "$(outcome client-runtime nc -u -z -w 5 1.1.1.1 443)"
 check E2 "IPv6 out" fail "$(outcome client-runtime curl -s -m 10 -6 -k 'https://[2606:4700:4700::1111]/')"
+# Nothing listens on the gateway here, so these two only show no answer; host services with a
+# listener are tested by E16 (layer3.sh)
 check E2 "bridge gateway, TCP 443" fail "$(outcome client-runtime nc -z -w 5 172.30.10.1 443)"
 check E2 "bridge gateway as resolver" fail "$(outcome client-runtime nslookup www.sec.gov 172.30.10.1)"
 # Docker Desktop's host names and host address (no such names or route on Linux, so these pass there too)
