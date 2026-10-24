@@ -10,7 +10,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 [ "$(id -u)" -eq 0 ] || { echo "run as root"; exit 1; }
-if docker info --format '{{.OperatingSystem}}' | grep -q 'Docker Desktop'; then
+if docker info --format '{{.OperatingSystem}}' | grep 'Docker Desktop' >/dev/null; then
     echo "Docker Desktop: no layer 3 (see the design note)"; exit 1
 fi
 
@@ -39,8 +39,10 @@ outcome() { if "$@" >/dev/null 2>&1; then echo ok; else echo fail; fi; }
 # timestamp at the start. The log is a ring buffer that drops its oldest lines once full (every
 # container start logs a few), so a line count is no baseline; /proc/uptime runs on another clock.
 klog_since=$(dmesg | tail -n 1 | awk -F'[][]' '{gsub(/ /, "", $2); print $2}')   # as text: awk prints numbers with 6 digits
+# Never `grep -q` at the end of a pipeline here: it exits at the first match, the writer gets
+# SIGPIPE, and with pipefail a found line reads as "not found"
 logged() { # log prefix, interface prefix: was such a packet logged during this run?
-    dmesg | awk -F'[][]' -v since="${klog_since:-0}" '$2 + 0 > since + 0' | grep -q "$1:IN=$2" && echo yes || echo no
+    dmesg | awk -F'[][]' -v since="${klog_since:-0}" '$2 + 0 > since + 0' | grep "$1:IN=$2" >/dev/null && echo yes || echo no
 }
 # Checks that need the kernel log: skipped in the lab. On a failure they print what the log holds,
 # so a CI-only failure can be diagnosed from the job log alone.

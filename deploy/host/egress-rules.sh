@@ -149,7 +149,7 @@ backend_ok() {
     configured=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("firewall-backend", "iptables"))' \
         /etc/docker/daemon.json 2>/dev/null || echo iptables)
     [ "$configured" = iptables ] || { echo "daemon.json selects the $configured firewall backend" >&2; return 1; }
-    if systemctl cat docker.service 2>/dev/null | grep -q -- '--firewall-backend'; then
+    if systemctl cat docker.service 2>/dev/null | grep -- '--firewall-backend' >/dev/null; then
         echo "docker.service sets --firewall-backend" >&2; return 1
     fi
     running=$(docker info --format '{{with .FirewallBackend}}{{.Driver}}{{end}}' 2>/dev/null) || return 0
@@ -158,7 +158,7 @@ backend_ok() {
 
 # Other firewall managers put their own rules in the same chains or switch Docker to firewalld
 others_ok() {
-    if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -qx 'Status: active'; then
+    if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -x 'Status: active' >/dev/null; then
         echo "ufw is active" >&2; return 1
     fi
     if systemctl is-active --quiet firewalld.service 2>/dev/null; then
@@ -168,7 +168,7 @@ others_ok() {
 
 apply() {
     settings
-    iptables -V | grep -q nf_tables || die "iptables is not the nf_tables variant ($(iptables -V))"
+    iptables -V | grep nf_tables >/dev/null || die "iptables is not the nf_tables variant ($(iptables -V))"
     backend_ok || die "Docker must use the iptables firewall backend"
     others_ok || die "another firewall manager is active"
     # --noflush keeps Docker's chains; the chains declared above are replaced as a whole
