@@ -34,7 +34,9 @@ BRIDGES=(docker0 br-+ as-+)
 OUT_BRIDGES=(as-out-runtime as-out-ops)
 # Not public: the proxies' way out never reaches these (RFC 6890 special-purpose ranges)
 NOT_PUBLIC=0.0.0.0/8,10.0.0.0/8,100.64.0.0/10,127.0.0.0/8,169.254.0.0/16,172.16.0.0/12,192.0.0.0/24,192.0.2.0/24,192.168.0.0/16,198.18.0.0/15,198.51.100.0/24,203.0.113.0/24,224.0.0.0/4,240.0.0.0/4
-LIMIT='-m limit --limit 20/minute --limit-burst 40'
+# Log budget per source and destination pair: one noisy flow cannot hide another container's
+# attempt (a single shared limit would). Argument: the hash table's name, one per rule.
+limit() { echo "-m hashlimit --hashlimit-upto 10/minute --hashlimit-burst 5 --hashlimit-mode srcip,dstip --hashlimit-name $1"; }
 
 die() { echo "aetherspark-egress-rules: $*" >&2; exit 1; }
 
@@ -44,7 +46,7 @@ rules_v4() {
     echo ':DOCKER-USER - [0:0]'
     echo ':AETHERSPARK-INPUT - [0:0]'
     echo ':AETHERSPARK-DROP - [0:0]'
-    echo "-A AETHERSPARK-DROP $LIMIT -j LOG --log-prefix aetherspark-drop:"
+    echo "-A AETHERSPARK-DROP $(limit as-drop) -j LOG --log-prefix aetherspark-drop:"
     echo '-A AETHERSPARK-DROP -j DROP'
 
     # Forwarded traffic. RETURN hands a packet back to Docker's own chains, which still apply
@@ -89,7 +91,7 @@ rules_v4() {
     echo '*raw'
     echo ':AETHERSPARK-SPOOF - [0:0]'
     for b in "${BRIDGES[@]}"; do
-        echo "-A AETHERSPARK-SPOOF -i $b -m rpfilter --invert $LIMIT -j LOG --log-prefix aetherspark-spoof:"
+        echo "-A AETHERSPARK-SPOOF -i $b -m rpfilter --invert $(limit as-spoof) -j LOG --log-prefix aetherspark-spoof:"
         echo "-A AETHERSPARK-SPOOF -i $b -m rpfilter --invert -j DROP"
     done
     echo 'COMMIT'
@@ -104,7 +106,7 @@ rules_v6() {
     echo ':DOCKER-USER - [0:0]'
     echo ':AETHERSPARK-INPUT - [0:0]'
     echo ':AETHERSPARK-DROP - [0:0]'
-    echo "-A AETHERSPARK-DROP $LIMIT -j LOG --log-prefix aetherspark-drop:"
+    echo "-A AETHERSPARK-DROP $(limit as-drop6) -j LOG --log-prefix aetherspark-drop:"
     echo '-A AETHERSPARK-DROP -j DROP'
     echo '-A DOCKER-USER -j AETHERSPARK-DROP'
     for b in "${BRIDGES[@]}"; do echo "-A AETHERSPARK-INPUT -i $b -j AETHERSPARK-DROP"; done

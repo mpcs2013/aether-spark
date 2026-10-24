@@ -69,7 +69,7 @@ Rules the lint checks: the generated Compose's default network is removed by the
 - **`check` compares every rule** with the rendered rule set (loaded into a scratch network namespace, so both sides print in the same normalised form), plus the jumps and Docker's settings; an added or edited rule fails it. It runs at every Docker start; a timer with an alert follows with ADR-0011's alerting.
 - **Host `OUTPUT` rules (WP6.2)** go into this rule script or their own table, never into a ruleset loaded with `flush ruleset` (that would remove these rules); `install.sh` refuses an enabled `nftables.service` whose configuration flushes the ruleset.
 - **Bootstrap (WP6.2):** build or load the egress proxy image, pull or load the pinned BuildKit and base images, then enable host `OUTPUT` default-deny. Later digest bumps are pulled through the running ops proxy.
-- **Every drop is logged**, rate-limited, with a prefix. Until WP5a.5 that is a kernel log line; from WP5a.5 the log shipper forwards it to the `agent-audit` stream (ADR-0019).
+- **Every drop is logged**, with a prefix and a log budget per source and destination pair (`hashlimit`), so a flood from one container cannot hide another container's attempt. Until WP5a.5 that is a kernel log line; from WP5a.5 the log shipper forwards it to the `agent-audit` stream (ADR-0019).
 
 ## The two proxies
 - **Runtime proxy** (profile `core`) and **ops proxy** (profile **`egress-ops`**, `just egress-ops up` / `down`) take their hosts from the literal allowlist below; L2 compares the proxies' files with it.
