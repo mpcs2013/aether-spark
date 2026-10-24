@@ -73,7 +73,7 @@ Rules the lint checks: the generated Compose's default network is removed by the
 - **Refused `CONNECT`s:** on an `ssl-bump` port Squid 6 always accepts a refused `CONNECT` (`200`), opens no upstream connection and serves its `403` page inside TLS; the `ssl_bump` rules cannot change this (Squid forces a bump to deliver the error; only `407` is exempt). The certificate it uses is self-signed, made fresh in tmpfs at each start, trusted by nobody and signs nothing else (`generate-host-certificates=off`), so a client sees a TLS failure, or with verification off, Squid's `403`. The log shows `TCP_DENIED` with no bytes from upstream; E3, E4 and E6 check for exactly this.
 - **Hardening (both):** `CONNECT` to port 443 only, every other method denied; `dstdomain -n`; explicit denies for IP literals (IPv4, bracketed IPv6, integer and hex forms) and trailing-dot or look-alike names; `cache deny all`; `icp_port 0`, `htcp_port 0`, `snmp_port 0`; `pinger_enable off` where the build supports it; `http_access deny manager`; `via off`; `forwarded_for delete`; no `cache_peer`, no URL rewriters; listening on the internal network address only. `squid -k parse` runs in the tests, so an unsupported directive fails early.
 - **Upload volume alert (runtime proxy):** the ingester sends almost nothing upstream; a tunnel whose client-sent bytes exceed a small threshold raises an alert.
-- **Image:** own image (`deploy/compose/egress/Dockerfile`), because `ssl_bump` needs Squid built with OpenSSL and Canonical's `ubuntu/squid` image ships the GnuTLS build. It installs Ubuntu's `squid-openssl` on the digest-pinned `ubuntu:24.04` base from a pinned Ubuntu snapshot date (`apt-get --snapshot`), over HTTPS with the CA bundle copied from a pinned stage; the build fails if Squid lacks OpenSSL. Security fixes arrive as Ubuntu security notices for the `squid` package; the snapshot date moves forward to pick them up.
+- **Image:** own image (`deploy/compose/egress/Dockerfile`), because `ssl_bump` needs Squid built with OpenSSL and Canonical's `ubuntu/squid` image ships the GnuTLS build. It installs Ubuntu's `squid-openssl` at an exact version from `noble-security` on the digest-pinned `ubuntu:24.04` base, over HTTPS with the CA bundle copied from a pinned stage; the build fails if Squid lacks OpenSSL. Not an Ubuntu snapshot date: `snapshot.ubuntu.com` does not serve `ports.ubuntu.com`, so arm64 could not use it. Security fixes arrive as Ubuntu security notices for the `squid` and `openssl` packages; the archive then drops the pinned version, the build fails, and the pin is bumped.
 
 ## Literal allowlists
 L2 compares each proxy's file with this table. Rows marked *to confirm* are redirect or CDN hosts whose exact names are fixed in the first "observe, then allow" run (see How it is built) and written here before L2 is switched on; until then they are not in any file.
@@ -97,9 +97,7 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | ops | `nuget.pkg.github.com` | private feed (ADR-0009 amendment 1) |
 | ops | `pypi.org`, `files.pythonhosted.org` | Python packages |
 | ops | `ports.ubuntu.com` | Ubuntu arm64 packages and security updates (the Spark; `security.ubuntu.com` does not serve arm64) |
-| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) |
-| ops | `snapshot.ubuntu.com` | pinned Ubuntu package snapshots for own images (the egress proxy) |
-| ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
+| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) || ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
 | ops | XBRL taxonomy package hosts, *to confirm* | offline taxonomy download |
 
 ## Builds and image pulls
