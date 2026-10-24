@@ -35,10 +35,12 @@ reach() { # url, prefix command...
 }
 ex() { dc exec -T "$@"; }
 outcome() { if "$@" >/dev/null 2>&1; then echo ok; else echo fail; fi; }
-# Kernel log lines from this run only (earlier runs leave theirs)
-klog_from=$(dmesg 2>/dev/null | wc -l)
+# Kernel log lines from this run only (earlier runs leave theirs): newer than the last line's
+# timestamp at the start. The log is a ring buffer that drops its oldest lines once full (every
+# container start logs a few), so a line count is no baseline; /proc/uptime runs on another clock.
+klog_since=$(dmesg | tail -n 1 | awk -F'[][]' '{gsub(/ /, "", $2); print $2}')   # as text: awk prints numbers with 6 digits
 logged() { # log prefix, interface prefix: was such a packet logged during this run?
-    dmesg | tail -n +"$((klog_from + 1))" | grep -q "$1:IN=$2" && echo yes || echo no
+    dmesg | awk -F'[][]' -v since="${klog_since:-0}" '$2 + 0 > since + 0' | grep -q "$1:IN=$2" && echo yes || echo no
 }
 # Checks that need the kernel log: skipped in the lab
 check_logged() { # id, description, log prefix, interface prefix
