@@ -40,19 +40,26 @@ services:
       egress-ops: { ipv4_address: 172.30.20.2 }
       out-ops: {}
 
+# Bridge names start with `as-` so the host rules (deploy/host/egress-rules.sh) can tell the
+# networks apart; `as-out-*` and `as-backup` are the only ones with a way out.
 networks:
-  # Clients reach the proxies here; no route out (layer 1). Clients get addresses from the upper
-  # half only, so the proxy's fixed address is never handed out first.
+  # Clients reach the proxies here; no route out (layer 1). The host is .1 (without `gateway`,
+  # Docker would take the range's first address); clients get addresses from the upper half only,
+  # so the proxy's fixed address is never handed out first.
   egress-runtime:
     internal: true
     enable_ipv6: false
-    ipam: { config: [{ subnet: 172.30.10.0/24, ip_range: 172.30.10.128/25 }] }
+    driver_opts: { com.docker.network.bridge.name: as-eg-runtime }
+    ipam: { config: [{ subnet: 172.30.10.0/24, gateway: 172.30.10.1, ip_range: 172.30.10.128/25 }] }
   egress-ops:
     internal: true
     enable_ipv6: false
-    ipam: { config: [{ subnet: 172.30.20.0/24, ip_range: 172.30.20.128/25 }] }
+    driver_opts: { com.docker.network.bridge.name: as-eg-ops }
+    ipam: { config: [{ subnet: 172.30.20.0/24, gateway: 172.30.20.1, ip_range: 172.30.20.128/25 }] }
   # The proxies' way out; layer 3 limits it to public addresses on 443 and the resolver on 53
   out-runtime:
     enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-out-runtime }
   out-ops:
     enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-out-ops }
