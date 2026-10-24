@@ -28,4 +28,5 @@ networks:
   agents:
     internal: true
     enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-agents }
     ipam: { config: [{ subnet: 172.30.90.0/24 }] }

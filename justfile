@@ -49,6 +49,11 @@ egress-ops action:
 egress-test:
     bash tests/egress/run.sh
 
+# Egress layer 3: installs the host rules and tests all layers (Linux with Docker Engine: CI, the Spark)
+[linux]
+egress-test-layer3:
+    sudo bash tests/egress/layer3.sh
+
 # On Windows through Git Bash, not the WSL `bash` shim, so the tests use Docker Desktop
 
 # Egress tests, layers 1 and 2 (tests/egress/run.sh; needs Docker and internet access)

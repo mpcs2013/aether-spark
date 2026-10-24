@@ -19,7 +19,7 @@ No **stack container**, and on the Spark no host process, sends anything to the 
 | Runtime egress | EDGAR ingester, price-data job | `egress-runtime` → runtime proxy → `out-runtime` | `CONNECT` 443 to the runtime allowlist, SNI checked | P4a |
 | Ops egress | Owner-started jobs: model pulls, taxonomy download, image builds, package restores incl. the private feed; on the Spark also apt and the Docker daemon | `egress-ops` → ops proxy → `out-ops` | `CONNECT` 443 to the ops allowlist, SNI checked; the ops proxy runs only while such a job runs | P3a |
 | Backup | restic job | `backup` | TCP to the NAS rest-server only: the Home address in the desktop phase, the AetherSpark-network address with TLS from WP6.6 (addresses in `ops.local/`) | P3a |
-| Proxy name resolution | the two proxies | `out-runtime`, `out-ops` | DNS (UDP/TCP 53) to the host's upstream resolver only (the router on the Spark) | P3a |
+| Proxy name resolution | the two proxies | `out-runtime`, `out-ops` | DNS (UDP/TCP 53) to the host's upstream resolver only (the router on the Spark), through Docker's embedded resolver with the upstream set in `daemon.json` (see DNS) | P3a |
 | Host time and names (Spark) | host | — | NTP and DNS for `home.arpa` to the router only | WP6.2 |
 | Internal | services among themselves | internal networks per the membership matrix | Only the pairs in the matrix (OIDC discovery/JWKS/tokens, step-ca renewal, telemetry, queries) | P3a–P5a |
 | Phone delivery of alerts | — | — | Decided with ADR-0011 change 3 before WP6.6 | — |
@@ -57,11 +57,13 @@ Rules the lint checks: the generated Compose's default network is removed by the
 
 ### Layer 3 rules
 - **Backend pinned:** Docker Engine with the **iptables backend** (`iptables-nft`), which provides `DOCKER-USER`; the native nftables backend has no such chain and is experimental. Engine **≥ 26.0** (DNS fix for internal-only containers, CVE-2024-29018; DGX OS ships 29.x). Same backend and version range on the Spark and in CI.
-- **`DOCKER-USER`, IPv4:** accept `ct state established,related`; `out-runtime` and `out-ops` may reach public addresses on TCP 443 and the upstream resolver on 53, nothing else (RFC 1918, link-local, the router except DNS, the NAS dropped); `backup` only the NAS address and port; `ingress` accepts new TCP 443 from the Home subnet and, from WP6.6, from the NAS's address; everything else from Docker bridges is dropped. No ICMP out. Forwarding between non-Docker interfaces is dropped (the Spark is multi-homed).
+- **Bridge names:** every network of the matrix sets `com.docker.network.bridge.name` to an `as-` name (`as-out-runtime`, `as-backup`, `as-ingress`, …), so the rules match networks by interface; unnamed networks (`br-…`) and `docker0` get no flow at all. Internal networks also pin `gateway` to `.1`.
+- **`DOCKER-USER`, IPv4:** accept `ct state established,related`; traffic between two Docker bridges is handed back to Docker's own isolation rules; `out-runtime` and `out-ops` may reach public addresses on TCP 443 and the upstream resolver on 53, nothing else (RFC 1918, link-local, the router except DNS, the NAS dropped); `backup` only the NAS address and port; `ingress` accepts new TCP 443 from the Home subnet and, from WP6.6, from the NAS's address; everything else from Docker bridges is dropped. No ICMP out. Forwarding between non-Docker interfaces is dropped (the Spark is multi-homed).
 - **Host `INPUT` from Docker bridges: default-deny**, after accepting `ct state established,related` (the replies to the host's own connections, e.g. to the ops proxy). Containers must not open connections to host services (sshd, exporters, the Docker API) through the bridge address. Gateway mode `isolated` is not used: the host must still reach the ops proxy for apt and image pulls.
-- **IPv6:** dropped entirely from Docker bridges, in addition to `enable_ipv6: false`.
+- **IPv6:** dropped entirely from Docker bridges, in addition to `enable_ipv6: false`: nothing is forwarded (`DOCKER-USER` for IPv6, since Docker puts its own jump first in `FORWARD` at every start) and Docker bridges reach no host service.
+- **Docker's DNS upstreams in `daemon.json`** (`"dns"`: the same resolvers). Docker's embedded resolver sends lookups for upstreams it took from the host's `resolv.conf` from the **host's** network namespace (`ExtServers: [host(…)]` in a container's `resolv.conf`), past `DOCKER-USER`: every container on a non-internal network could then resolve any name, a DNS channel out for Traefik and restic, and on the Spark host `OUTPUT` would block the proxies' lookups. Upstreams set in `daemon.json` are queried from the **container's** namespace, so `DOCKER-USER` decides: only `as-out-*` reach the resolver. The rule check fails without this setting. Found while building (Docker Engine 28.0.4, verified against the resolver's source).
 - **Host `OUTPUT` on the Spark, default-deny:** loopback; host → Docker bridges; NTP to the router; DNS (port 53) to the router **only for the local resolver's own user** (`systemd-resolved`), which forwards only `~home.arpa` and has no default route, so no other process and no other name reaches the router's forwarder; apt (sources switched to HTTPS, `ports.ubuntu.com` for arm64), the Docker daemon's image pulls (`proxies` in `daemon.json`) and fwupd (its proxy setting) through the ops proxy's fixed address on `egress-ops`, so they work only while it runs; replies.
-- **Order at boot:** the rule set is a systemd unit ordered before `docker.service`, and Docker requires it, so no container with `restart:` starts before the rules exist. A reboot test proves it.
+- **Order at boot:** the rule set is a systemd unit ordered before `docker.service`, and Docker requires it, so no container with `restart:` starts before the rules exist. A drop-in for `docker.service` re-applies the rules after every Docker start (Docker re-inserts its jumps) and fails the start if they are not in place. Docker keeps the contents of `DOCKER-USER` across restarts. A reboot test proves the order.
 - **Bootstrap (WP6.2):** build or load the egress proxy image, pull or load the pinned BuildKit and base images, then enable host `OUTPUT` default-deny. Later digest bumps are pulled through the running ops proxy.
 - **Every drop is logged**, rate-limited, with a prefix. Until WP5a.5 that is a kernel log line; from WP5a.5 the log shipper forwards it to the `agent-audit` stream (ADR-0019).
 
@@ -114,7 +116,7 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 The ingester and the price job take company identifiers (CIK, accession numbers, tickers) only from the owner-maintained universe (ADR-0020), each validated by format. No agent tool enqueues ingestion or passes job arguments, and the ingester never follows a URL found inside a filing.
 
 ## DNS
-- **Containers:** Docker service names only. Containers attached only to internal networks get no answer for external names (Engine ≥ 26). The two proxies are on an internal and an outbound network and resolve through the upstream resolver, which is what they need. A failing E8 blocks the release; it is not worked around inside containers.
+- **Containers:** Docker service names only. Containers attached only to internal networks get no answer for external names (Engine ≥ 26). The two proxies are on an internal and an outbound network and resolve through the upstream resolver, which is what they need. Containers on other non-internal networks (Traefik, restic) get no external names either: with the upstream in `daemon.json` their lookups leave from their own namespace and `DOCKER-USER` drops them (see Layer 3 rules; E9). A failing E8 blocks the release; it is not worked around inside containers.
 - **Spark host:** resolves only `home.arpa`. `systemd-resolved` forwards only `~home.arpa` to the router and has no default route, and host `OUTPUT` lets only the resolver's own user send DNS to the router. The host needs no external names because apt, pulls and fwupd resolve at the proxy. This closes DNS tunnelling from host processes; E12 checks a direct query to the router as root.
 
 ## Phone-home settings, off and tested
@@ -125,7 +127,7 @@ The ingester and the price job take company identifiers (CIK, accession numbers,
 A report can carry text from an injected filing. If the browser rendered a remote image or followed an automatic link in it, the owner's browser on the Home network would send data out. So: Traefik sets a strict Content-Security-Policy (`default-src 'self'`; images, scripts and fetches from the app only), and the UI renders model text without remote images or automatic links. Test E15 runs with the UI.
 
 ## Compose and config lint (CI, every pull request)
-- **L1 — rendered Compose:** rejects `network_mode: host` or `service:…`; `privileged`; `cap_add` with `NET_ADMIN` or `NET_RAW`; any `docker.sock` mount (Traefik uses the file provider); published ports on anything but Traefik; undeclared networks; `enable_ipv6: true`; any violation of the membership matrix; a writable model-store mount outside pull jobs; a missing phone-home setting. A fixture with each forbidden setting must fail.
+- **L1 — rendered Compose:** rejects `network_mode: host` or `service:…`; `privileged`; `cap_add` with `NET_ADMIN` or `NET_RAW`; any `docker.sock` mount (Traefik uses the file provider); published ports on anything but Traefik; undeclared networks; a matrix network without its `as-` bridge name; per-service `dns`, `dns_search` or `dns_opt`; `enable_ipv6: true`; any violation of the membership matrix; a writable model-store mount outside pull jobs; a missing phone-home setting. A fixture with each forbidden setting must fail.
 - **L2 — allowlists:** each proxy's allowlist file equals the list in this note, so an added host needs a design change.
 - **L3 — config:** `squid -k parse` on both configs; the layer-3 rule files load in a scratch namespace.
 
@@ -137,7 +139,7 @@ A report can carry text from an injected filing. If the browser rendered a remot
 
 ## Where it lives
 - `deploy/compose/egress/`: both Squid configs and allowlists, the overlay with all networks of the matrix, profiles `core` and `egress-ops`.
-- `deploy/host/`: the `DOCKER-USER`, `INPUT` and `OUTPUT` rule sets, the systemd unit and its ordering, the `daemon.json` fragment, the resolver settings; applied by the host role on the Spark (WP6.2) and by the CI job.
+- `deploy/host/`: the rule script (`DOCKER-USER`, `INPUT`, IPv6; `apply`, `check`, `remove`), the systemd unit, the `docker.service` drop-in, `install.sh` (also sets `"dns"` in `daemon.json`) and an example settings file; the Spark's host `OUTPUT` rules, the rest of the `daemon.json` fragment and the resolver settings follow with the host role (WP6.2). Applied by the host role on the Spark and by the CI job.
 - `tests/egress/`: the tests below (`just egress-test`) and the lints.
 
 ## Tests (acceptance criteria of WP3n.3; G3n, G3, G5a, G6)
@@ -153,7 +155,7 @@ A report can carry text from an injected filing. If the browser rendered a remot
 | E6b | Runtime client | `CONNECT www.sec.gov:443`, then a TLS ClientHello naming another host | Terminated; logged | ✓ | ✓ | ✓ |
 | E7 | Agent-, MCP- and serving-type containers | Both proxies, direct `HTTPS`, the bridge gateway | All fail | ✓ | ✓ | ✓ |
 | E8 | Internal-only container | Look up `www.sec.gov` via Docker's resolver, the router and a public resolver | No answer from any (NXDOMAIN for a made-up name proves nothing) | ✓ | ✓ | ✓ |
-| E9 | Container on a plain bridge; `backup` to a non-NAS address | Direct `HTTPS` out; connection attempt | Dropped; drop logged | — | ✓ | ✓ |
+| E9 | Container on a plain bridge; `backup` to a non-NAS address, another NAS port, the internet | Direct `HTTPS` out and DNS; connection attempts and DNS | Dropped; drop logged; the NAS address and port still work | — | ✓ | ✓ |
 | E10 | Proxies | Logs after E1–E6b | One line per request with decision and SNI; no query strings | ✓ | ✓ | ✓ |
 | E11 | Proxies | Cache manager (`mgr:info`) | `403` | ✓ | ✓ | ✓ |
 | E12 | Spark host | `apt update` with the ops proxy down, then up; direct `curl` to a public host; DNS for an external name; DNS to a non-router resolver; as root, a direct query to the router for an external name | Fails; works; fails; fails; fails; fails | — | — | ✓ |
@@ -165,6 +167,7 @@ A report can carry text from an injected filing. If the browser rendered a remot
 | E18 | Host | Traffic between two non-Docker interfaces (e.g. AetherSpark network ↔ another) | Not forwarded | — | ✓ | ✓ |
 | E19 | Ingress | A non-443 port on the host; 443 from a source outside the allowed ones | Refused | — | ✓ | ✓ |
 | E20 | Images and containers | Search image history, layers and every container's environment for the private feed token | Not found | — | ✓ | ✓ |
+| E21 | Probe on `out-runtime` (test only) | Public TCP 443; port 80; a Home address; ICMP; DNS via Docker's resolver; DNS to a public resolver | Works; fails; fails; fails; works; fails | — | ✓ | ✓ |
 | L1–L3 | CI | Lints and config parse | Pass; each forbidden fixture fails | ✓ | ✓ | ✓ |
 | M1 | CI | **Break-it:** for each layer-3 rule and each proxy ACL, remove it and rerun the suite | At least one test fails per removal | — | ✓ | — |
 | P1 | Router | 24 h capture of the AetherSpark network's uplink, compared with the allowlists | Only allowlisted hosts (plus the NAS alerts) | — | — | ✓ (G6) |
@@ -181,6 +184,7 @@ The suite runs again after every Docker Desktop, Docker Engine, DGX OS or firmwa
 | Malicious model (T3) | Read-only model store; serving without proxy; pull jobs only verify | L1, E7 |
 | Runtime reaches upload-capable hosts | Two proxies, ops proxy down by default | E4, E5 |
 | DNS tunnelling | Internal-only DNS; host resolves `home.arpa` only | E8, E12 |
+| DNS out from non-internal containers (Traefik, restic) | Docker's upstreams in `daemon.json`, so lookups pass `DOCKER-USER`; only `out-*` reach the resolver | E9, E21 |
 | Container reaches host services | Host `INPUT` default-deny | E16 |
 | The Spark routes between its networks | Forwarding between non-Docker interfaces dropped | E18 |
 | Ingress from the wrong source or port | `DOCKER-USER` ingress rule | E13, E19 |

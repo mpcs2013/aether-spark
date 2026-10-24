@@ -1,0 +1,41 @@
+# Layer-3 test containers (tests/egress/layer3.sh), on top of deploy/compose/egress/compose.yaml
+# and compose.test.yaml. Linux hosts with the host rules only (CI, the Spark); never in the stack.
+x-client: &client
+  image: curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40
+  entrypoint: ["sleep", "infinity"]
+  read_only: true
+  cap_drop: [ALL]
+  cap_add: [NET_RAW]   # for the ICMP tests only
+
+services:
+  # E9: a container on a network outside the matrix (plain bridge, way out by Docker's defaults)
+  client-plain:
+    <<: *client
+    networks: [plain]
+
+  # E9: the restic job's network, NAS only
+  client-backup:
+    <<: *client
+    networks: [backup]
+
+  # The proxies' way out, probed directly (the lint forbids any other container on out-*)
+  probe-out:
+    <<: *client
+    networks: [out-runtime]
+
+  # E19: stands in for Traefik, published on 443 and on a port the rules do not allow
+  web-ingress:
+    image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command: ["sh", "-c", "httpd -p 443 -h /tmp && exec httpd -f -p 8080 -h /tmp"]
+    networks: [ingress]
+    ports: ["443:443", "8080:8080"]
+
+networks:
+  plain:
+    enable_ipv6: false
+  backup:
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-backup }
+  ingress:
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-ingress }
