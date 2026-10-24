@@ -42,9 +42,18 @@ klog_since=$(dmesg | tail -n 1 | awk -F'[][]' '{gsub(/ /, "", $2); print $2}')  
 logged() { # log prefix, interface prefix: was such a packet logged during this run?
     dmesg | awk -F'[][]' -v since="${klog_since:-0}" '$2 + 0 > since + 0' | grep -q "$1:IN=$2" && echo yes || echo no
 }
-# Checks that need the kernel log: skipped in the lab
+# Checks that need the kernel log: skipped in the lab. On a failure they print what the log holds,
+# so a CI-only failure can be diagnosed from the job log alone.
 check_logged() { # id, description, log prefix, interface prefix
-    if [ -n "$lab" ]; then skip "$1" "$2" lab; else check "$1" "$2" yes "$(logged "$3" "$4")"; fi
+    if [ -n "$lab" ]; then skip "$1" "$2" lab; return; fi
+    local got; got=$(logged "$3" "$4")
+    check "$1" "$2" yes "$got"
+    [ "$got" = yes ] && return
+    echo "      log baseline: ${klog_since:-none}; aetherspark lines since then, by prefix and interface:"
+    dmesg | awk -F'[][]' -v since="${klog_since:-0}" '$2 + 0 > since + 0' \
+        | grep -o 'aetherspark-[a-z]*:IN=[^ ]* OUT=[^ ]*' | sort | uniq -c | sed 's/^/      /'
+    echo "      last $3 lines in the whole log:"
+    dmesg | grep "$3:" | tail -n 3 | cut -c1-220 | sed 's/^/      /'
 }
 
 # Resolvers Docker hands its embedded DNS: systemd-resolved's upstreams when the host uses the stub
