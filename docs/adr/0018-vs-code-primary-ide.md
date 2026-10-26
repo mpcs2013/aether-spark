@@ -1,5 +1,5 @@
 # ADR-0018: VS Code as the primary IDE
-- **Status:** Accepted · **Date:** 2026-10-03
+- **Status:** Accepted · **Date:** 2026-10-03 · **Note** 2026-10-26 (the Spark is a runtime host)
 ## Context
 Decisya documents every step as *VS 2026 | CLI*. AetherSpark differs: about half the code is Python, the runtime target is ARM64 Linux (DGX OS), development runs in WSL2/devcontainers, and Claude Code is the main dev-agent tool.
 ## Decision
@@ -10,5 +10,7 @@ Decisya documents every step as *VS 2026 | CLI*. AetherSpark differs: about half
 ## Consequences
 - Good: one IDE for .NET, Python, YAML/Compose and Markdown; native Remote-WSL, devcontainer and **Remote-SSH into the Spark** (VS 2026 cannot develop on ARM64 Linux); best Claude Code integration.
 - Bad: weaker .NET refactoring/profiling than VS 2026; C# Dev Kit is licensed like VS Community (free for individuals; check if the use ever becomes commercial).
+## Note (2026-10-26) — the Spark is a runtime host
+Development stays on the desktop ([architecture/spark-host.md](../architecture/spark-host.md), ADR-0012 amendment 2026-10-26). Remote-SSH into the Spark is for inspection and owner-started ops sessions only: the VS Code server is downloaded on the desktop and copied over SSH (`remote.SSH.localServerDownload`), no extensions are installed on the Spark, and no development, git or Claude Code session runs there. Replaces "Remote-SSH into the Spark" as a development path under Consequences.
 ## Revisit trigger
 .NET-heavy work where missing VS 2026 diagnostics costs more than a day.
