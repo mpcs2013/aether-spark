@@ -1,0 +1,5 @@
+# Lint L3 (tests/egress/lint.sh), added on top of deploy/compose/egress/compose.yaml: the proxies
+# with their own configuration and mounts but no network, started only to parse the configuration
+services:
+  egress-runtime: { networks: !reset {}, network_mode: none }
+  egress-ops: { networks: !reset {}, network_mode: none }

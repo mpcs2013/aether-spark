@@ -23,6 +23,7 @@ x-proxy: &proxy
 services:
   egress-runtime:
     <<: *proxy
+    labels: { aetherspark.role: runtime-proxy }   # its row in the membership matrix (deploy/compose/policy.json)
     volumes:
       - ./runtime.conf:/etc/squid/squid.conf:ro
       - ./runtime.allowlist:/etc/squid/allowlist.txt:ro
@@ -33,6 +34,7 @@ services:
   egress-ops:
     <<: *proxy
     profiles: [egress-ops]
+    labels: { aetherspark.role: ops-proxy }
     volumes:
       - ./ops.conf:/etc/squid/squid.conf:ro
       - ./ops.allowlist:/etc/squid/allowlist.txt:ro

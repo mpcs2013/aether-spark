@@ -24,6 +24,7 @@ jobs:
       python: ${{ steps.c.outputs.python }}
       devcontainer: ${{ steps.c.outputs.devcontainer }}
       egress: ${{ steps.c.outputs.egress }}
+      lint: ${{ steps.c.outputs.lint }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,7 +39,7 @@ jobs:
         run: |
           set -eu
           if [ "$EVENT" != pull_request ]; then
-            printf 'code=true\npython=true\ndevcontainer=true\negress=true\n' >> "$GITHUB_OUTPUT"; exit 0
+            printf 'code=true\npython=true\ndevcontainer=true\negress=true\nlint=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "$BASE...$HEAD")
           printf '%s\n' "$files"
@@ -48,12 +49,14 @@ jobs:
           all=false; any '^\.github/workflows/' && all=true
           code=$all; [ -n "$code_files" ] && code=true
           # Python on Windows: the workstation jobs and the Python workspace
-          python=$all; any '^(src/python/|deploy/workstation/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          python=$all; any '^(src/python/|deploy/workstation/|deploy/compose/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
           # Dev container: its definition and the toolchain pins it builds on
           devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
           # Egress proxies and their tests
           egress=$all; any '^(deploy/compose/egress/|deploy/host/|tests/egress/)' && egress=true
-          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\n' "$code" "$python" "$devcontainer" "$egress" | tee -a "$GITHUB_OUTPUT"
+          # Lints: their inputs, and the design note they compare with (a docs file, so on all files)
+          lint=$all; printf '%s\n' "$files" | grep -E '^(deploy/compose/|deploy/host/|tests/egress/|docs/architecture/egress\.md$)' >/dev/null && lint=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" | tee -a "$GITHUB_OUTPUT"
 
   build:
     name: just ci (${{ matrix.arch }})
@@ -171,6 +174,20 @@ jobs:
       # with them, then the layer-3 tests
       - run: sudo bash tests/egress/layer3.sh
 
+  # Lints L1-L3 (egress.md, "Compose and config lint"); the fixture tests run in `just ci`. Root for
+  # the rule load in a scratch namespace; no host rules are changed.
+  egress-lint:
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: sudo bash tests/egress/lint.sh
+
   gitleaks:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -191,7 +208,7 @@ jobs:
   # requiring them directly would leave docs-only PRs pending forever.
   ci-result:
     if: always()
-    needs: [changes, build, devcontainer, python-windows, egress, gitleaks]
+    needs: [changes, build, devcontainer, python-windows, egress, egress-lint, gitleaks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
