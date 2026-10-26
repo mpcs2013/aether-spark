@@ -11,6 +11,7 @@ Standard library only. Exit 0 when clean, 1 with findings, 2 on a usage or input
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import sys
 from collections.abc import Iterable
@@ -31,9 +32,22 @@ FORBIDDEN_DRIVER_OPTS = (
     "com.docker.network.bridge.gateway_mode_ipv4",
     "com.docker.network.bridge.enable_ip_masquerade",
 )
-# Capabilities that open raw or administrative network access (ALL includes both)
-FORBIDDEN_CAPS = {"NET_ADMIN", "NET_RAW", "ALL"}
 DNS_KEYS = ("dns", "dns_search", "dns_opt")
+# Namespaces a service keeps to itself: shared with the host or another container (`service:…`,
+# `container:…`), enough capabilities reach that one's network namespace. The values allowed:
+PRIVATE_NAMESPACES: dict[str, tuple[str, ...]] = {
+    "pid": (),
+    "ipc": ("private", "shareable"),
+    "uts": (),
+    "userns_mode": (),
+    "cgroup": ("private",),
+}
+# security_opt values that switch a confinement layer off (seccomp, AppArmor, SELinux, /proc paths)
+UNCONFINED = ("unconfined", "label=disable", "label:disable")
+# Build settings that give build steps the host's network or extra privileges
+BUILD_KEYS = ("network", "privileged", "entitlements")
+# Named pipe and socket forms of the Docker API on Docker Desktop, matched anywhere in a source
+DOCKER_API = ("docker.sock", "docker_engine")
 
 
 def _cap(name: str) -> str:
@@ -54,11 +68,26 @@ def _service_networks(service: dict[str, Any]) -> list[str]:
     return list(nets) if isinstance(nets, (dict, list)) else []
 
 
+def host_path_hit(source: str, forbidden: Iterable[str]) -> str | None:
+    """The forbidden host path a mount source reaches (itself, a path below it or a parent)."""
+    if any(api in source for api in DOCKER_API):
+        return source
+    if not source.startswith("/"):
+        return None  # a relative or Windows path: the project's own files
+    path = "/" + posixpath.normpath(source).lstrip("/")
+    parent = path.rstrip("/") + "/"
+    for item in forbidden:
+        if path == item or path.startswith(item + "/") or item.startswith(parent):
+            return item
+    return None
+
+
 def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
     """L1: every finding in a rendered Compose project, one line each."""
     findings: list[str] = []
     matrix: dict[str, Any] = policy["networks"]
     declared: dict[str, Any] = rendered.get("networks") or {}
+    forbidden_paths: list[str] = policy["host_paths_forbidden"]
 
     for key, net in declared.items():
         net = net or {}
@@ -69,6 +98,10 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             continue
         if net.get("external"):
             findings.append(f"{where}: external networks are not allowed")
+        # Compose names a network <project>_<key>; another name could be any network on the host
+        own = f"{rendered.get('name')}_{key}"
+        if net.get("name") not in (None, own):
+            findings.append(f"{where}: name {net.get('name')!r}; only {own!r} is allowed")
         driver = net.get("driver") or "bridge"
         if driver != "bridge":
             findings.append(f"{where}: driver {driver}; only bridge is allowed")
@@ -86,9 +119,21 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
         if bool(net.get("internal", False)) != rule["internal"]:
             findings.append(f"{where}: internal must be {str(rule['internal']).lower()}")
 
+    # Host paths behind a named volume, a config or a secret are mounted like a bind mount
+    for kind, field in (("volumes", "device"), ("configs", "file"), ("secrets", "file")):
+        for key, item in (rendered.get(kind) or {}).items():
+            item = item or {}
+            holder = (item.get("driver_opts") or {}) if kind == "volumes" else item
+            source = str(holder.get(field) or "")
+            hit = host_path_hit(source, forbidden_paths)
+            if hit:
+                findings.append(f"{kind} {key}: host path {source} reaches {hit}")
+
     roles: set[str] = set(policy["roles"])
     label: str = policy["role_label"]
     model_store: dict[str, Any] = policy["model_store"]
+    cap_add_allowed: set[str] = set(policy["cap_add_allowed"])
+    role_images: dict[str, str] = policy["role_images"]
     members: dict[str, set[str]] = {}
 
     for name, service in (rendered.get("services") or {}).items():
@@ -103,10 +148,27 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             findings.append(f"{where}: network_mode {mode} is not allowed")
         if service.get("privileged"):
             findings.append(f"{where}: privileged is not allowed")
+        for key, allowed in PRIVATE_NAMESPACES.items():
+            value = service.get(key)
+            if value and value not in allowed:
+                findings.append(f"{where}: {key} {value} is not allowed")
+        findings.extend(
+            f"{where}: security_opt {opt} is not allowed"
+            for opt in service.get("security_opt") or []
+            if any(u in str(opt) for u in UNCONFINED)
+        )
+        if service.get("devices") or service.get("device_cgroup_rules"):
+            findings.append(f"{where}: host devices are not allowed")
+        build = service.get("build")
+        if isinstance(build, dict):
+            for key in BUILD_KEYS:
+                value = build.get(key)
+                if value and not (key == "network" and value in ("default", "none")):
+                    findings.append(f"{where}: build {key} {value} is not allowed")
         findings.extend(
             f"{where}: cap_add {cap} is not allowed"
             for cap in service.get("cap_add") or []
-            if _cap(cap) in FORBIDDEN_CAPS
+            if _cap(cap) not in cap_add_allowed
         )
         if not {_cap(c) for c in service.get("cap_drop") or []} & {"ALL", "NET_RAW"}:
             findings.append(
@@ -117,9 +179,10 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             findings.append(f"{where}: published ports are not allowed for this role")
 
         for volume in service.get("volumes") or []:
-            source, target = str(volume.get("source", "")), str(volume.get("target", ""))
-            if "docker.sock" in source or "docker.sock" in target:
-                findings.append(f"{where}: mounts the Docker socket")
+            source = str(volume.get("source", ""))
+            hit = host_path_hit(source, forbidden_paths) if volume.get("type") != "volume" else None
+            if hit:
+                findings.append(f"{where}: mount of {source} reaches {hit}")
             if (
                 volume.get("type") == "volume"
                 and source == model_store["volume"]
@@ -139,6 +202,19 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
                     findings.append(f"{where}: role {role} may not join {net}")
                 if role is not None:
                     members.setdefault(net, set()).add(role)
+            # A label alone does not make a proxy: roles with a way out are bound to an image
+            open_nets = [n for n in nets if n in matrix and not matrix[n]["internal"]]
+            if role is not None and open_nets:
+                image = role_images.get(role)
+                if image is None:
+                    findings.append(
+                        f"{where}: role {role} joins {open_nets[0]}, which has a way out;"
+                        " policy.json binds no image to the role"
+                    )
+                elif service.get("image") != image:
+                    findings.append(
+                        f"{where}: role {role} runs only {image}, not {service.get('image')!r}"
+                    )
 
         env = _environment(service)
         for key, value in (policy["phone_home"].get(role) or {}).items():

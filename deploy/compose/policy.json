@@ -34,6 +34,19 @@
     { "roles": ["ingester", "price-job"], "with": ["llm-serving", "mcp-server", "agent-host", "grafana"] }
   ],
   "published_ports_roles": ["traefik"],
+  "_cap_add": "The only capabilities a service may add back after cap_drop: [ALL] (file ownership, user switching, low ports).",
+  "cap_add_allowed": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "SETGID", "SETUID", "NET_BIND_SERVICE"],
+  "_host_paths": "Host paths no mount may reach: the Docker and containerd APIs, network namespaces, kernel interfaces. A mount of one of these, of a path below one, or of a parent directory (e.g. / or /var) is refused.",
+  "host_paths_forbidden": [
+    "/var/run/docker.sock", "/run/docker.sock", "/run/docker", "/var/run/docker",
+    "/run/containerd", "/var/run/containerd", "/var/lib/docker", "/var/lib/containerd", "/etc/docker",
+    "/run/netns", "/var/run/netns", "/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/lib/modules"
+  ],
+  "_role_images": "Roles on a network with a way out (not internal) run only this image, so a service cannot claim such a role by its label alone. A role on such a network without an entry here is refused until one is added.",
+  "role_images": {
+    "runtime-proxy": "aetherspark/egress-proxy:local",
+    "ops-proxy": "aetherspark/egress-proxy:local"
+  },
   "model_store": { "volume": "model-store", "writers": ["pull-job"] },
   "phone_home": {
     "traefik":     { "TRAEFIK_GLOBAL_CHECKNEWVERSION": "false", "TRAEFIK_GLOBAL_SENDANONYMOUSUSAGE": "false" },

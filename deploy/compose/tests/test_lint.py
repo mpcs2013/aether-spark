@@ -27,11 +27,15 @@ def _load() -> ModuleType:
 
 lint = _load()
 POLICY: dict[str, Any] = json.loads(lint.POLICY.read_text(encoding="utf-8"))
+# Traefik's image is bound when the stack's Compose files arrive (P3a); a stand-in until then
+POLICY["role_images"]["traefik"] = "traefik:test"
+PROJECT = "aetherspark"
 
 
 def _net(key: str) -> dict[str, Any]:
     rule = POLICY["networks"][key]
     net: dict[str, Any] = {
+        "name": f"{PROJECT}_{key}",
         "driver_opts": {lint.BRIDGE_NAME: rule["bridge"]},
         "enable_ipv6": False,
     }
@@ -57,10 +61,37 @@ def _valid() -> dict[str, Any]:
     """A small project that follows every rule: one service per kind of case the rules cover."""
     services = {
         "traefik": _service(
-            "traefik", "ingress", "edge", "pki", ports=[{"target": 443, "published": "443"}]
+            "traefik",
+            "ingress",
+            "edge",
+            "pki",
+            image="traefik:test",
+            ports=[{"target": 443, "published": "443"}],
+            cap_add=["NET_BIND_SERVICE"],
         ),
-        "egress-runtime": _service("runtime-proxy", "egress-runtime", "out-runtime"),
-        "ingester": _service("ingester", "egress-runtime", "ingest", "auth-ingest", "obs-ingest"),
+        "egress-runtime": _service(
+            "runtime-proxy",
+            "egress-runtime",
+            "out-runtime",
+            image=POLICY["role_images"]["runtime-proxy"],
+            build={"context": "/src/deploy/compose/egress", "dockerfile": "Dockerfile"},
+            security_opt=["no-new-privileges:true"],
+            volumes=[
+                {
+                    "type": "bind",
+                    "source": "C:\\src\\runtime.conf",
+                    "target": "/etc/squid/squid.conf",
+                }
+            ],
+        ),
+        "ingester": _service(
+            "ingester",
+            "egress-runtime",
+            "ingest",
+            "auth-ingest",
+            "obs-ingest",
+            volumes=[{"type": "bind", "source": "/etc/localtime", "target": "/etc/localtime"}],
+        ),
         "vllm": _service(
             "llm-serving",
             "llm",
@@ -75,10 +106,17 @@ def _valid() -> dict[str, Any]:
             "egress-ops",
             volumes=[{"type": "volume", "source": "model-store", "target": "/models"}],
         ),
-        "grafana": _service("grafana", "edge", "auth-edge", "obs-edge"),
+        "grafana": _service(
+            "grafana", "edge", "auth-edge", "obs-edge", cap_add=["CHOWN", "SETUID", "SETGID"]
+        ),
     }
     used = sorted({n for s in services.values() for n in s["networks"]})
-    return {"services": services, "networks": {n: _net(n) for n in used}}
+    return {
+        "name": PROJECT,
+        "services": services,
+        "networks": {n: _net(n) for n in used},
+        "volumes": {"model-store": {"name": f"{PROJECT}_model-store"}},
+    }
 
 
 def _findings(project: dict[str, Any], policy: dict[str, Any] | None = None) -> list[str]:
@@ -133,6 +171,17 @@ def _join(service: str, net: str, declare: bool = True) -> Mutation:
     return apply
 
 
+def _top(kind: str, key: str, item: dict[str, Any]) -> Mutation:
+    def apply(project: dict[str, Any]) -> None:
+        project.setdefault(kind, {})[key] = item
+
+    return apply
+
+
+def _mount(source: str, kind: str = "bind") -> Mutation:
+    return _svc("grafana", volumes=[{"type": kind, "source": source, "target": "/mnt"}])
+
+
 GAS = "com.docker.network.bridge.gateway_mode_ipv4"
 MASQ = "com.docker.network.bridge.enable_ip_masquerade"
 
@@ -156,15 +205,70 @@ CASES: list[tuple[str, Mutation, str]] = [
     ("cap_add ALL", _svc("ingester", cap_add=["ALL"]), "cap_add ALL"),
     ("NET_RAW not dropped", _svc("ingester", cap_drop=["SYS_ADMIN"]), "cap_drop must include"),
     ("no cap_drop", _drop_key(("services", "ingester", "cap_drop")), "cap_drop must include"),
+    ("cap_add SYS_ADMIN", _svc("ingester", cap_add=["SYS_ADMIN"]), "cap_add SYS_ADMIN"),
+    ("cap_add SYS_PTRACE", _svc("ingester", cap_add=["sys_ptrace"]), "cap_add sys_ptrace"),
+    ("cap_add BPF", _svc("ingester", cap_add=["BPF"]), "cap_add BPF"),
+    ("pid host", _svc("ingester", pid="host"), "pid host"),
+    ("pid of another service", _svc("ingester", pid="service:egress-runtime"), "pid service:"),
+    ("ipc host", _svc("ingester", ipc="host"), "ipc host"),
+    ("uts host", _svc("ingester", uts="host"), "uts host"),
+    ("userns_mode host", _svc("ingester", userns_mode="host"), "userns_mode host"),
+    ("cgroup host", _svc("ingester", cgroup="host"), "cgroup host"),
+    ("seccomp off", _svc("ingester", security_opt=["seccomp=unconfined"]), "seccomp=unconfined"),
+    ("apparmor off", _svc("ingester", security_opt=["apparmor:unconfined"]), "apparmor:unconfined"),
+    ("selinux off", _svc("ingester", security_opt=["label=disable"]), "label=disable"),
+    ("host devices", _svc("ingester", devices=[{"source": "/dev/net/tun"}]), "host devices"),
+    ("device cgroup rules", _svc("ingester", device_cgroup_rules=["c 10:200 rwm"]), "host devices"),
     (
-        "docker socket",
-        _svc(
-            "grafana",
-            volumes=[
-                {"type": "bind", "source": "/var/run/docker.sock", "target": "/var/run/docker.sock"}
-            ],
+        "build network host",
+        _svc("ingester", build={"context": ".", "network": "host"}),
+        "build network host",
+    ),
+    (
+        "build privileged",
+        _svc("ingester", build={"context": ".", "privileged": True}),
+        "build privileged",
+    ),
+    (
+        "build entitlements",
+        _svc("ingester", build={"context": ".", "entitlements": ["network.host"]}),
+        "build entitlements",
+    ),
+    ("docker socket", _mount("/var/run/docker.sock"), "reaches"),
+    ("docker socket, desktop form", _mount("//var/run/docker.sock"), "reaches"),
+    ("docker named pipe", _mount("\\\\.\\pipe\\docker_engine", "npipe"), "reaches"),
+    ("parent of the socket", _mount("/var/run"), "reaches /var/run"),
+    ("parent of /var/run", _mount("/var"), "reaches"),
+    ("host root", _mount("/"), "reaches"),
+    ("host root, unnormalised", _mount("/etc/.."), "reaches"),
+    ("containerd socket", _mount("/run/containerd/containerd.sock"), "reaches /run/containerd"),
+    ("network namespaces", _mount("/run/netns"), "reaches /run/netns"),
+    ("host proc", _mount("/proc/1/ns"), "reaches /proc"),
+    (
+        "host path behind a named volume",
+        _top(
+            "volumes",
+            "sneaky",
+            {"driver_opts": {"type": "none", "o": "bind", "device": "/var/run"}},
         ),
-        "Docker socket",
+        "volumes sneaky: host path /var/run",
+    ),
+    ("host path as a config", _top("configs", "c", {"file": "/run/docker.sock"}), "configs c"),
+    ("host path as a secret", _top("secrets", "s", {"file": "/proc/self/environ"}), "secrets s"),
+    (
+        "network named after another one",
+        _netset("edge", name="bridge"),
+        "network edge: name 'bridge'",
+    ),
+    (
+        "proxy role claimed by another image",
+        _svc("egress-runtime", image="alpine:3"),
+        "role runtime-proxy runs only aetherspark/egress-proxy:local",
+    ),
+    (
+        "proxy role without an image",
+        _drop_key(("services", "egress-runtime", "image")),
+        "role runtime-proxy runs only",
     ),
     (
         "published port",
@@ -268,6 +372,22 @@ def test_pair_rule_holds_even_if_the_matrix_is_widened() -> None:
     assert findings == ["network llm: ['ingester'] share it with ['llm-serving']"]
 
 
+def test_role_with_a_way_out_needs_an_image_binding() -> None:
+    """A role on a non-internal network that policy.json binds no image to is refused."""
+    policy = copy.deepcopy(POLICY)
+    del policy["role_images"]["traefik"]
+    assert _findings(_valid(), policy) == [
+        "service traefik: role traefik joins ingress, which has a way out;"
+        " policy.json binds no image to the role"
+    ]
+
+
+def test_ordinary_mounts_pass() -> None:
+    forbidden = POLICY["host_paths_forbidden"]
+    for source in ("/etc/localtime", "/srv/data", "/variable", "/runner", "./conf", "C:\\src\\x"):
+        assert lint.host_path_hit(source, forbidden) is None, source
+
+
 def test_environment_as_list() -> None:
     project = _valid()
     env = POLICY["phone_home"]["traefik"]
@@ -332,10 +452,12 @@ def test_l2_real_files_match_the_design_note() -> None:
 
 
 def test_main_exit_codes(tmp_path: Path) -> None:
+    """main() reads the real policy.json, which binds no Traefik image yet: Traefik is left out."""
     clean = tmp_path / "clean.json"
-    clean.write_text(json.dumps(_valid()), encoding="utf-8")
-    dirty = tmp_path / "dirty.json"
     project = _valid()
+    del project["services"]["traefik"]
+    clean.write_text(json.dumps(project), encoding="utf-8")
+    dirty = tmp_path / "dirty.json"
     project["services"]["ingester"]["privileged"] = True
     dirty.write_text(json.dumps(project), encoding="utf-8")
     assert lint.main(["lint.py", "compose", str(clean)]) == 0
