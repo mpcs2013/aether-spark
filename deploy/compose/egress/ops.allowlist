@@ -1,0 +1,17 @@
+huggingface.co
+nvcr.io
+registry.ollama.ai
+registry-1.docker.io
+auth.docker.io
+production.cloudflare.docker.com
+quay.io
+mcr.microsoft.com
+ghcr.io
+pkg-containers.githubusercontent.com
+github.com
+api.nuget.org
+nuget.pkg.github.com
+pypi.org
+files.pythonhosted.org
+ports.ubuntu.com
+download.docker.com

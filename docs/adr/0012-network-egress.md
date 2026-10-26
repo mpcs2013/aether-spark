@@ -1,5 +1,5 @@
 # ADR-0012: Network segmentation & egress control
-- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed)
+- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check)
 
 ## In plain words
 The router separates the home into three networks and keeps the internet out. The strict "only these websites" rule lives on the Spark itself, so it works with any router.
@@ -53,3 +53,20 @@ Found while running the site runbook.
 
 ## Amendment (2026-10-11) — private package feed
 The private package feed of the shared identity kit (ADR-0009 amendment 1) is allowed for build-time restores only. Runtime containers never reach it.
+
+## Amendment (2026-10-23, accepted) — two proxies, named flows, host default-deny
+Design: [architecture/egress.md](../architecture/egress.md) (WP3n.3). Reviewed in two rounds on 2026-10-23: `architect` and `security-reviewer`, then `architect` again, `security-reviewer` as attacker, `infra-admin` against vendor documentation, and an independent flow list written without the design; all findings are in the design. Owner decisions the same day: Ollama in dev as a container; a separate ops proxy; host default-deny on the Spark; SNI check on the proxies; host DNS limited to `home.arpa`; XBRL taxonomies offline; a UI content-security policy.
+
+**Replaces, in "Egress allowlist" above:** "All AetherSpark containers attach only to internal Docker networks" (now: all except Traefik, the two proxies' outbound side and the restic job); the single proxy and its single list; "and the same on the desktop in dev"; "Host firewall (nftables, `DOCKER-USER` chain)"; "proxy deny/allow decisions are logged" (now: both proxies' decisions and host-firewall drops). In Consequences, "testable in CI on the desktop" becomes "testable on the desktop (layers 1–2) and in CI (all layers)".
+
+- **Scope:** the containers of the Compose stack (`just up`) and, on the Spark, the host. `aspire run` (its host processes and the containers it starts) and dev tooling (dev container, Claude Code, CI build jobs) are outside it.
+- **Two proxies, two allowlists, SNI checked.** Several hosts above accept uploads from anyone with an account, and Squid sees only the host inside a `CONNECT`. The **runtime proxy** (SEC hosts, the price provider) serves the ingestion jobs only. The **ops proxy** (model, image, package and OS hosts, the private feed, taxonomy packages) is a separate container in profile `egress-ops` that runs only while an owner-started job runs. Both check the TLS site name without decrypting. Agents, model serving, MCP servers, the verifier and databases join neither.
+- **Named flows only:** ingress (Traefik, TCP 443; from WP6.6 also NAS alerts), runtime egress, ops egress, backup to the NAS rest-server, the proxies' DNS, the Spark host's DNS (`home.arpa`) and NTP to the router, internal pairs per the network membership matrix. Phone delivery of alerts is decided with ADR-0011 change 3 before WP6.6. Everything else has no route.
+- **Layer 3:** Docker Engine ≥ 26.0 with the iptables backend (`DOCKER-USER`), IPv4 and IPv6; host `INPUT` default-deny from Docker bridges (containers on internal networks can otherwise reach the host); on the Spark host `OUTPUT` default-deny (apt and the Docker daemon's pulls only through the ops proxy). The rule set loads before Docker at boot. Drops are logged, to the agent audit from WP5a.5.
+- **Model store** written only by pull jobs that verify and never load models; serving mounts it read-only. **XBRL taxonomies** are offline packages; the pipeline has no proxy route.
+- **Inputs:** the runtime jobs take identifiers only from the owner-maintained universe (ADR-0020); no agent tool enqueues ingestion.
+- **Lints in CI**, among others: no host networking, shared network namespaces, `NET_ADMIN`, Docker socket mounts, undeclared networks or matrix violations; allowlists equal the design note; Squid configs parse.
+- **Desktop:** layers 1 and 2 run; layer 3 does not (Docker Desktop's VM is not under our control). CI runs all three layers on amd64 and arm64; the Spark from P6 (WP6.2).
+- **Acceptance:** tests E1–E20, L1–L3, M1 (break-it) and P1 in the design note, per environment as listed there; repeated after every Docker, DGX OS or firmware update.
+- **Consequences (bad):** security updates on the Spark need an owner-started ops session, so patch latency is an owner duty; Docker Engine version and backend are pinned; the desktop has no layer 3; uploads are possible to ops hosts during ops sessions; two Squid configurations to maintain. Accepted residuals are listed in the design note.
+- **Revisit trigger (added):** Docker's nftables backend leaves experimental status; a new runtime component needs an internet host (design change first, then L2).

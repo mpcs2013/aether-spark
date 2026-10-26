@@ -40,6 +40,27 @@ hooks:
 # Bring the dev stack up (Gate G3)
 up: (pending "WP3.1" "up")
 
+# Ops proxy for owner-started pull jobs: `just egress-ops up`, then `just egress-ops down` (egress.md)
+egress-ops action:
+    docker compose -f deploy/compose/egress/compose.yaml --profile egress-ops {{ if action == "up" { "up -d --wait egress-ops" } else if action == "down" { "rm -sf egress-ops" } else { error("egress-ops: up or down") } }}
+
+# Egress tests, layers 1 and 2 (tests/egress/run.sh; needs Docker and internet access)
+[unix]
+egress-test:
+    bash tests/egress/run.sh
+
+# Egress layer 3: installs the host rules and tests all layers (Linux with Docker Engine: CI, the Spark)
+[linux]
+egress-test-layer3:
+    sudo bash tests/egress/layer3.sh
+
+# On Windows through Git Bash, not the WSL `bash` shim, so the tests use Docker Desktop
+
+# Egress tests, layers 1 and 2 (tests/egress/run.sh; needs Docker and internet access)
+[windows]
+egress-test:
+    & "$env:ProgramFiles\Git\bin\bash.exe" tests/egress/run.sh
+
 # Generate or check shared types from contracts/ (ADR-0002)
 contracts *args: (pending "WP2.2/2.3" "contracts")
 

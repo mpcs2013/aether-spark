@@ -1,9 +1,10 @@
 name: ci
 
+# Pull requests only: with "branch must be up to date" (ruleset), the merged tree is the tree a PR
+# tested, so a second run on main would only repeat it. Manual runs test everything.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 # ADR-0004: read-only GITHUB_TOKEN, no other secrets
 permissions:
@@ -11,11 +12,53 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
+  # Decides which jobs a change needs. A change to this workflow, or a manual run, runs everything.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.c.outputs.code }}
+      python: ${{ steps.c.outputs.python }}
+      devcontainer: ${{ steps.c.outputs.devcontainer }}
+      egress: ${{ steps.c.outputs.egress }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: c
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          if [ "$EVENT" != pull_request ]; then
+            printf 'code=true\npython=true\ndevcontainer=true\negress=true\n' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          printf '%s\n' "$files"
+          # Code: anything beyond docs and repo settings; the other filters look at these files only
+          code_files=$(printf '%s\n' "$files" | grep -Ev '^$|^(docs/|LICENSE$|\.vscode/|\.github/rulesets/|\.github/dependabot\.yml$)|\.md$' || true)
+          any() { printf '%s\n' "$code_files" | grep -Eq "$1"; }
+          all=false; any '^\.github/workflows/' && all=true
+          code=$all; [ -n "$code_files" ] && code=true
+          # Python on Windows: the workstation jobs and the Python workspace
+          python=$all; any '^(src/python/|deploy/workstation/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          # Dev container: its definition and the toolchain pins it builds on
+          devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
+          # Egress proxies and their tests
+          egress=$all; any '^(deploy/compose/egress/|deploy/host/|tests/egress/)' && egress=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\n' "$code" "$python" "$devcontainer" "$egress" | tee -a "$GITHUB_OUTPUT"
+
   build:
     name: just ci (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +80,7 @@ jobs:
           cache: true
           cache-dependency-path: "**/packages.lock.json"
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
 
@@ -50,6 +93,8 @@ jobs:
   # The dev container builds and passes `just ci` on both architectures (WP2.4; arm64 = the Spark)
   devcontainer:
     name: devcontainer (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.devcontainer == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +122,8 @@ jobs:
   # Windows-only checks of the workstation jobs (reparse points, junctions, file ids)
   python-windows:
     name: just py-ci (windows)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -84,7 +131,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
 
@@ -93,6 +140,36 @@ jobs:
           just-version: 1.59.0
 
       - run: just py-ci
+
+  # Egress layers 1-3 on both architectures (WP3n.3; arm64 = the Spark). Needs internet access.
+  egress:
+    name: egress-test (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.egress == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # E8 relies on Engine >= 26 (no external names on internal networks); layer 3 on iptables-nft
+      - run: docker version --format 'Docker Engine {{.Server.Version}}' && sudo iptables -V
+
+      # Layers 1-2 alone, as on the desktop
+      - run: bash tests/egress/run.sh
+
+      # Installs the host rules on the runner (it is thrown away after the job), reruns layers 1-2
+      # with them, then the layer-3 tests
+      - run: sudo bash tests/egress/layer3.sh
 
   gitleaks:
     runs-on: ubuntu-24.04
@@ -108,3 +185,18 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo
           ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git --no-banner --redact .
+
+  # The one required check: fails if any job failed or was cancelled; a job skipped because its
+  # area did not change counts as passed. Jobs skipped by `if` report no check of their own, so
+  # requiring them directly would leave docs-only PRs pending forever.
+  ci-result:
+    if: always()
+    needs: [changes, build, devcontainer, python-windows, egress, gitleaks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then exit 1; fi

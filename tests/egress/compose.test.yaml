@@ -1,0 +1,32 @@
+# Test clients for the egress tests (tests/egress/run.sh), added on top of
+# deploy/compose/egress/compose.yaml. Each stands in for a kind of stack container.
+x-client: &client
+  image: curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40
+  entrypoint: ["sleep", "infinity"]
+  read_only: true
+  cap_drop: [ALL]
+  cap_add: [NET_RAW]   # for the ICMP test only
+
+services:
+  # Like the ingester: on the runtime proxy's network only
+  client-runtime:
+    <<: *client
+    networks: [egress-runtime]
+
+  # Like an owner-started pull job
+  client-ops:
+    <<: *client
+    profiles: [egress-ops]
+    networks: [egress-ops]
+
+  # Like an agent, MCP server or model server: no proxy network at all
+  client-agent:
+    <<: *client
+    networks: [agents]
+
+networks:
+  agents:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-agents }
+    ipam: { config: [{ subnet: 172.30.90.0/24 }] }
