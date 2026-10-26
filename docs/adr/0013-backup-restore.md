@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** proposed 2026-10-26 (UPS shutdown signal)
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** Accepted 2026-10-26 (UPS shutdown signal)
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -91,7 +91,7 @@ From WP2.6, every project on the shared core writes one usage capture per issue 
 - **Refused markers.** Each refused file leaves a content-free marker in that project's intake folder, so Greenlight can list the gap: one per project, capture name and reason code, written once, holding the capture id (or none), a reason code from a fixed list and the first run time. It never holds content, a hash of the refused file, or a file name outside the capture form. Names outside the capture form share one marker per project and reason code, so a file name cannot carry data through the marker name. At most 100 refusals per project and run are marked; an existing marker must match the five fields, or the project stops.
 - **Isolation.** An error in one project (a hash conflict, an invalid marker, an unexpected failure) stops that project only, and the run exits with an error; a crafted capture cannot stop the copy for the other projects.
 
-## Amendment 7 (2026-10-26, proposed) — UPS shutdown signal
+## Amendment 7 (2026-10-26, accepted) — UPS shutdown signal
 On a power cut the Spark shuts down cleanly before the UPS runs out, so its databases close cleanly. The UPS's status line goes to the backup target, which serves the UPS status over the network; the Spark's UPS client connects to it ([architecture/spark-host.md](../architecture/spark-host.md), flow H9). Agreed with the home-infrastructure owner, who designs and runs the backup target's side.
 - **Inbound (extends Amendment 4):** on the AetherSpark interface the backup target's firewall allows the backup port and the UPS status port, both from the Spark only, and denies everything else. Amendment 4's invariant extends to that port: no other service uses it on any of the backup target's addresses.
 - **Account:** the Spark's UPS account reads the status and receives the shutdown notice, never sends commands to the UPS.

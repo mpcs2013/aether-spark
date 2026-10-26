@@ -1,6 +1,6 @@
 # Spark host — design (WP6.2)
 
-**Status:** proposed 2026-10-26, accepted together with the ADR-0012 amendment of 2026-10-26 (Spark host flows) and ADR-0013 amendment 7 (UPS signal); to be built in WP6.2. Implements the host part of [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md) ("Layer 3 rules": host `INPUT` and `OUTPUT` on the Spark, bootstrap). Requirements on the home network, the NAS and the UPS come from the home-infrastructure owner's contract; addresses are settings, never in this repository.
+**Status:** accepted 2026-10-26, with the ADR-0012 amendment of 2026-10-26 (Spark host flows) and ADR-0013 amendment 7 (UPS signal); to be built in WP6.2. Implements the host part of [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md) ("Layer 3 rules": host `INPUT` and `OUTPUT` on the Spark, bootstrap). Requirements on the home network, the NAS and the UPS come from the home-infrastructure owner's contract; addresses are settings, never in this repository.
 
 **Inputs.** Vendor facts from NVIDIA's DGX Spark and DGX OS 7 documentation, NVIDIA's apt index, and the Ubuntu, systemd, NetworkManager, Docker and fwupd documentation (Facts); an independent list of host flows written without this design and compared with it.
 
