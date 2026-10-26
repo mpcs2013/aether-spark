@@ -10,6 +10,8 @@
 #   apply   replace the rules (atomically per address family)
 #   check   exit 1 unless every rule is exactly as rendered here and Docker's settings match
 #   remove  take the rules out again (tests only: the break-it test and CI cleanup)
+#   lint    load the rules rendered from the example settings, with and without a backup flow, in
+#           a scratch network namespace (lint L3, from the repository); changes nothing on the host
 #
 # Settings, from the environment or else /etc/aetherspark/egress-rules.env (values in ops.local/):
 #   AS_RESOLVERS     upstream resolvers the proxies may query on port 53 (IPv4, space separated);
@@ -166,6 +168,12 @@ others_ok() {
     fi
 }
 
+# Creates the namespace and loads the rendered rules into it; the caller deletes it
+scratch_load() {
+    ip netns add "$1" && { rules_v4 | ip netns exec "$1" iptables-restore -w; } \
+        && { rules_v6 | ip netns exec "$1" ip6tables-restore -w; }
+}
+
 apply() {
     settings
     iptables -V | grep nf_tables >/dev/null || die "iptables is not the nf_tables variant ($(iptables -V))"
@@ -199,8 +207,7 @@ check() {
     # prints them in the same normalised form, and compare chain by chain. The trailing `-j RETURN`
     # Docker before 28.2.2 appends to DOCKER-USER is ignored (ours never ends a chain that way).
     ns=aetherspark-check-$$
-    if ip netns add "$ns" && { rules_v4 | ip netns exec "$ns" iptables-restore -w; } \
-        && { rules_v6 | ip netns exec "$ns" ip6tables-restore -w; }; then
+    if scratch_load "$ns"; then
         for c in "${CHAINS[@]}"; do
             read -r ipt table chain <<<"$c"
             diff <(ip netns exec "$ns" "$ipt" -w -t "$table" -S "$chain") \
@@ -244,9 +251,29 @@ remove() {
     echo "aetherspark-egress-rules: removed"
 }
 
+lint() {
+    local nas ns=aetherspark-lint-$$ bad=0
+    set -a
+    # shellcheck source=/dev/null
+    . "$(dirname "$0")/egress-rules.env.example"
+    set +a
+    for nas in "$AS_NAS_ADDR" ""; do
+        AS_NAS_ADDR=$nas
+        settings
+        if scratch_load "$ns"; then
+            echo "L3 rules: load (backup flow: ${AS_NAS_ADDR:-none})"
+        else
+            echo "L3 rules: do not load (backup flow: ${AS_NAS_ADDR:-none})" >&2; bad=1
+        fi
+        ip netns del "$ns" 2>/dev/null || true
+    done
+    [ "$bad" -eq 0 ] || die "lint failed"
+}
+
 case "${1:-}" in
     apply) apply ;;
     check) check ;;
     remove) remove ;;
-    *) die "usage: $0 apply|check|remove" ;;
+    lint) lint ;;
+    *) die "usage: $0 apply|check|remove|lint" ;;
 esac

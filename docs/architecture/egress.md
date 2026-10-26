@@ -26,7 +26,7 @@ No **stack container**, and on the Spark no host process, sends anything to the 
 | Everything else | agents, LLM serving, MCP servers, verifier, databases, Keycloak, observability | internal networks only | Nothing out | — |
 
 ## Network membership matrix
-Internal networks are cut so that a compromised container reaches only what its job needs. The Compose lint (L1) enforces the matrix.
+Internal networks are cut so that a compromised container reaches only what its job needs. The Compose lint (L1) enforces the matrix from its copy as data, `deploy/compose/policy.json`, where each service is placed by its `aetherspark.role` label. The table below is prose, so no lint compares the two: a change to either is a design change and changes both in the same pull request.
 
 | Network | Members | Why |
 |---|---|---|
@@ -103,7 +103,8 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | ops | `nuget.pkg.github.com` | private feed (ADR-0009 amendment 1) |
 | ops | `pypi.org`, `files.pythonhosted.org` | Python packages |
 | ops | `ports.ubuntu.com` | Ubuntu arm64 packages and security updates (the Spark; `security.ubuntu.com` does not serve arm64) |
-| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) || ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
+| ops | NVIDIA apt repository host, `download.docker.com` | DGX OS and Docker packages (HTTPS) |
+| ops | LVFS host, *to confirm* | firmware (fwupd), owner sessions only |
 | ops | XBRL taxonomy package hosts, *to confirm* | offline taxonomy download |
 
 ## Builds and image pulls
@@ -130,10 +131,11 @@ The ingester and the price job take company identifiers (CIK, accession numbers,
 ## UI requirement (P3a/P5a)
 A report can carry text from an injected filing. If the browser rendered a remote image or followed an automatic link in it, the owner's browser on the Home network would send data out. So: Traefik sets a strict Content-Security-Policy (`default-src 'self'`; images, scripts and fetches from the app only), and the UI renders model text without remote images or automatic links. Test E15 runs with the UI.
 
-## Compose and config lint (CI, every pull request)
-- **L1 — rendered Compose:** rejects `network_mode: host` or `service:…`; `privileged`; `cap_add` with `NET_ADMIN` or `NET_RAW`; any `docker.sock` mount (Traefik uses the file provider); published ports on anything but Traefik; undeclared networks; a matrix network without its `as-` bridge name; a network driver other than `bridge` (`macvlan` and `ipvlan` go straight out of the NIC, never forwarded); the bridge options `gateway_mode_ipv4` and `enable_ip_masquerade`; `network_mode: container:…` (it inherits the other container's networks, e.g. a proxy's `out-*`); a service that does not drop `NET_RAW` (Docker grants it by default); per-service `dns`, `dns_search` or `dns_opt`; `enable_ipv6: true`; any violation of the membership matrix; a writable model-store mount outside pull jobs; a missing phone-home setting. A fixture with each forbidden setting must fail.
+## Compose and config lint (CI, every pull request that touches them)
+- **L1 — rendered Compose:** rejects `network_mode: host` or `service:…`; `privileged`; any `cap_add` outside policy.json's short list (file ownership, user switching, low ports), so never `NET_ADMIN`, `NET_RAW`, `SYS_ADMIN` or `ALL`; `pid`, `ipc`, `uts`, `userns_mode` or `cgroup` shared with the host or another container; `security_opt` that switches seccomp, AppArmor or SELinux off; host `devices`; build-time `network`, `privileged` or `entitlements`; a service without a known `aetherspark.role` label; a role on a network with a way out (`ingress`, `out-*`, `backup`) whose image is not the one policy.json binds to it, so a label alone does not make a proxy; an `external` network, or one named other than the project's own; a network whose `internal` setting differs from the matrix; a mount that reaches the Docker or containerd API, network namespaces, `/proc`, `/sys`, `/dev` or `/run`, a path below one or a parent such as `/` (also through a named volume's `device`, a `config` or a `secret`), so no `docker.sock` (Traefik uses the file provider); published ports on anything but Traefik; undeclared networks; a matrix network without its `as-` bridge name; a network driver other than `bridge` (`macvlan` and `ipvlan` go straight out of the NIC, never forwarded); the bridge options `gateway_mode_ipv4` and `enable_ip_masquerade`; `network_mode: container:…` (it inherits the other container's networks, e.g. a proxy's `out-*`); a service that does not drop `NET_RAW` (Docker grants it by default); per-service `dns`, `dns_search` or `dns_opt`; `enable_ipv6: true`; any violation of the membership matrix; a writable model-store mount outside pull jobs; a missing phone-home setting. A fixture with each forbidden setting must fail (`deploy/compose/tests/`, part of `just ci`). L1 renders `deploy/compose/egress/compose.yaml` with every profile; from P3a it renders the whole stack.
 - **L2 — allowlists:** each proxy's allowlist file equals the list in this note, so an added host needs a design change.
-- **L3 — config:** `squid -k parse` on both configs; the layer-3 rule files load in a scratch namespace.
+- **L3 — config:** `squid -k parse` on both configs with their real mounts in a freshly built image (the entrypoint's `parse` mode), and a broken config must fail it; the layer-3 rules, rendered from the example settings with and without a backup flow, load in a scratch namespace (`egress-rules.sh lint`; root, so CI only).
+- **Run:** `just egress-lint` (`tests/egress/lint.sh`); in CI the `egress-lint` job, for any change to `deploy/compose/`, `deploy/host/`, `tests/egress/` or this note.
 
 ## Logging (ADR-0011, ADR-0019)
 - Squid access logs (both proxies): time, client address, method, host, port, SNI, decision, bytes in each direction. `strip_query_terms on` (the default); no bodies.
@@ -143,8 +145,9 @@ A report can carry text from an injected filing. If the browser rendered a remot
 
 ## Where it lives
 - `deploy/compose/egress/`: both Squid configs and allowlists, the overlay with all networks of the matrix, profiles `core` and `egress-ops`.
-- `deploy/host/`: the rule script (`DOCKER-USER`, `INPUT`, IPv6; `apply`, `check`, `remove`), the systemd unit, the `docker.service` drop-in, `install.sh` (also sets `"dns"` in `daemon.json`) and an example settings file; the Spark's host `OUTPUT` rules, the rest of the `daemon.json` fragment and the resolver settings follow with the host role (WP6.2). Applied by the host role on the Spark and by the CI job.
-- `tests/egress/`: the tests below (`just egress-test`) and the lints.
+- `deploy/host/`: the rule script (`DOCKER-USER`, `INPUT`, IPv6; `apply`, `check`, `remove`, `lint`), the systemd unit, the `docker.service` drop-in, `install.sh` (also sets `"dns"` in `daemon.json`) and an example settings file; the Spark's host `OUTPUT` rules, the rest of the `daemon.json` fragment and the resolver settings follow with the host role (WP6.2). Applied by the host role on the Spark and by the CI job.
+- `deploy/compose/`: `policy.json` (the matrix and Compose rules as data) and `lint.py` (L1, L2) with its fixture tests.
+- `tests/egress/`: the tests below (`just egress-test`) and the lint runner (`just egress-lint`).
 
 ## Tests (acceptance criteria of WP3n.3; G3n, G3, G5a, G6)
 
@@ -173,7 +176,7 @@ A report can carry text from an injected filing. If the browser rendered a remot
 | E20 | Images and containers | Search image history, layers and every container's environment for the private feed token | Not found | — | ✓ | ✓ |
 | E21 | Probe on `out-runtime` (test only) | Public TCP 443; port 80; a private address on 443; ICMP; DNS via Docker's resolver; DNS to a public resolver | Works; fails; fails; fails; works; fails | — | ✓ | ✓ |
 | E22 | Container on `backup` | UDP with the source address and port of a client on `out-runtime` that has an open connection to the resolver | Dropped before it rides that connection; logged | — | ✓ | ✓ |
-| L1–L3 | CI | Lints and config parse | Pass; each forbidden fixture fails | ✓ | ✓ | ✓ |
+| L1–L3 | CI | Lints and config parse | Pass; each forbidden fixture fails | ✓ (no rule load) | ✓ | ✓ |
 | M1 | CI | **Break-it:** for each layer-3 rule and each proxy ACL, remove it and rerun the suite | At least one test fails per removal | — | ✓ | — |
 | P1 | Router | 24 h capture of the AetherSpark network's uplink, compared with the allowlists | Only allowlisted hosts (plus the NAS alerts) | — | — | ✓ (G6) |
 

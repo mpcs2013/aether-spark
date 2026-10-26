@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/workstation tests/python
+    {{ uv }} mypy src/python deploy/workstation deploy/compose tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -54,12 +54,22 @@ egress-test:
 egress-test-layer3:
     sudo bash tests/egress/layer3.sh
 
+# Egress lints L1-L3 (tests/egress/lint.sh; needs Docker; root for the rule load, so sudo on Linux)
+[linux]
+egress-lint:
+    sudo bash tests/egress/lint.sh
+
 # On Windows through Git Bash, not the WSL `bash` shim, so the tests use Docker Desktop
 
 # Egress tests, layers 1 and 2 (tests/egress/run.sh; needs Docker and internet access)
 [windows]
 egress-test:
     & "$env:ProgramFiles\Git\bin\bash.exe" tests/egress/run.sh
+
+# Egress lints L1-L3 (tests/egress/lint.sh; needs Docker; the host-rule load runs in CI only)
+[windows]
+egress-lint:
+    & "$env:ProgramFiles\Git\bin\bash.exe" tests/egress/lint.sh
 
 # Generate or check shared types from contracts/ (ADR-0002)
 contracts *args: (pending "WP2.2/2.3" "contracts")
