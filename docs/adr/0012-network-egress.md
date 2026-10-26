@@ -1,5 +1,5 @@
 # ADR-0012: Network segmentation & egress control
-- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check)
+- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check) · **Amendment 2026-10-26 proposed** (Spark host flows)
 
 ## In plain words
 The router separates the home into three networks and keeps the internet out. The strict "only these websites" rule lives on the Spark itself, so it works with any router.
@@ -70,3 +70,11 @@ Design: [architecture/egress.md](../architecture/egress.md) (WP3n.3). Reviewed i
 - **Acceptance:** tests E1–E20, L1–L3, M1 (break-it) and P1 in the design note, per environment as listed there; repeated after every Docker, DGX OS or firmware update.
 - **Consequences (bad):** security updates on the Spark need an owner-started ops session, so patch latency is an owner duty; Docker Engine version and backend are pinned; the desktop has no layer 3; uploads are possible to ops hosts during ops sessions; two Squid configurations to maintain. Accepted residuals are listed in the design note.
 - **Revisit trigger (added):** Docker's nftables backend leaves experimental status; a new runtime component needs an internet host (design change first, then L2).
+
+## Amendment (2026-10-26, proposed) — Spark host flows
+Design: [architecture/spark-host.md](../architecture/spark-host.md) (WP6.2). Reviewed 2026-10-26 by `architect` and `security-reviewer` (coverage audit), with vendor facts from NVIDIA's DGX OS documentation and an independent flow list; owner decisions the same day.
+- **Named flows (added, Spark host):** SSH in from the admin desktop only; DHCP with the router; the UPS status signal from the host's UPS client to the backup target; host telemetry from the host collector into the stack's collector; the host role's packages through the ops proxy. Host DNS and NTP stay as above, each limited to its own service user.
+- **Host `INPUT`** is default-deny on every interface, not only from Docker bridges. **Host → containers** reaches only the ops proxy and the stack collector (narrows "host → Docker bridges" in the design note).
+- **Fail closed:** on the Spark the built-in `INPUT` and `OUTPUT` policies are `DROP` and are set before any other rule, so emptied rule lists leave the host closed; deleted tables (which take the policies with them) are found by `check` on a timer with an alert.
+- **Development** happens on the desktop; the Spark is a runtime host (ADR-0018 note).
+- **Consequences (bad):** a broken rule set needs the local console (runbook `docs/runbooks/spark-console.md`); packet sockets of root processes bypass `OUTPUT`, covered by keeping root services known and repeating the router capture (P1) after DGX OS updates.
