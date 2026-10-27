@@ -17,7 +17,13 @@ docker info >/dev/null 2>&1 || { echo "Docker is not running: start it first" >&
 : "${AS_RESOLVERS:?}"
 
 install -D -m 0755 egress-rules.sh /usr/local/sbin/aetherspark-egress-rules
-install -D -m 0600 "$env_file" /etc/aetherspark/egress-rules.env
+# On the Spark the settings are already there (the host role passes that file); install refuses to
+# copy a file onto itself, so only the mode is set then
+if [ "$env_file" = "$(realpath -m /etc/aetherspark/egress-rules.env)" ]; then
+    chmod 0600 "$env_file"
+else
+    install -D -m 0600 "$env_file" /etc/aetherspark/egress-rules.env
+fi
 install -D -m 0644 aetherspark-egress-rules.service /etc/systemd/system/aetherspark-egress-rules.service
 install -D -m 0644 docker-check-egress-rules.conf /etc/systemd/system/docker.service.d/aetherspark-egress-rules.conf
 install -D -m 0644 aetherspark-egress-check.service /etc/systemd/system/aetherspark-egress-check.service

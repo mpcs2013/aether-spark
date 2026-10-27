@@ -1,0 +1,21 @@
+---
+# Installs only what is missing, so a run with everything installed needs no network at all
+- name: Gather the installed packages
+  ansible.builtin.package_facts:
+
+- name: Install the host's missing packages
+  ansible.builtin.apt:
+    name: "{{ spark_host_missing }}"
+    state: present
+    update_cache: true
+  vars:
+    spark_host_missing: >-
+      {{ (spark_host_packages + (['nut-client'] if spark_host_ups_port | string | length > 0 else []))
+         | difference(ansible_facts.packages.keys()) }}
+  when: spark_host_missing | length > 0
+
+- name: Hold the packages the egress tests pin (bumped on purpose only)
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ spark_host_held_packages | intersect(ansible_facts.packages.keys()) }}"

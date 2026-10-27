@@ -25,6 +25,7 @@ jobs:
       devcontainer: ${{ steps.c.outputs.devcontainer }}
       egress: ${{ steps.c.outputs.egress }}
       lint: ${{ steps.c.outputs.lint }}
+      host_role: ${{ steps.c.outputs.host_role }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,7 +40,7 @@ jobs:
         run: |
           set -eu
           if [ "$EVENT" != pull_request ]; then
-            printf 'code=true\npython=true\ndevcontainer=true\negress=true\nlint=true\n' >> "$GITHUB_OUTPUT"; exit 0
+            printf 'code=true\npython=true\ndevcontainer=true\negress=true\nlint=true\nhost_role=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "$BASE...$HEAD")
           printf '%s\n' "$files"
@@ -56,7 +57,9 @@ jobs:
           egress=$all; any '^(deploy/compose/egress/|deploy/host/|tests/egress/)' && egress=true
           # Lints: their inputs, and the design note they compare with (a docs file, so on all files)
           lint=$all; printf '%s\n' "$files" | grep -E '^(deploy/compose/|deploy/host/|tests/egress/|docs/architecture/egress\.md$)' >/dev/null && lint=true
-          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" | tee -a "$GITHUB_OUTPUT"
+          # The Spark host role: the role, the rule files it installs, and Ansible's pin
+          host_role=$all; any '^(deploy/ansible/|deploy/host/|tests/host-role/)|^(pyproject\.toml|uv\.lock)$' && host_role=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\nhost_role=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" "$host_role" | tee -a "$GITHUB_OUTPUT"
 
   build:
     name: just ci (${{ matrix.arch }})
@@ -192,6 +195,21 @@ jobs:
 
       - run: sudo bash tests/egress/lint.sh
 
+  # The Spark host role (WP6.2) in a container with systemd, on arm64 like the Spark: ansible-lint,
+  # apply twice, check mode, and one break per assertion
+  host-role:
+    name: host-role-test (arm64)
+    needs: changes
+    if: needs.changes.outputs.host_role == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: bash tests/host-role/run.sh
+
   gitleaks:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -212,7 +230,7 @@ jobs:
   # requiring them directly would leave docs-only PRs pending forever.
   ci-result:
     if: always()
-    needs: [changes, build, devcontainer, python-windows, egress, egress-lint, gitleaks]
+    needs: [changes, build, devcontainer, python-windows, egress, egress-lint, host-role, gitleaks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

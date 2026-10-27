@@ -1,0 +1,201 @@
+---
+# Read-only assertions, also in check mode (spark-host.md, "Drift"): check mode skips command tasks,
+# and some settings can drift without a file changing. Each one fails when its setting has drifted;
+# tests/host-role/run.sh breaks each in turn and expects its failure.
+- name: Read the masked units' state
+  ansible.builtin.command: systemctl is-enabled {{ spark_host_masked_units | join(' ') }}  # noqa: command-instead-of-module
+  register: spark_host_assert_units
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Assert every unit that phones home is masked
+  ansible.builtin.assert:
+    that: spark_host_assert_units.stdout_lines | reject('equalto', 'masked') | list | length == 0
+    fail_msg: >-
+      not masked: {{ spark_host_masked_units | zip(spark_host_assert_units.stdout_lines)
+      | rejectattr(1, 'equalto', 'masked') | map('first') | join(', ') }}
+    quiet: true
+
+- name: Read the default target
+  ansible.builtin.command: systemctl get-default
+  register: spark_host_assert_target
+  changed_when: false
+  check_mode: false
+
+- name: Assert the host boots to a text login
+  ansible.builtin.assert:
+    that: spark_host_assert_target.stdout == 'multi-user.target'
+    fail_msg: "the default target is {{ spark_host_assert_target.stdout }}"
+    quiet: true
+
+# sshd -T prints the settings sshd would use, whichever file sets them; it needs the runtime
+# directory that the on-demand sshd creates only at the first connection
+- name: The runtime directory of sshd exists for the settings check
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  check_mode: false
+
+- name: Read the SSH settings in effect
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: spark_host_assert_sshd
+  changed_when: false
+  check_mode: false
+
+- name: Assert the SSH settings in effect
+  ansible.builtin.assert:
+    that: spark_host_sshd_expected | difference(spark_host_assert_sshd.stdout_lines) | length == 0
+    fail_msg: "not in effect: {{ spark_host_sshd_expected | difference(spark_host_assert_sshd.stdout_lines) | join(', ') }}"
+    quiet: true
+  vars:
+    spark_host_sshd_expected:
+      - passwordauthentication no
+      - kbdinteractiveauthentication no
+      - permitrootlogin no
+      - "allowusers {{ spark_host_admin_user }}"
+      - allowtcpforwarding local
+      - allowstreamlocalforwarding local
+      - allowagentforwarding no
+      - permittunnel no
+      - x11forwarding no
+      - gatewayports no
+
+- name: Read the admin account's home
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ spark_host_admin_user }}"
+
+- name: Read the admin account's authorised keys
+  ansible.builtin.slurp:
+    path: "{{ ansible_facts.getent_passwd[spark_host_admin_user][4] }}/.ssh/authorized_keys"
+  register: spark_host_assert_keys
+
+- name: Assert the hardware key is the only key, from the admin desktop only
+  ansible.builtin.assert:
+    that:
+      - spark_host_keys | length == 1
+      - spark_host_keys[0] is match('^from="' ~ (spark_host_admin_addr | regex_escape) ~ '" ' ~ (spark_host_admin_ssh_key | regex_escape))
+    fail_msg: "authorized_keys holds {{ spark_host_keys | length }} keys, or the key lacks its from= option"
+    quiet: true
+  vars:
+    spark_host_keys: "{{ spark_host_assert_keys.content | b64decode | split('\n') | select | reject('match', '^#') | list }}"
+
+- name: Read the IPv6 switches
+  ansible.builtin.command: sysctl -n net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6
+  register: spark_host_assert_ipv6
+  changed_when: false
+  check_mode: false
+
+- name: Assert IPv6 is off
+  ansible.builtin.assert:
+    that: spark_host_assert_ipv6.stdout_lines == ['1', '1']
+    fail_msg: "disable_ipv6 (all, default): {{ spark_host_assert_ipv6.stdout_lines | join(', ') }}"
+    quiet: true
+
+- name: Read where /etc/resolv.conf points
+  ansible.builtin.stat:
+    path: /etc/resolv.conf
+  register: spark_host_assert_resolv
+  when: spark_host_manage_network | bool
+
+- name: Assert every program asks the local resolver
+  ansible.builtin.assert:
+    that: spark_host_assert_resolv.stat.lnk_source | default('') == '/run/systemd/resolve/stub-resolv.conf'
+    fail_msg: /etc/resolv.conf does not point to systemd-resolved's stub
+    quiet: true
+  when: spark_host_manage_network | bool
+
+- name: Check for the rfkill device
+  ansible.builtin.stat:
+    path: /dev/rfkill
+  register: spark_host_assert_rfkill_dev
+
+- name: Read the radios' state
+  ansible.builtin.command: rfkill --raw --noheadings --output SOFT
+  register: spark_host_assert_rfkill
+  changed_when: false
+  check_mode: false
+  when: spark_host_assert_rfkill_dev.stat.exists
+
+- name: Assert every radio is blocked
+  ansible.builtin.assert:
+    that: "'unblocked' not in spark_host_assert_rfkill.stdout_lines"
+    fail_msg: a radio is unblocked
+    quiet: true
+  when: spark_host_assert_rfkill_dev.stat.exists
+
+- name: Read the host's age key
+  ansible.builtin.stat:
+    path: /etc/aetherspark/age/host.key
+  register: spark_host_assert_age
+
+- name: Assert the host's age key is root's only and read-only
+  ansible.builtin.assert:
+    that:
+      - spark_host_assert_age.stat.exists
+      - spark_host_assert_age.stat.pw_name == 'root'
+      - spark_host_assert_age.stat.mode == '0400'
+    fail_msg: "/etc/aetherspark/age/host.key is missing or not root-only 0400"
+    quiet: true
+
+- name: Read where node-exporter listens
+  ansible.builtin.command: ss -Hltn sport = :9100
+  register: spark_host_assert_exporter
+  changed_when: false
+  check_mode: false
+
+- name: Assert node-exporter listens on loopback only
+  ansible.builtin.assert:
+    that:
+      - spark_host_assert_exporter.stdout_lines | length > 0
+      - spark_host_assert_exporter.stdout_lines | map('split') | map(attribute=3) | reject('match', '^127\.0\.0\.1:') | list | length == 0
+    fail_msg: "node-exporter is not running, or listens beyond loopback: {{ spark_host_assert_exporter.stdout_lines | join('; ') }}"
+    quiet: true
+
+- name: Gather the installed packages
+  ansible.builtin.package_facts:
+
+- name: Read the held packages
+  ansible.builtin.command: apt-mark showhold
+  register: spark_host_assert_holds
+  changed_when: false
+  check_mode: false
+
+- name: Assert the pinned packages are held
+  ansible.builtin.assert:
+    that: spark_host_held | difference(spark_host_assert_holds.stdout_lines) | length == 0
+    fail_msg: "not held: {{ spark_host_held | difference(spark_host_assert_holds.stdout_lines) | join(', ') }}"
+    quiet: true
+  vars:
+    spark_host_held: "{{ spark_host_held_packages | intersect(ansible_facts.packages.keys()) }}"
+
+- name: Check for the Ubuntu Pro client
+  ansible.builtin.stat:
+    path: /usr/bin/pro
+  register: spark_host_assert_pro
+
+- name: Read the Ubuntu Pro news setting
+  ansible.builtin.command: pro config show apt_news
+  register: spark_host_assert_apt_news
+  changed_when: false
+  check_mode: false
+  when: spark_host_assert_pro.stat.exists
+
+- name: Assert no Ubuntu Pro news in apt
+  ansible.builtin.assert:
+    that: "'False' in spark_host_assert_apt_news.stdout"
+    fail_msg: Ubuntu Pro's apt news is on
+    quiet: true
+  when: spark_host_assert_pro.stat.exists
+
+- name: Check the layer-3 rules in host mode
+  ansible.builtin.command: /usr/local/sbin/aetherspark-egress-rules check
+  environment:
+    AS_REQUIRE_HOST_MODE: "1"
+  changed_when: false
+  check_mode: false
+  when: spark_host_apply_rules | bool

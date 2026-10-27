@@ -1,0 +1,88 @@
+---
+# The Spark host role (docs/architecture/spark-host.md). This Spark's own values come from
+# /etc/aetherspark/host.yml (see deploy/ansible/host.example.yml); the defaults below are the
+# design's. Names marked "read at arrival" are confirmed on the Spark (spark-host.md, "Observe at
+# arrival") and changed here if they differ.
+
+# --- Required in host.yml --------------------------------------------------------------------
+# The owner's account (created at first boot), its hardware key's public line, and the desktop
+spark_host_admin_user: ""
+spark_host_admin_ssh_key: ""
+spark_host_admin_addr: ""
+# The router: DNS for home.arpa and time
+spark_host_router: ""
+# NetworkManager's connection on the LAN port (`nmcli connection show`, read at arrival)
+spark_host_lan_connection: ""
+
+# --- What the role manages; the container test switches off what a container cannot have ---------
+spark_host_manage_network: true
+spark_host_docker: true
+spark_host_apply_rules: true
+spark_host_use_ops_proxy: true
+
+# --- Flows -----------------------------------------------------------------------------------
+# The ops proxy's fixed address (deploy/compose/egress/compose.yaml); flow H7
+spark_host_ops_proxy: "172.30.20.2:3128"
+# The UPS client (flow H9): the NAS's AetherSpark-network address and the UPS service's port,
+# name and login from the home-infrastructure owner at cutover; empty port: no UPS client. The
+# password is in /etc/aetherspark/ups.secret (root, 0600).
+spark_host_nas_addr: ""
+spark_host_ups_port: ""
+spark_host_ups_name: "ups"
+spark_host_ups_user: ""
+
+# --- Services switched off (spark-host.md, "Services switched off or redirected") -----------------
+# Masked, so nothing starts them again; a unit that does not exist is masked too, which keeps a
+# later package from enabling it. NVIDIA's own unit names are read at arrival.
+spark_host_masked_units:
+  - unattended-upgrades.service
+  - apt-daily.timer
+  - apt-daily-upgrade.timer
+  - fwupd-refresh.timer
+  - passim.service
+  - motd-news.timer
+  - snapd.service
+  - snapd.socket
+  - snapd.seeded.service
+  - avahi-daemon.service
+  - avahi-daemon.socket
+  - lldpd.service
+  - dgx-dashboard.service
+  - nvidia-dgx-telemetry.service
+  - nvidia-spark-ota-check.service
+  - nvidia-spark-ota-check.timer
+  - nvidia-spark-run-apt-upgrade.service
+  - ua-timer.timer
+  - esm-cache.service
+  - apport.service
+  - whoopsie.service
+  - kerneloops.service
+  - cups-browsed.service
+  - update-notifier-download.timer
+  - update-notifier-motd.timer
+# Snaps removed before snapd is masked (`snap list`, read at arrival)
+spark_host_snaps_removed: []
+
+# --- Radios and other interfaces -------------------------------------------------------------
+# Wi-Fi and Bluetooth drivers, never loaded (`lsmod`, read at arrival)
+spark_host_radio_modules: []
+# Interfaces NetworkManager leaves alone: radios and the four ConnectX-7 ports
+spark_host_unmanaged_devices: "type:wifi;type:bluetooth;interface-name:enp1s0f*;interface-name:enP2p1s0f*"
+
+# --- Packages --------------------------------------------------------------------------------
+spark_host_packages:
+  - rfkill
+  - age
+  - prometheus-node-exporter
+# Held: a bump is a deliberate change with the egress suite re-run (ADR-0012)
+spark_host_held_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - nvidia-container-toolkit
+  - nvidia-container-toolkit-base
+  - libnvidia-container1
+  - libnvidia-container-tools
+
+# --- Logs ------------------------------------------------------------------------------------
+spark_host_journal_max_use: "2G"

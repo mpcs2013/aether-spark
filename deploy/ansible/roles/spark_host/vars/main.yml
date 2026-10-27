@@ -1,0 +1,10 @@
+---
+# The checkout the role runs from (deploy/ansible/../..)
+spark_host_repo: "{{ playbook_dir | dirname | dirname }}"
+# deploy/host/install.sh's files, as installed
+spark_host_rule_files:
+  - { source: egress-rules.sh, installed: /usr/local/sbin/aetherspark-egress-rules }
+  - { source: aetherspark-egress-rules.service, installed: /etc/systemd/system/aetherspark-egress-rules.service }
+  - { source: aetherspark-egress-check.service, installed: /etc/systemd/system/aetherspark-egress-check.service }
+  - { source: aetherspark-egress-check.timer, installed: /etc/systemd/system/aetherspark-egress-check.timer }
+  - { source: docker-check-egress-rules.conf, installed: /etc/systemd/system/docker.service.d/aetherspark-egress-rules.conf }

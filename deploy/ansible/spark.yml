@@ -1,0 +1,12 @@
+---
+# The Spark host role (docs/architecture/spark-host.md), run on the Spark itself, as root, through
+# deploy/ansible/run.sh (docs/runbooks/spark-host.md). The host's own values come from
+# /etc/aetherspark/host.yml; the container test passes its own file.
+- name: Spark host
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "{{ spark_host_vars_file | default('/etc/aetherspark/host.yml') }}"
+  roles:
+    - spark_host

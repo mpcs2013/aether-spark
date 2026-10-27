@@ -1,0 +1,68 @@
+---
+# Units that phone home or update on their own are masked: nothing can start them again, and a unit
+# that does not exist yet stays off when a later package brings it. Snaps go first, while snapd runs.
+# systemctl rather than the systemd module, which refuses units that do not exist (noqa below).
+- name: Read which units are masked
+  ansible.builtin.command: systemctl is-enabled {{ item }}  # noqa: command-instead-of-module
+  loop: "{{ spark_host_masked_units }}"
+  register: spark_host_unit_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Remove the snaps a runtime host does not need
+  community.general.snap:
+    name: "{{ spark_host_snaps_removed }}"
+    state: absent
+  when:
+    - spark_host_snaps_removed | length > 0
+    - (spark_host_unit_state.results | selectattr('item', 'equalto', 'snapd.service') | first).stdout != 'masked'
+
+- name: Mask the units that phone home or update on their own
+  ansible.builtin.command: systemctl mask {{ item.item }}  # noqa: command-instead-of-module
+  loop: "{{ spark_host_unit_state.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout != 'masked'
+  changed_when: true
+
+- name: Stop the masked units that run
+  ansible.builtin.command: systemctl stop {{ item.item }}  # noqa: command-instead-of-module
+  loop: "{{ spark_host_unit_state.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout not in ['masked', 'not-found', '']
+  changed_when: true
+
+- name: Read the default target
+  ansible.builtin.command: systemctl get-default
+  register: spark_host_default_target
+  changed_when: false
+  check_mode: false
+
+- name: Boot to a text login, no graphical session
+  ansible.builtin.command: systemctl set-default multi-user.target
+  when: spark_host_default_target.stdout != 'multi-user.target'
+  changed_when: true
+
+- name: Directory for the firmware tool's drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/fwupd.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: spark_host_use_ops_proxy | bool
+
+- name: Firmware updates go through the ops proxy (fwupdmgr, by hand)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/fwupd.service.d/90-aetherspark-proxy.conf
+    content: |
+      # docs/architecture/spark-host.md, flow H7; written by the host role
+      [Service]
+      Environment=http_proxy=http://{{ spark_host_ops_proxy }} https_proxy=http://{{ spark_host_ops_proxy }}
+    owner: root
+    group: root
+    mode: "0644"
+  when: spark_host_use_ops_proxy | bool
+  notify: Reload systemd

@@ -1,0 +1,13 @@
+---
+# The container test's host settings (tests/host-role/run.sh): documentation addresses, a made-up
+# hardware-key line, and the parts a container cannot have switched off (the LAN connection and
+# resolv.conf, Docker, the rules and the ops proxy; the lab and the Spark test those).
+spark_host_admin_user: spark-admin
+spark_host_admin_ssh_key: "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIGxhYm9ubHlub3RhcmVhbGtleWZvcnRoZWNvbnRhaW5lcgAAAARzc2g6 lab-only"
+spark_host_admin_addr: 192.0.2.50
+spark_host_router: 192.0.2.1
+spark_host_lan_connection: ""
+spark_host_manage_network: false
+spark_host_docker: false
+spark_host_apply_rules: false
+spark_host_use_ops_proxy: false
