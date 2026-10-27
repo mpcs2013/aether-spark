@@ -1,0 +1,10 @@
+# Runs the layer-3 rules check every 15 minutes (aetherspark-egress-check.service)
+[Unit]
+Description=AetherSpark egress firewall rules check, every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target

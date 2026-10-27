@@ -13,6 +13,8 @@ Wants=network-pre.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# Host mode: DROP policies first, from no settings, so a failing apply leaves the host closed
+ExecStartPre=/usr/local/sbin/aetherspark-egress-rules baseline
 # Reads /etc/aetherspark/egress-rules.env itself
 ExecStart=/usr/local/sbin/aetherspark-egress-rules apply
 ExecReload=/usr/local/sbin/aetherspark-egress-rules apply
