@@ -1,0 +1,85 @@
+---
+# One admin account with a hardware key (spark-host.md, "SSH and the admin account"). Its password,
+# set at first boot and kept in the password manager, is for the console and sudo only.
+- name: The admin account may use sudo
+  ansible.builtin.user:
+    name: "{{ spark_host_admin_user }}"
+    groups: sudo
+    append: true
+
+# The keys live in a file only root can change, the only one sshd reads (AuthorizedKeysFile below):
+# a key added to the account's own ~/.ssh by any program running as the owner is never accepted.
+# Both hardware keys, so a lost or broken one does not lock the owner out; no other key.
+- name: Folder for the keys sshd accepts
+  ansible.builtin.file:
+    path: /etc/ssh/authorized_keys
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The admin account's only keys are the hardware keys, from the admin desktop only
+  ansible.builtin.copy:
+    dest: "/etc/ssh/authorized_keys/{{ spark_host_admin_user }}"
+    content: |
+      # docs/architecture/spark-host.md, "SSH and the admin account"; written by the host role
+      {% for key in spark_host_admin_ssh_keys %}
+      from="{{ spark_host_admin_addr }}" {{ key }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read the admin account's home
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ spark_host_admin_user }}"
+
+- name: No keys in the account's own folder (sshd no longer reads them; nothing to mislead)
+  ansible.builtin.file:
+    path: "{{ ansible_facts.getent_passwd[spark_host_admin_user][4] }}/.ssh/{{ item }}"
+    state: absent
+  loop:
+    - authorized_keys
+    - authorized_keys2
+
+# sshd -t needs its runtime directory, which Ubuntu's on-demand sshd (ssh.socket) creates only at
+# the first connection; a runtime directory, gone at reboot, so also made in check mode
+- name: The runtime directory of sshd exists for the settings check
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  check_mode: false
+  # Gone at every reboot until the first SSH connection: re-creating it is not drift
+  changed_when: false
+
+# sshd takes the first value it reads; this file comes before Ubuntu's own (50-cloud-init.conf)
+- name: SSH settings
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-aetherspark.conf
+    content: |
+      # docs/architecture/spark-host.md, "SSH and the admin account"; written by the host role.
+      # Keys only from the root-owned file; no key command, no certificate authority.
+      # Forwarding only from the desktop to the Spark: a remote forward would give Spark processes
+      # a way out through the desktop, agent forwarding the desktop's key to root on the Spark.
+      AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+      AuthorizedKeysCommand none
+      TrustedUserCAKeys none
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      AllowUsers {{ spark_host_admin_user }}
+      AllowTcpForwarding local
+      AllowStreamLocalForwarding local
+      AllowAgentForwarding no
+      PermitTunnel no
+      X11Forwarding no
+      GatewayPorts no
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd

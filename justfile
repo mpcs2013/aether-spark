@@ -59,6 +59,11 @@ egress-test-layer3:
 host-lab:
     bash tests/egress/host-lab.sh
 
+# Spark host role in a container with systemd (tests/host-role/run.sh; needs Docker; about 4 minutes)
+[unix]
+host-role-test:
+    bash tests/host-role/run.sh
+
 # Egress lints L1-L3 (tests/egress/lint.sh; needs Docker; root for the rule load, so sudo on Linux)
 [linux]
 egress-lint:
@@ -75,6 +80,11 @@ egress-test:
 [windows]
 host-lab:
     & "$env:ProgramFiles\Git\bin\bash.exe" tests/egress/host-lab.sh
+
+# Spark host role in a container with systemd (tests/host-role/run.sh; needs Docker Desktop)
+[windows]
+host-role-test:
+    & "$env:ProgramFiles\Git\bin\bash.exe" tests/host-role/run.sh
 
 # Egress lints L1-L3 (tests/egress/lint.sh; needs Docker; the host-rule load runs in CI only)
 [windows]

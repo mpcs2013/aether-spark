@@ -1,0 +1,97 @@
+---
+# Names: every program asks systemd-resolved, which sends only home.arpa names to the router (flow
+# H5). Time from the router only (H6). NetworkManager makes no connectivity checks and leaves the
+# radios and the ConnectX ports alone. IPv6 off everywhere.
+- name: Directories for the resolver, time and NetworkManager settings
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/systemd/resolved.conf.d
+    - /etc/systemd/timesyncd.conf.d
+    - /etc/NetworkManager/conf.d
+
+- name: Resolver without fallback servers, LLMNR or mDNS
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/90-aetherspark.conf
+    content: |
+      # docs/architecture/spark-host.md, flow H5; written by the host role. The router comes from
+      # the LAN connection, with the route-only domain ~home.arpa, so no other name is resolved.
+      [Resolve]
+      FallbackDNS=
+      LLMNR=no
+      MulticastDNS=no
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+
+- name: Time from the router only
+  ansible.builtin.copy:
+    dest: /etc/systemd/timesyncd.conf.d/90-aetherspark.conf
+    content: |
+      # docs/architecture/spark-host.md, flow H6; written by the host role
+      [Time]
+      NTP={{ spark_host_router }}
+      FallbackNTP=
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-timesyncd
+
+- name: NetworkManager makes no connectivity checks and leaves radios and ConnectX ports alone
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/90-aetherspark.conf
+    content: |
+      # docs/architecture/spark-host.md, "Interfaces"; written by the host role
+      [connectivity]
+      enabled=false
+
+      [keyfile]
+      unmanaged-devices={{ spark_host_unmanaged_devices }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload NetworkManager
+
+- name: IPv6 off on every interface
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-aetherspark-ipv6.conf
+    reload: true
+  loop:
+    - net.ipv6.conf.all.disable_ipv6
+    - net.ipv6.conf.default.disable_ipv6
+
+- name: Every program asks the local resolver
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  when: spark_host_manage_network | bool
+
+- name: Read the LAN connection's name and IPv6 settings
+  ansible.builtin.command: >-
+    nmcli -g ipv4.dns,ipv4.dns-search,ipv4.ignore-auto-dns,ipv6.method
+    connection show {{ spark_host_lan_connection | quote }}
+  register: spark_host_lan_settings
+  changed_when: false
+  check_mode: false
+  when: spark_host_manage_network | bool
+
+# NetworkManager's own IPv6 setting, or it would switch disable_ipv6 back on for the LAN port
+- name: The LAN connection uses the router for home.arpa only, without IPv6
+  ansible.builtin.command: >-
+    nmcli connection modify {{ spark_host_lan_connection | quote }}
+    ipv4.dns {{ spark_host_router }} ipv4.dns-search ~home.arpa ipv4.ignore-auto-dns yes
+    ipv6.method disabled
+  when:
+    - spark_host_manage_network | bool
+    - spark_host_lan_settings.stdout_lines != [spark_host_router, '~home.arpa', 'yes', 'disabled']
+  changed_when: true
+  notify: Reapply the LAN connection

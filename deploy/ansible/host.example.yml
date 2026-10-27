@@ -1,0 +1,26 @@
+---
+# /etc/aetherspark/host.yml on the Spark (root, 0600): this Spark's values for the host role. The
+# real values live in the desktop's site folder (ops.local/); these are documentation values.
+# Every setting the role takes is in roles/spark_host/defaults/main.yml.
+
+# The owner's account, created at first boot
+spark_host_admin_user: owner
+# Both hardware keys' public lines (ssh-keygen -t ed25519-sk on the desktop, once per key; the
+# .pub files); the second key is the spare, kept apart from the first
+spark_host_admin_ssh_keys:
+  - "sk-ssh-ed25519@openssh.com AAAAexampleexampleexample owner@desktop-key-1"
+  - "sk-ssh-ed25519@openssh.com AAAAexampleexampleexampla owner@desktop-key-2"
+# The admin desktop's reserved Home address, the router's address on the AetherSpark network
+spark_host_admin_addr: 198.51.100.50
+spark_host_router: 192.0.2.1
+# NetworkManager's connection on the LAN port (nmcli connection show)
+spark_host_lan_connection: "Wired connection 1"
+
+# Read at arrival (spark-host.md, "Observe at arrival"); empty until then
+spark_host_snaps_removed: []
+spark_host_radio_modules: []
+
+# The UPS client, from the home-infrastructure owner at cutover; empty port: no UPS client
+spark_host_nas_addr: ""
+spark_host_ups_port: ""
+spark_host_ups_user: ""

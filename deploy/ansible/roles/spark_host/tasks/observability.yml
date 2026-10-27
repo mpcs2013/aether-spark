@@ -1,0 +1,34 @@
+---
+# node-exporter answers on loopback only; the host OTel collector (flow H8) scrapes it there and
+# arrives with the stack's collector (P3a). The journal stays on the Spark, size-capped.
+- name: Node-exporter listens on loopback only
+  ansible.builtin.lineinfile:
+    path: /etc/default/prometheus-node-exporter
+    regexp: '^ARGS='
+    line: ARGS="--web.listen-address=127.0.0.1:9100"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node-exporter
+
+- name: Directory for the journal settings
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The journal is kept on disk, size-capped
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/90-aetherspark.conf
+    content: |
+      # docs/architecture/spark-host.md, "Logs and alerts"; written by the host role
+      [Journal]
+      Storage=persistent
+      SystemMaxUse={{ spark_host_journal_max_use }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald

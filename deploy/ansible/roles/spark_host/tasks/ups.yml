@@ -1,0 +1,33 @@
+---
+# The UPS client (flow H9) connects out to the NAS's UPS service and shuts the Spark down on a
+# power cut. Port, name and login from the home-infrastructure owner; the password lives in
+# /etc/aetherspark/ups.secret (root, 0600) and never in a repository.
+- name: Read the UPS login's password
+  ansible.builtin.slurp:
+    path: /etc/aetherspark/ups.secret
+  register: spark_host_ups_secret
+  no_log: true
+
+- name: The UPS client is a network client
+  ansible.builtin.lineinfile:
+    path: /etc/nut/nut.conf
+    regexp: '^MODE='
+    line: MODE=netclient
+  notify: Restart the UPS client
+
+- name: The UPS client watches the NAS's UPS
+  ansible.builtin.copy:
+    dest: /etc/nut/upsmon.conf
+    content: |
+      # docs/architecture/spark-host.md, flow H9; written by the host role
+      MONITOR {{ spark_host_ups }} 1 {{ spark_host_ups_user }} {{ spark_host_ups_password }} secondary
+      MINSUPPLIES 1
+      SHUTDOWNCMD "/sbin/shutdown -h +0"
+    owner: root
+    group: nut
+    mode: "0640"
+  vars:
+    spark_host_ups: "{{ spark_host_ups_name }}@{{ spark_host_nas_addr }}:{{ spark_host_ups_port }}"
+    spark_host_ups_password: "{{ spark_host_ups_secret.content | b64decode | trim }}"
+  no_log: true
+  notify: Restart the UPS client

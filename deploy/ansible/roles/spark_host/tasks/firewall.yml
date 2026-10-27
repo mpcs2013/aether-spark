@@ -1,0 +1,82 @@
+---
+# Last: the layer-3 rules in host mode (deploy/host/), which switch on the host's default-deny.
+# The marker turns host mode on; the drop-ins make the units require it, so a deleted marker
+# closes the host and fails the check instead of quietly leaving host mode. The rules' settings
+# file was checked at the start of the run (main.yml).
+- name: Host mode on
+  ansible.builtin.copy:
+    dest: /etc/aetherspark/host-mode
+    content: "Host mode of the layer-3 rules (docs/architecture/spark-host.md); written by the host role\n"
+    owner: root
+    group: root
+    mode: "0644"
+  register: spark_host_marker
+
+- name: Directories for the rule units' drop-ins
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - aetherspark-egress-rules.service
+    - aetherspark-egress-check.service
+
+- name: The rule units require host mode
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item }}.d/90-host-mode.conf"
+    content: |
+      # docs/architecture/spark-host.md; written by the host role
+      [Service]
+      Environment=AS_REQUIRE_HOST_MODE=1
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - aetherspark-egress-rules.service
+    - aetherspark-egress-check.service
+  register: spark_host_dropins
+
+# install.sh copies these files itself; it runs when one differs from this checkout, or when host
+# mode was just switched on
+- name: Compare the installed rule files with this checkout
+  ansible.builtin.stat:
+    path: "{{ item.installed }}"
+    checksum_algorithm: sha256
+  loop: "{{ spark_host_rule_files }}"
+  register: spark_host_installed_rules
+
+- name: Checksums of this checkout's rule files
+  ansible.builtin.stat:
+    path: "{{ spark_host_repo }}/deploy/host/{{ item.source }}"
+    checksum_algorithm: sha256
+  loop: "{{ spark_host_rule_files }}"
+  register: spark_host_repo_rules
+
+# install.sh copies the files first and can still stop later (Docker down, a bridge name): a rerun
+# finds the files matching, so it also runs when the rules or the check timer are not in place
+- name: Read whether the rules are in place
+  ansible.builtin.command: /usr/local/sbin/aetherspark-egress-rules check
+  environment:
+    AS_REQUIRE_HOST_MODE: "1"
+  register: spark_host_rules_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Read whether the check timer is enabled
+  ansible.builtin.command: systemctl is-enabled aetherspark-egress-check.timer  # noqa: command-instead-of-module
+  register: spark_host_check_timer
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install and apply the rules in host mode
+  ansible.builtin.command: "{{ spark_host_repo }}/deploy/host/install.sh /etc/aetherspark/egress-rules.env"
+  when: >-
+    spark_host_marker.changed or spark_host_dropins.changed
+    or (spark_host_installed_rules.results | map(attribute='stat.checksum', default='') | list)
+       != (spark_host_repo_rules.results | map(attribute='stat.checksum') | list)
+    or spark_host_rules_check.rc != 0 or spark_host_check_timer.stdout != 'enabled'
+  changed_when: true

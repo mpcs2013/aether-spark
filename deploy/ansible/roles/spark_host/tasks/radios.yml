@@ -1,0 +1,67 @@
+---
+# Wi-Fi and Bluetooth carry nothing (spark-host.md, "Interfaces"): their drivers are never loaded,
+# and every radio is blocked at each boot before the network comes up (NVIDIA documents no
+# hardware switch).
+- name: The radio drivers are never loaded
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/90-aetherspark-radios.conf
+    content: |
+      # docs/architecture/spark-host.md, "Interfaces"; written by the host role
+      {% for module in spark_host_radio_modules %}
+      blacklist {{ module }}
+      install {{ module }} /bin/false
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  when: spark_host_radio_modules | length > 0
+
+- name: Unit that blocks every radio at boot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/aetherspark-radios-off.service
+    content: |
+      # docs/architecture/spark-host.md, "Interfaces"; written by the host role
+      [Unit]
+      Description=AetherSpark: block every radio before the network comes up
+      # No rfkill device: no radio driver is loaded, so there is nothing to block
+      ConditionPathExists=/dev/rfkill
+      DefaultDependencies=no
+      After=systemd-rfkill.service
+      Before=network-pre.target
+      Wants=network-pre.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/rfkill block all
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Block every radio at boot
+  ansible.builtin.systemd_service:
+    name: aetherspark-radios-off.service
+    enabled: true
+    daemon_reload: true
+
+# No rfkill device: no radio driver is loaded (a container, or the drivers blacklisted)
+- name: Check for the rfkill device
+  ansible.builtin.stat:
+    path: /dev/rfkill
+  register: spark_host_rfkill_dev
+
+- name: Read the radios' state
+  ansible.builtin.command: rfkill --raw --noheadings --output SOFT
+  register: spark_host_rfkill
+  changed_when: false
+  check_mode: false
+  when: spark_host_rfkill_dev.stat.exists
+
+- name: Block every radio now
+  ansible.builtin.command: rfkill block all
+  when: spark_host_rfkill_dev.stat.exists and 'unblocked' in spark_host_rfkill.stdout_lines
+  changed_when: true

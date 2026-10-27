@@ -1,0 +1,52 @@
+---
+# systemctl try-restart and try-reload-or-restart act only on a unit that runs; the systemd module
+# has no such action (noqa below)
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved.service
+    state: restarted
+
+# timesyncd does not run in a container; on the Spark it does
+- name: Restart systemd-timesyncd
+  ansible.builtin.command: systemctl try-restart systemd-timesyncd.service  # noqa: command-instead-of-module
+  changed_when: true
+
+# Its settings file is written everywhere; NetworkManager itself runs where the role manages the
+# network (not in the container test)
+- name: Reload NetworkManager
+  ansible.builtin.command: systemctl try-reload-or-restart NetworkManager.service  # noqa: command-instead-of-module
+  changed_when: true
+  when: spark_host_manage_network | bool
+
+- name: Reapply the LAN connection
+  ansible.builtin.command: nmcli connection up {{ spark_host_lan_connection | quote }}
+  changed_when: true
+
+# Ubuntu starts sshd through ssh.socket; with no connection yet there is nothing to reload
+- name: Reload sshd
+  ansible.builtin.command: systemctl try-reload-or-restart ssh.service  # noqa: command-instead-of-module
+  changed_when: true
+
+- name: Restart Docker
+  ansible.builtin.systemd_service:
+    name: docker.service
+    state: restarted
+
+- name: Restart node-exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter.service
+    state: restarted
+
+- name: Restart journald
+  ansible.builtin.systemd_service:
+    name: systemd-journald.service
+    state: restarted
+
+- name: Restart the UPS client
+  ansible.builtin.systemd_service:
+    name: nut-monitor.service
+    state: restarted

@@ -1,0 +1,100 @@
+---
+# Every source on HTTPS (a plain-HTTP source would be a proxy GET, which the ops proxy refuses), apt
+# through the ops proxy only, and no automatic runs: updates happen in owner-started ops sessions.
+- name: Find the apt source files
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: ["*.sources", "*.list"]
+  register: spark_host_apt_sources
+
+- name: Check for the old single sources file
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list
+  register: spark_host_sources_list
+
+- name: Switch every apt source to HTTPS
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: 'http://'
+    replace: 'https://'
+  loop: >-
+    {{ spark_host_apt_sources.files | map(attribute='path') | list
+       + (['/etc/apt/sources.list'] if spark_host_sources_list.stat.exists else []) }}
+
+- name: Apt goes through the ops proxy (works only while it runs)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/90aetherspark-proxy
+    content: |
+      // docs/architecture/spark-host.md, flow H7; written by the host role
+      Acquire::http::Proxy "http://{{ spark_host_ops_proxy }}";
+      Acquire::https::Proxy "http://{{ spark_host_ops_proxy }}";
+    owner: root
+    group: root
+    mode: "0644"
+  when: spark_host_use_ops_proxy | bool
+
+- name: No automatic apt runs
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      // docs/architecture/spark-host.md: updates only in owner-started ops sessions
+      APT::Periodic::Update-Package-Lists "0";
+      APT::Periodic::Unattended-Upgrade "0";
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check for the message-of-the-day news settings
+  ansible.builtin.stat:
+    path: /etc/default/motd-news
+  register: spark_host_motd_news
+
+- name: No message-of-the-day news
+  ansible.builtin.lineinfile:
+    path: /etc/default/motd-news
+    regexp: '^ENABLED='
+    line: ENABLED=0
+  when: spark_host_motd_news.stat.exists
+
+- name: Check for the package survey settings
+  ansible.builtin.stat:
+    path: /etc/popularity-contest.conf
+  register: spark_host_popcon
+
+- name: No package survey
+  ansible.builtin.lineinfile:
+    path: /etc/popularity-contest.conf
+    regexp: '^PARTICIPATE='
+    line: PARTICIPATE="no"
+  when: spark_host_popcon.stat.exists
+
+- name: Check for the Ubuntu Pro client
+  ansible.builtin.stat:
+    path: /usr/bin/pro
+  register: spark_host_pro
+
+- name: Read the Ubuntu Pro news setting
+  ansible.builtin.command: pro config show apt_news
+  register: spark_host_apt_news
+  changed_when: false
+  check_mode: false
+  when: spark_host_pro.stat.exists
+
+- name: No Ubuntu Pro news in apt
+  ansible.builtin.command: pro config set apt_news=false
+  changed_when: true
+  when: spark_host_pro.stat.exists and 'False' not in spark_host_apt_news.stdout
+
+- name: Check for cloud-init
+  ansible.builtin.stat:
+    path: /etc/cloud
+  register: spark_host_cloud
+
+- name: Cloud-init off after first boot
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud-init.disabled
+    content: "Disabled by the AetherSpark host role (docs/architecture/spark-host.md)\n"
+    owner: root
+    group: root
+    mode: "0644"
+  when: spark_host_cloud.stat.exists
