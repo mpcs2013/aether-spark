@@ -103,20 +103,33 @@ inside 'set -e
     git config user.signingkey /root/tagkey.pub && git add -A && git commit -qm test && git tag -s -m test v0.0.1-test
     echo "test@example.invalid namespaces=\"git\" $(cat /root/tagkey.pub)" >/etc/aetherspark/allowed_signers'
 gate() { # what to change first (run in /trust); prints ok when run.sh lets the run through
-    if inside "cd /trust && { $1; } && deploy/ansible/run.sh --version 2>&1" | grep '^ansible-playbook' >/dev/null; then echo ok; else echo refused; fi
+    inside "cd /trust && { $1; } && deploy/ansible/run.sh --version 2>&1" >/tmp/aetherspark-gate.log 2>&1
+    if grep '^ansible-playbook' /tmp/aetherspark-gate.log >/dev/null; then echo ok; else echo refused; fi
 }
-check T "a release tag signed with the allowed key" ok "$(gate 'true')"
-check T "a commit without a tag" refused "$(gate 'git commit -q --allow-empty -m next')"
-check T "a tag without a signature" refused "$(gate 'git tag v0.0.2-test')"
-check T "a tag signed with another key" refused \
-    "$(gate 'git -c user.signingkey=/root/otherkey.pub tag -s -m other v0.0.3-test HEAD~0 && git tag -d v0.0.2-test >/dev/null')"
+# A trust-chain case that fails prints what run.sh said and the checkout's state (a CI-only failure
+# must show its evidence)
+gate_check() { # description, expected, change
+    local before=$fails
+    check T "$1" "$2" "$(gate "$3")"
+    if [ "$fails" -ne "$before" ]; then
+        echo "--- run.sh said:"; tail -n 5 /tmp/aetherspark-gate.log
+        echo "--- the checkout:"
+        inside 'cd /trust && git tag -l && git log --oneline -1 && git status --porcelain | head -n 5
+            find . -path ./.venv/.lock -prune -o \( ! -user root -o \( ! -type l \( -perm /002 -o \( -perm /020 ! -group root \) \) \) \) -print | head -n 5'
+    fi
+}
+gate_check "a release tag signed with the allowed key" ok 'true'
+gate_check "a commit without a tag" refused 'git commit -q --allow-empty -m next'
+gate_check "a tag without a signature" refused 'git tag v0.0.2-test'
+gate_check "a tag signed with another key" refused \
+    'git -c user.signingkey=/root/otherkey.pub tag -s -m other v0.0.3-test HEAD~0 && git tag -d v0.0.2-test >/dev/null'
 inside 'cd /trust && git tag -d v0.0.3-test >/dev/null && git reset -q --hard HEAD~1'
-check T "back at the signed tag" ok "$(gate 'true')"
-check T "a checkout with local changes" refused "$(gate 'echo "# changed" >>deploy/ansible/spark.yml')"
+gate_check "back at the signed tag" ok 'true'
+gate_check "a checkout with local changes" refused 'echo "# changed" >>deploy/ansible/spark.yml'
 inside 'cd /trust && git checkout -q -- deploy/ansible/spark.yml'
-check T "a file another account owns" refused "$(gate 'chown nobody deploy/ansible/spark.yml')"
+gate_check "a file another account owns" refused 'chown nobody deploy/ansible/spark.yml'
 inside 'chown root /trust/deploy/ansible/spark.yml'
-check T "a file others may write" refused "$(gate 'chmod o+w deploy/ansible/spark.yml')"
+gate_check "a file others may write" refused 'chmod o+w deploy/ansible/spark.yml'
 inside 'chmod o-w /trust/deploy/ansible/spark.yml'
 
 echo "not in this container (the Spark's own tests): radios, held packages, Ubuntu Pro news,"
