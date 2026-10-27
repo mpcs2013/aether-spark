@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
 # Installs the layer-3 egress rules on a Linux host running Docker Engine (the Spark's host role,
-# WP6.2, and the CI egress job): the rule script, its systemd unit, the docker.service drop-in and
-# Docker's DNS upstreams, then applies the rules. Usage, as root: deploy/host/install.sh <settings>
+# WP6.2, and the CI egress job): the rule script, its systemd unit, the docker.service drop-in, the
+# check timer and Docker's DNS upstreams, then applies the rules. Host mode (the Spark) is switched
+# on by the host role, which creates /etc/aetherspark/host-mode. Usage, as root: deploy/host/install.sh <settings>
 # (see egress-rules.env.example; the real values are in ops.local/).
 set -euo pipefail
-cd "$(dirname "$0")" || exit 1
 
-env_file=${1:?usage: $0 <settings file>}
+# The settings path as given, resolved before the cd below
+env_file=$(realpath "${1:?usage: $0 <settings file>}") || exit 1
+cd "$(dirname "$0")" || exit 1
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
 systemctl cat docker.service >/dev/null 2>&1 || { echo "no docker.service: Docker Engine with systemd needed" >&2; exit 1; }
+docker info >/dev/null 2>&1 || { echo "Docker is not running: start it first" >&2; exit 1; }
 # shellcheck source=/dev/null
 . "$env_file"
 : "${AS_RESOLVERS:?}"
 
 install -D -m 0755 egress-rules.sh /usr/local/sbin/aetherspark-egress-rules
-install -D -m 0644 "$env_file" /etc/aetherspark/egress-rules.env
+install -D -m 0600 "$env_file" /etc/aetherspark/egress-rules.env
 install -D -m 0644 aetherspark-egress-rules.service /etc/systemd/system/aetherspark-egress-rules.service
 install -D -m 0644 docker-check-egress-rules.conf /etc/systemd/system/docker.service.d/aetherspark-egress-rules.conf
+install -D -m 0644 aetherspark-egress-check.service /etc/systemd/system/aetherspark-egress-check.service
+install -D -m 0644 aetherspark-egress-check.timer /etc/systemd/system/aetherspark-egress-check.timer
 
 # A firewall service that flushes the whole ruleset would wipe these rules whenever it (re)loads
 if systemctl is-enabled --quiet nftables.service 2>/dev/null && grep -qs 'flush ruleset' /etc/nftables.conf; then
@@ -66,3 +71,5 @@ systemctl reload-or-restart aetherspark-egress-rules.service
 # Docker reads daemon.json at start only; its start re-applies the rules (drop-in)
 [ "$dns_changed" = no ] || systemctl restart docker.service
 /usr/local/sbin/aetherspark-egress-rules check
+# Only now: a timer started earlier fires at once on a running host and checks before the rules exist
+systemctl enable --now aetherspark-egress-check.timer

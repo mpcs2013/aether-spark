@@ -1,0 +1,12 @@
+# Compares the layer-3 rules with the rendered ones (docs/architecture/spark-host.md, "Fail closed
+# where it can"): finds rules changed, added or removed, and tables deleted, which take the DROP
+# policies with them. Started by aetherspark-egress-check.timer; a failure shows in
+# `systemctl --failed` and the journal, and raises an alert once ADR-0011's alerting exists.
+[Unit]
+Description=AetherSpark egress firewall rules check
+Documentation=https://github.com/mpcs2013/aether-spark/blob/main/docs/architecture/spark-host.md
+After=aetherspark-egress-rules.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/aetherspark-egress-rules check
