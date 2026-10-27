@@ -5,17 +5,19 @@
 # on by the host role, which creates /etc/aetherspark/host-mode. Usage, as root: deploy/host/install.sh <settings>
 # (see egress-rules.env.example; the real values are in ops.local/).
 set -euo pipefail
-cd "$(dirname "$0")" || exit 1
 
-env_file=${1:?usage: $0 <settings file>}
+# The settings path as given, resolved before the cd below
+env_file=$(realpath "${1:?usage: $0 <settings file>}") || exit 1
+cd "$(dirname "$0")" || exit 1
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
 systemctl cat docker.service >/dev/null 2>&1 || { echo "no docker.service: Docker Engine with systemd needed" >&2; exit 1; }
+docker info >/dev/null 2>&1 || { echo "Docker is not running: start it first" >&2; exit 1; }
 # shellcheck source=/dev/null
 . "$env_file"
 : "${AS_RESOLVERS:?}"
 
 install -D -m 0755 egress-rules.sh /usr/local/sbin/aetherspark-egress-rules
-install -D -m 0644 "$env_file" /etc/aetherspark/egress-rules.env
+install -D -m 0600 "$env_file" /etc/aetherspark/egress-rules.env
 install -D -m 0644 aetherspark-egress-rules.service /etc/systemd/system/aetherspark-egress-rules.service
 install -D -m 0644 docker-check-egress-rules.conf /etc/systemd/system/docker.service.d/aetherspark-egress-rules.conf
 install -D -m 0644 aetherspark-egress-check.service /etc/systemd/system/aetherspark-egress-check.service
@@ -62,7 +64,6 @@ EOF
 
 systemctl daemon-reload
 systemctl enable aetherspark-egress-rules.service
-systemctl enable --now aetherspark-egress-check.timer
 # Applies now; from the next boot it runs before Docker. Not `restart`: docker.service requires the
 # unit, so restarting the unit would restart Docker and every container. To re-apply later:
 # `systemctl reload aetherspark-egress-rules`.
@@ -70,3 +71,5 @@ systemctl reload-or-restart aetherspark-egress-rules.service
 # Docker reads daemon.json at start only; its start re-applies the rules (drop-in)
 [ "$dns_changed" = no ] || systemctl restart docker.service
 /usr/local/sbin/aetherspark-egress-rules check
+# Only now: a timer started earlier fires at once on a running host and checks before the rules exist
+systemctl enable --now aetherspark-egress-check.timer

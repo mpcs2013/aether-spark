@@ -33,21 +33,18 @@
 #   AS_UPS_PORT      UPS status port on AS_NAS_ADDR (empty: no UPS flow)
 #   AS_OPS_PROXY     the ops proxy's fixed address:port (default the egress overlay's)
 #   AS_COLLECTOR     the stack collector's fixed address:port (empty: no host telemetry flow)
-#   AS_RESOLVER_USER, AS_TIME_USER, AS_UPS_USER, AS_COLLECTOR_USER
+#   AS_COLLECTOR_IF  the bridge of the collector's network (needed with AS_COLLECTOR)
+#   AS_RESOLVER_USER, AS_TIME_USER, AS_UPS_USER, AS_APT_USER, AS_COLLECTOR_USER
 #                    the local users those flows are limited to
 set -euo pipefail
 
-# An installed host's settings, unless the caller passes its own
 SETTINGS=/etc/aetherspark/egress-rules.env
-if [ -z "${AS_RESOLVERS:-}" ] && [ -r "$SETTINGS" ]; then
-    set -a
-    # shellcheck source=/dev/null
-    . "$SETTINGS"
-    set +a
-fi
+# Host mode: the marker file, created by the Spark's host role. The role's drop-ins for the units
+# also set AS_REQUIRE_HOST_MODE=1, so a deleted marker closes the host instead of opening it.
 HOST_MODE_FILE=/etc/aetherspark/host-mode
 HOST=0
 [ -e "$HOST_MODE_FILE" ] && HOST=1
+REQUIRE_HOST=${AS_REQUIRE_HOST_MODE:-0}
 
 # Docker bridges: the default bridge, unnamed networks, and the stack's named networks. Flows are
 # granted to exact names only; the wildcards only ever drop.
@@ -156,11 +153,11 @@ host_rules_v4() {
     if [ -n "$AS_UPS_PORT" ]; then
         echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $AS_NAS_ADDR -p tcp --dport $AS_UPS_PORT -m owner --uid-owner $AS_UPS_USER -j ACCEPT"
     fi
-    for i in root _apt; do
+    for i in root "$AS_APT_USER"; do
         echo "-A AETHERSPARK-OUTPUT -o as-eg-ops -d ${AS_OPS_PROXY%:*} -p tcp --dport ${AS_OPS_PROXY##*:} -m owner --uid-owner $i -j ACCEPT"
     done
     if [ -n "$AS_COLLECTOR" ]; then
-        echo "-A AETHERSPARK-OUTPUT -d ${AS_COLLECTOR%:*} -p tcp --dport ${AS_COLLECTOR##*:} -m owner --uid-owner $AS_COLLECTOR_USER -j ACCEPT"
+        echo "-A AETHERSPARK-OUTPUT -o $AS_COLLECTOR_IF -d ${AS_COLLECTOR%:*} -p tcp --dport ${AS_COLLECTOR##*:} -m owner --uid-owner $AS_COLLECTOR_USER -j ACCEPT"
     fi
     echo '-A AETHERSPARK-OUTPUT -j AETHERSPARK-HOST-DROP'
 }
@@ -220,7 +217,16 @@ jump_first() { # command, table, chain, target
     "$1" -w -t "$2" -I "$3" 1 -j "$4"
 }
 
+# An installed host's settings, unless the caller passes its own. Read only here, after the
+# baseline: a broken file stops the script with the host already closed.
 settings() {
+    if [ -z "${AS_RESOLVERS:-}" ] && [ -r "$SETTINGS" ]; then
+        set -a
+        # shellcheck source=/dev/null
+        . "$SETTINGS"
+        set +a
+    fi
+    [ "$REQUIRE_HOST" != 1 ] || [ "$HOST" -eq 1 ] || die "host mode is required but $HOST_MODE_FILE is missing"
     : "${AS_RESOLVERS:?}" "${AS_HOME_SUBNETS:?}"
     AS_NAS_ADDR=${AS_NAS_ADDR:-}
     [ -z "$AS_NAS_ADDR" ] || : "${AS_NAS_PORT:?AS_NAS_PORT is needed with AS_NAS_ADDR}"
@@ -230,14 +236,30 @@ settings() {
     AS_UPS_PORT=${AS_UPS_PORT:-} AS_COLLECTOR=${AS_COLLECTOR:-}
     AS_OPS_PROXY=${AS_OPS_PROXY:-172.30.20.2:3128}
     AS_RESOLVER_USER=${AS_RESOLVER_USER:-systemd-resolve} AS_TIME_USER=${AS_TIME_USER:-systemd-timesync}
-    AS_UPS_USER=${AS_UPS_USER:-nut}
+    AS_UPS_USER=${AS_UPS_USER:-nut} AS_APT_USER=${AS_APT_USER:-_apt}
     [ -z "$AS_UPS_PORT" ] || [ -n "$AS_NAS_ADDR" ] || die "AS_UPS_PORT needs AS_NAS_ADDR"
-    [ -z "$AS_COLLECTOR" ] || : "${AS_COLLECTOR_USER:?AS_COLLECTOR_USER is needed with AS_COLLECTOR}"
+    if [ -n "$AS_COLLECTOR" ]; then
+        : "${AS_COLLECTOR_USER:?AS_COLLECTOR_USER is needed with AS_COLLECTOR}"
+        : "${AS_COLLECTOR_IF:?AS_COLLECTOR_IF, the bridge of the collector network, is needed with AS_COLLECTOR}"
+    fi
+    # Single addresses and plain names only: a range here would widen a rule, and `check` compares
+    # against the same settings, so it would not notice
+    local v
+    for v in "$AS_ROUTER" "$AS_ADMIN_ADDR" ${AS_NAS_ADDR:+"$AS_NAS_ADDR"}; do
+        [[ $v =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || die "not a single IPv4 address: $v"
+    done
+    for v in "$AS_OPS_PROXY" ${AS_COLLECTOR:+"$AS_COLLECTOR"}; do
+        [[ $v =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] || die "not an IPv4 address:port: $v"
+    done
+    for v in "$AS_LAN_IF" ${AS_COLLECTOR_IF:+"$AS_COLLECTOR_IF"}; do
+        [[ $v =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || die "not an interface name: $v"
+    done
 }
 
-# Host mode: DROP policies before any rule and before the settings are read; IPv6 too
+# Host mode, or host mode required by the unit: DROP policies before any rule and before the
+# settings are read, IPv6 too. FORWARD stays DROP for good; Docker keeps it so as well.
 baseline() {
-    [ "$HOST" -eq 1 ] || return 0
+    [ "$HOST" -eq 1 ] || [ "$REQUIRE_HOST" = 1 ] || return 0
     local ipt c
     for ipt in iptables ip6tables; do
         for c in INPUT OUTPUT FORWARD; do "$ipt" -w -P "$c" DROP; done
@@ -254,8 +276,9 @@ backend_ok() {
     configured=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("firewall-backend", "iptables"))' \
         /etc/docker/daemon.json 2>/dev/null || echo iptables)
     [ "$configured" = iptables ] || { echo "daemon.json selects the $configured firewall backend" >&2; return 1; }
-    if systemctl cat docker.service 2>/dev/null | grep -- '--firewall-backend' >/dev/null; then
-        echo "docker.service sets --firewall-backend" >&2; return 1
+    configured=$(systemctl cat docker.service 2>/dev/null | grep -oE -- '--firewall-backend(=| +)[A-Za-z]+' | grep -oE '[A-Za-z]+$' || true)
+    if [ -n "$configured" ] && [ "$configured" != iptables ]; then
+        echo "docker.service sets --firewall-backend $configured" >&2; return 1
     fi
     state=$(systemctl show -p ActiveState --value docker.service 2>/dev/null) || return 0
     case "$state" in active | activating | reloading) ;; *) return 0 ;; esac
@@ -314,8 +337,12 @@ check() {
                 [ "$("$ipt" -w -S "$chain" 2>/dev/null)" = "$(printf -- '-P %s DROP\n-A %s -j AETHERSPARK-%s' "$chain" "$chain" "$chain")" ] \
                     || { echo "$ipt $chain: not the DROP policy with only the jump to AETHERSPARK-$chain" >&2; bad=1; }
             done
+            # FORWARD: DROP, and only the jumps to DOCKER-USER (ours, first) and Docker's own chain
             [ "$("$ipt" -w -S FORWARD 2>/dev/null | sed -n 1p)" = "-P FORWARD DROP" ] \
                 || { echo "$ipt FORWARD: the policy is not DROP" >&2; bad=1; }
+            [ -z "$("$ipt" -w -S FORWARD 2>/dev/null | sed 1d \
+                    | grep -vx -e '-A FORWARD -j DOCKER-USER' -e '-A FORWARD -j DOCKER-FORWARD' || true)" ] \
+                || { echo "$ipt FORWARD: holds rules other than the jumps to DOCKER-USER and DOCKER-FORWARD" >&2; bad=1; }
         done
     fi
 
@@ -323,14 +350,15 @@ check() {
     others_ok || bad=1
 
     # Every rule as rendered: load the rules into a scratch network namespace, where iptables
-    # prints them in the same normalised form, and compare chain by chain. The trailing `-j RETURN`
-    # Docker before 28.2.2 appends to DOCKER-USER is ignored (ours never ends a chain that way).
+    # prints them in the same normalised form, and compare chain by chain. Only the last line of
+    # DOCKER-USER may be a bare `-j RETURN`, the one Docker before 28.2.2 appends (ours never ends
+    # a chain that way); a RETURN anywhere else counts as a difference.
     ns=aetherspark-check-$$
     if scratch_load "$ns"; then
         for c in "${CHAINS[@]}"; do
             read -r ipt table chain <<<"$c"
             diff <(ip netns exec "$ns" "$ipt" -w -t "$table" -S "$chain") \
-                 <("$ipt" -w -t "$table" -S "$chain" 2>/dev/null | grep -vx -- "-A $chain -j RETURN") >/dev/null \
+                 <("$ipt" -w -t "$table" -S "$chain" 2>/dev/null | sed '${/^-A DOCKER-USER -j RETURN$/d}') >/dev/null \
                 || { echo "$ipt $table $chain: differs from the rendered rules" >&2; bad=1; }
         done
     else
@@ -355,11 +383,13 @@ EOF
     echo "aetherspark-egress-rules: in place"
 }
 
+# FORWARD keeps its DROP policy (Docker's own default); a second run, or one after the tables were
+# deleted, finds some chains already gone
 remove() {
     local ipt c
     for ipt in iptables ip6tables; do
         if [ "$HOST" -eq 1 ]; then
-            for c in INPUT OUTPUT FORWARD; do "$ipt" -w -P "$c" ACCEPT; done
+            for c in INPUT OUTPUT; do "$ipt" -w -P "$c" ACCEPT; done
             while "$ipt" -w -D OUTPUT -j AETHERSPARK-OUTPUT 2>/dev/null; do :; done
             "$ipt" -w -F AETHERSPARK-OUTPUT 2>/dev/null || true
             "$ipt" -w -X AETHERSPARK-OUTPUT 2>/dev/null || true
@@ -367,8 +397,8 @@ remove() {
         while "$ipt" -w -D INPUT -j AETHERSPARK-INPUT 2>/dev/null; do :; done
         printf '*filter\n:DOCKER-USER - [0:0]\n-A DOCKER-USER -j RETURN\n:AETHERSPARK-INPUT - [0:0]\n:AETHERSPARK-DROP - [0:0]\nCOMMIT\n' \
             | "$ipt-restore" -w --noflush
-        "$ipt" -w -X AETHERSPARK-INPUT
-        "$ipt" -w -X AETHERSPARK-DROP
+        "$ipt" -w -X AETHERSPARK-INPUT 2>/dev/null || true
+        "$ipt" -w -X AETHERSPARK-DROP 2>/dev/null || true
         if [ "$HOST" -eq 1 ]; then
             "$ipt" -w -F AETHERSPARK-HOST-DROP 2>/dev/null || true
             "$ipt" -w -X AETHERSPARK-HOST-DROP 2>/dev/null || true
@@ -384,12 +414,14 @@ remove() {
 # rules load, so every owner match names root here
 lint() {
     local mode nas nas_addr ns=aetherspark-lint-$$ bad=0
+    # The example alone, never a host's own settings or defaults left in the environment
+    unset AS_OPS_PROXY AS_COLLECTOR_IF AS_RESOLVER_USER AS_TIME_USER AS_UPS_USER AS_APT_USER AS_COLLECTOR_USER
     set -a
     # shellcheck source=/dev/null
     . "$(dirname "$0")/egress-rules.env.example"
     set +a
-    AS_RESOLVER_USER=root AS_TIME_USER=root AS_UPS_USER=root AS_COLLECTOR_USER=root
-    AS_COLLECTOR=${AS_COLLECTOR:-172.30.40.2:4317}
+    AS_RESOLVER_USER=root AS_TIME_USER=root AS_UPS_USER=root AS_APT_USER=root AS_COLLECTOR_USER=root
+    AS_COLLECTOR=${AS_COLLECTOR:-172.30.40.2:4317} AS_COLLECTOR_IF=${AS_COLLECTOR_IF:-as-obs-edge}
     nas_addr=$AS_NAS_ADDR
     for mode in 0 1; do
         HOST=$mode
