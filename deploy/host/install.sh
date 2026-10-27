@@ -61,8 +61,10 @@ if all(cfg.get(k) == v for k, v in want.items()):
 else:
     cfg.update(want)
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Sorted, as the Spark's host role writes it (to_nice_json), so neither sees the other's file
+    # as a change
     with open(path, "w") as f:
-        json.dump(cfg, f, indent=2)
+        json.dump(cfg, f, indent=2, sort_keys=True)
         f.write("\n")
     print("yes")
 EOF

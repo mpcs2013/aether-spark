@@ -5,8 +5,11 @@
 
 # The owner's account, created at first boot
 spark_host_admin_user: owner
-# The hardware key's public line (ssh-keygen -t ed25519-sk on the desktop; the .pub file)
-spark_host_admin_ssh_key: "sk-ssh-ed25519@openssh.com AAAAexampleexampleexample owner@desktop"
+# Both hardware keys' public lines (ssh-keygen -t ed25519-sk on the desktop, once per key; the
+# .pub files); the second key is the spare, kept apart from the first
+spark_host_admin_ssh_keys:
+  - "sk-ssh-ed25519@openssh.com AAAAexampleexampleexample owner@desktop-key-1"
+  - "sk-ssh-ed25519@openssh.com AAAAexampleexampleexampla owner@desktop-key-2"
 # The admin desktop's reserved Home address, the router's address on the AetherSpark network
 spark_host_admin_addr: 198.51.100.50
 spark_host_router: 192.0.2.1

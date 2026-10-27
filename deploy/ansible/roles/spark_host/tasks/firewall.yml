@@ -1,23 +1,8 @@
 ---
 # Last: the layer-3 rules in host mode (deploy/host/), which switch on the host's default-deny.
 # The marker turns host mode on; the drop-ins make the units require it, so a deleted marker
-# closes the host and fails the check instead of quietly leaving host mode.
-- name: The rules' settings are in place and root's only
-  ansible.builtin.stat:
-    path: /etc/aetherspark/egress-rules.env
-  register: spark_host_rules_env
-
-- name: Check the rules' settings
-  ansible.builtin.assert:
-    that:
-      - spark_host_rules_env.stat.exists
-      - spark_host_rules_env.stat.pw_name == 'root'
-      - spark_host_rules_env.stat.mode == '0600'
-    fail_msg: >-
-      /etc/aetherspark/egress-rules.env is missing or not root-only 0600: copy it from the desktop's
-      site folder first (docs/runbooks/spark-host.md)
-    quiet: true
-
+# closes the host and fails the check instead of quietly leaving host mode. The rules' settings
+# file was checked at the start of the run (main.yml).
 - name: Host mode on
   ansible.builtin.copy:
     dest: /etc/aetherspark/host-mode
@@ -69,10 +54,29 @@
   loop: "{{ spark_host_rule_files }}"
   register: spark_host_repo_rules
 
+# install.sh copies the files first and can still stop later (Docker down, a bridge name): a rerun
+# finds the files matching, so it also runs when the rules or the check timer are not in place
+- name: Read whether the rules are in place
+  ansible.builtin.command: /usr/local/sbin/aetherspark-egress-rules check
+  environment:
+    AS_REQUIRE_HOST_MODE: "1"
+  register: spark_host_rules_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Read whether the check timer is enabled
+  ansible.builtin.command: systemctl is-enabled aetherspark-egress-check.timer  # noqa: command-instead-of-module
+  register: spark_host_check_timer
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
 - name: Install and apply the rules in host mode
   ansible.builtin.command: "{{ spark_host_repo }}/deploy/host/install.sh /etc/aetherspark/egress-rules.env"
   when: >-
     spark_host_marker.changed or spark_host_dropins.changed
     or (spark_host_installed_rules.results | map(attribute='stat.checksum', default='') | list)
        != (spark_host_repo_rules.results | map(attribute='stat.checksum') | list)
+    or spark_host_rules_check.rc != 0 or spark_host_check_timer.stdout != 'enabled'
   changed_when: true

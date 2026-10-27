@@ -45,10 +45,14 @@ Print this page and keep it next to the Spark. It is for the day the Spark's fir
    sudo deploy/ansible/run.sh
    ```
 
+   If `run.sh` stops with a download error, the two releases pin different Ansible versions: start the ops proxy first (`sudo docker compose -f deploy/compose/egress/compose.yaml --profile egress-ops up -d --wait egress-ops`), then run it again.
+
 5. **The rules are fine, SSH still fails.** Usual causes, in order:
-   - the desktop's address changed (the router reservation): `sudo journalctl -u ssh -n 30` shows the refused address;
-   - the hardware key is not plugged in, or not touched in time;
+   - **the desktop's address changed** (the router reservation). The firewall refuses it before SSH sees it, so look in the firewall's drop log: `sudo journalctl -k -g aetherspark-host-drop -n 20` shows `SRC=` with the address it came from. If that is your desktop's new address, put it into both settings files (`AS_ADMIN_ADDR` in `/etc/aetherspark/egress-rules.env`, `spark_host_admin_addr` in `/etc/aetherspark/host.yml`, with `sudoedit`) and in `ops.local/site.md`, then run `sudo /opt/aetherspark/deploy/ansible/run.sh`;
+   - the hardware key is not plugged in, or not touched in time; try the spare;
    - the Spark's own address changed: `ip -4 address show` against `ops.local/site.md`.
+
+**Never run `aetherspark-egress-rules remove` on the Spark.** It is for tests: it takes the rules away and opens the host.
 
 ## A check failed (`systemctl --failed` shows `aetherspark-egress-check.service`)
 ```bash

@@ -9,9 +9,12 @@
   failed_when: false
   check_mode: false
 
+# One line per unit: a unit that is neither installed nor masked can print no line at all
 - name: Assert every unit that phones home is masked
   ansible.builtin.assert:
-    that: spark_host_assert_units.stdout_lines | reject('equalto', 'masked') | list | length == 0
+    that:
+      - spark_host_assert_units.stdout_lines | length == spark_host_masked_units | length
+      - spark_host_assert_units.stdout_lines | reject('equalto', 'masked') | list | length == 0
     fail_msg: >-
       not masked: {{ spark_host_masked_units | zip(spark_host_assert_units.stdout_lines)
       | rejectattr(1, 'equalto', 'masked') | map('first') | join(', ') }}
@@ -39,6 +42,8 @@
     group: root
     mode: "0755"
   check_mode: false
+  # Gone at every reboot until the first SSH connection: re-creating it is not drift
+  changed_when: false
 
 - name: Read the SSH settings in effect
   ansible.builtin.command: /usr/sbin/sshd -T
@@ -53,6 +58,9 @@
     quiet: true
   vars:
     spark_host_sshd_expected:
+      - authorizedkeysfile /etc/ssh/authorized_keys/%u
+      - authorizedkeyscommand none
+      - trustedusercakeys none
       - passwordauthentication no
       - kbdinteractiveauthentication no
       - permitrootlogin no
@@ -64,25 +72,47 @@
       - x11forwarding no
       - gatewayports no
 
-- name: Read the admin account's home
-  ansible.builtin.getent:
-    database: passwd
-    key: "{{ spark_host_admin_user }}"
+- name: Read the root-owned key file
+  ansible.builtin.stat:
+    path: "/etc/ssh/authorized_keys/{{ spark_host_admin_user }}"
+  register: spark_host_assert_keyfile
 
-- name: Read the admin account's authorised keys
+- name: Read the keys sshd accepts
   ansible.builtin.slurp:
-    path: "{{ ansible_facts.getent_passwd[spark_host_admin_user][4] }}/.ssh/authorized_keys"
+    path: "/etc/ssh/authorized_keys/{{ spark_host_admin_user }}"
   register: spark_host_assert_keys
 
-- name: Assert the hardware key is the only key, from the admin desktop only
+- name: Assert the hardware keys are the only keys, each from the admin desktop only
   ansible.builtin.assert:
     that:
-      - spark_host_keys | length == 1
-      - spark_host_keys[0] is match('^from="' ~ (spark_host_admin_addr | regex_escape) ~ '" ' ~ (spark_host_admin_ssh_key | regex_escape))
-    fail_msg: "authorized_keys holds {{ spark_host_keys | length }} keys, or the key lacks its from= option"
+      - spark_host_keys | sort == spark_host_expected | sort
+      - spark_host_assert_keyfile.stat.pw_name == 'root'
+      - spark_host_assert_keyfile.stat.mode == '0644'
+    fail_msg: >-
+      the key file holds {{ spark_host_keys | length }} keys, expected the {{ spark_host_expected | length }}
+      hardware keys, each with from= the admin desktop, in a root-owned 0644 file
     quiet: true
   vars:
     spark_host_keys: "{{ spark_host_assert_keys.content | b64decode | split('\n') | select | reject('match', '^#') | list }}"
+    spark_host_expected: "{{ spark_host_admin_ssh_keys | map('regex_replace', '^', 'from=\"' ~ spark_host_admin_addr ~ '\" ') | list }}"
+
+# Membership of the docker group is root without a password (NVIDIA's own setup guide suggests
+# adding yourself): nobody is in it
+- name: Read the docker group
+  ansible.builtin.getent:
+    database: group
+    key: docker
+    fail_key: false
+
+- name: Assert nobody is in the docker group
+  ansible.builtin.assert:
+    that: spark_host_docker_members | length == 0
+    fail_msg: >-
+      the docker group has members ({{ spark_host_docker_members }}): membership is root without a
+      password; use sudo docker instead (spark-host.md)
+    quiet: true
+  vars:
+    spark_host_docker_members: "{{ ((ansible_facts.getent_group | default({})).get('docker') or ['', '', ''])[2] | default('', true) }}"
 
 - name: Read the IPv6 switches
   ansible.builtin.command: sysctl -n net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6
@@ -106,6 +136,66 @@
   ansible.builtin.assert:
     that: spark_host_assert_resolv.stat.lnk_source | default('') == '/run/systemd/resolve/stub-resolv.conf'
     fail_msg: /etc/resolv.conf does not point to systemd-resolved's stub
+    quiet: true
+  when: spark_host_manage_network | bool
+
+# No link is the resolver's default route, so only home.arpa names reach the router. NetworkManager
+# can make the link with the default route a DNS default route; if this fails on the Spark, the
+# role needs a fix (spark-host.md, S3)
+- name: Read the resolver's links
+  ansible.builtin.command: resolvectl status --no-pager
+  register: spark_host_assert_resolved
+  changed_when: false
+  check_mode: false
+  when: spark_host_manage_network | bool
+
+- name: Assert no link is the resolver's default route
+  ansible.builtin.assert:
+    that: "'+DefaultRoute' not in spark_host_assert_resolved.stdout"
+    fail_msg: a link is the resolver's default route, so names other than home.arpa would go to the router
+    quiet: true
+  when: spark_host_manage_network | bool
+
+# Only on the Spark: the lists read at arrival are filled in, and no IPv6 address exists anywhere
+- name: Read the loaded kernel modules and the IPv6 addresses
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - cat /proc/modules
+    - ip -6 -o address show
+  register: spark_host_assert_kernel
+  changed_when: false
+  check_mode: false
+  when: spark_host_manage_network | bool
+
+- name: Assert the radio drivers are listed and none is loaded, and no interface has an IPv6 address
+  ansible.builtin.assert:
+    that:
+      - spark_host_radio_modules | length > 0
+      - spark_host_loaded | intersect(spark_host_radio_modules) | length == 0
+      - spark_host_assert_kernel.results[1].stdout | length == 0
+    fail_msg: >-
+      radio drivers listed: {{ spark_host_radio_modules | length }} (read them at arrival), loaded:
+      {{ spark_host_loaded | intersect(spark_host_radio_modules) | join(', ') or 'none' }}; IPv6 addresses:
+      {{ spark_host_assert_kernel.results[1].stdout_lines | length }}
+    quiet: true
+  vars:
+    spark_host_loaded: "{{ spark_host_assert_kernel.results[0].stdout_lines | map('split') | map('first') | list }}"
+  when: spark_host_manage_network | bool
+
+# Set by a command, so check mode cannot see it drift (back to automatic DNS, or IPv6 on)
+- name: Read the LAN connection's name and IPv6 settings
+  ansible.builtin.command: >-
+    nmcli -g ipv4.dns,ipv4.dns-search,ipv4.ignore-auto-dns,ipv6.method
+    connection show {{ spark_host_lan_connection | quote }}
+  register: spark_host_assert_lan
+  changed_when: false
+  check_mode: false
+  when: spark_host_manage_network | bool
+
+- name: Assert the LAN connection uses the router for home.arpa only, without IPv6
+  ansible.builtin.assert:
+    that: spark_host_assert_lan.stdout_lines == [spark_host_router, '~home.arpa', 'yes', 'disabled']
+    fail_msg: "the LAN connection has DNS, search, ignore-auto-dns, IPv6: {{ spark_host_assert_lan.stdout_lines | join(', ') }}"
     quiet: true
   when: spark_host_manage_network | bool
 
@@ -198,4 +288,19 @@
     AS_REQUIRE_HOST_MODE: "1"
   changed_when: false
   check_mode: false
+  when: spark_host_apply_rules | bool
+
+- name: Read whether the rules check runs on its timer
+  ansible.builtin.command: systemctl is-enabled aetherspark-egress-check.timer  # noqa: command-instead-of-module
+  register: spark_host_assert_timer
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: spark_host_apply_rules | bool
+
+- name: Assert the rules check runs on its timer
+  ansible.builtin.assert:
+    that: spark_host_assert_timer.stdout == 'enabled'
+    fail_msg: "aetherspark-egress-check.timer is {{ spark_host_assert_timer.stdout }}, not enabled"
+    quiet: true
   when: spark_host_apply_rules | bool

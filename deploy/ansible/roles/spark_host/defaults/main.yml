@@ -5,9 +5,10 @@
 # arrival") and changed here if they differ.
 
 # --- Required in host.yml --------------------------------------------------------------------
-# The owner's account (created at first boot), its hardware key's public line, and the desktop
+# The owner's account (created at first boot), the public lines of its hardware keys (both of
+# them, so a lost key does not lock the owner out), and the desktop
 spark_host_admin_user: ""
-spark_host_admin_ssh_key: ""
+spark_host_admin_ssh_keys: []
 spark_host_admin_addr: ""
 # The router: DNS for home.arpa and time
 spark_host_router: ""

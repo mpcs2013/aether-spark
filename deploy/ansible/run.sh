@@ -10,11 +10,22 @@ cd "$(dirname "$0")/../.." || exit 1
 die() { echo "run.sh: $*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "run as root (sudo)"
-[ "$(stat -c %u .)" = 0 ] || die "the checkout must belong to root, so no other account can change what root runs"
-# The container test has no tags; it sets AS_ROLE_UNSIGNED=1
-if [ "${AS_ROLE_UNSIGNED:-}" != 1 ]; then
+# Every file root's and writable by root only, so no other account can change what root runs:
+# not writable by others, nor by a group other than root. A symbolic link's own mode bits mean
+# nothing (its owner still counts); uv's empty lock file is writable by all on purpose and holds
+# no code.
+bad=$(find . -path ./.venv/.lock -prune -o \
+    \( ! -user root -o \( ! -type l \( -perm /002 -o \( -perm /020 ! -group root \) \) \) \) -print -quit)
+[ -z "$bad" ] || die "the checkout must belong to root and be writable by root only ($bad is $(stat -c '%U:%G %a' "$bad"))"
+# The container test has no tags and sets AS_ROLE_UNSIGNED=1; anywhere else the setting is refused
+if [ "${AS_ROLE_UNSIGNED:-}" = 1 ]; then
+    systemd-detect-virt --container --quiet || die "AS_ROLE_UNSIGNED is for the container test only"
+else
     tag=$(git describe --exact-match --tags HEAD 2>/dev/null) || die "HEAD is not at a release tag"
     [ -z "$(git status --porcelain)" ] || die "the checkout has local changes"
+    # A signed tag carries its own name: a validly signed tag under another name is refused
+    [ "$(git cat-file tag "$tag" 2>/dev/null | sed -n 's/^tag //p')" = "$tag" ] \
+        || die "$tag is not a signed release tag of that name"
     git -c gpg.ssh.allowedSignersFile=/etc/aetherspark/allowed_signers verify-tag "$tag" \
         || die "tag $tag is not signed with the owner's key"
 fi
@@ -25,4 +36,4 @@ if [ -e /etc/aetherspark/host-mode ]; then
     export HTTPS_PROXY=http://172.30.20.2:3128 HTTP_PROXY=http://172.30.20.2:3128
 fi
 cd deploy/ansible
-exec uv run --frozen --only-group host ansible-playbook spark.yml "$@"
+exec uv run --frozen --only-group host ansible-playbook -i localhost, spark.yml "$@"

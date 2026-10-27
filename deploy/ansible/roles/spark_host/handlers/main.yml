@@ -23,7 +23,7 @@
   when: spark_host_manage_network | bool
 
 - name: Reapply the LAN connection
-  ansible.builtin.command: nmcli connection up {{ spark_host_lan_connection }}
+  ansible.builtin.command: nmcli connection up {{ spark_host_lan_connection | quote }}
   changed_when: true
 
 # Ubuntu starts sshd through ssh.socket; with no connection yet there is nothing to reload

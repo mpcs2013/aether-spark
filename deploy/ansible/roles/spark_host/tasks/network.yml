@@ -78,7 +78,7 @@
 - name: Read the LAN connection's name and IPv6 settings
   ansible.builtin.command: >-
     nmcli -g ipv4.dns,ipv4.dns-search,ipv4.ignore-auto-dns,ipv6.method
-    connection show {{ spark_host_lan_connection }}
+    connection show {{ spark_host_lan_connection | quote }}
   register: spark_host_lan_settings
   changed_when: false
   check_mode: false
@@ -87,7 +87,7 @@
 # NetworkManager's own IPv6 setting, or it would switch disable_ipv6 back on for the LAN port
 - name: The LAN connection uses the router for home.arpa only, without IPv6
   ansible.builtin.command: >-
-    nmcli connection modify {{ spark_host_lan_connection }}
+    nmcli connection modify {{ spark_host_lan_connection | quote }}
     ipv4.dns {{ spark_host_router }} ipv4.dns-search ~home.arpa ipv4.ignore-auto-dns yes
     ipv6.method disabled
   when:

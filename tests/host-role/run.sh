@@ -35,7 +35,7 @@ docker cp deploy/ansible "$name:/repo/deploy/ansible" >/dev/null || exit 1
 docker cp deploy/host "$name:/repo/deploy/host" >/dev/null || exit 1
 docker cp src/python "$name:/repo/src/python" >/dev/null || exit 1
 docker cp tests/host-role/host.yml "$name:/root/host.yml" >/dev/null || exit 1
-inside 'chown -R root:root /repo /root/host.yml'
+inside 'chown -R root:root /repo /root/host.yml && chmod -R go-w /repo && chmod 0600 /root/host.yml'
 
 # ansible-lint (pinned in uv.lock) on the playbook and the role; it prints its findings
 lint=$(inside 'cd /repo/deploy/ansible && uv run --frozen --only-group host ansible-lint --offline spark.yml 2>&1')
@@ -65,7 +65,10 @@ breaks=(
     "graphical boot|systemctl set-default graphical.target|systemctl set-default multi-user.target|the default target is graphical.target"
     "an earlier sshd file allows agent forwarding|echo AllowAgentForwarding yes >/etc/ssh/sshd_config.d/05-drift.conf|rm /etc/ssh/sshd_config.d/05-drift.conf|not in effect: allowagentforwarding no"
     "password login switched on|sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/10-aetherspark.conf|sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config.d/10-aetherspark.conf|not in effect: passwordauthentication no"
-    "a second authorised key|echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExtcmFrZXlvbmx5Zm9ydGhldGVzdG5vdHJlYWw drift' >>/home/spark-admin/.ssh/authorized_keys|sed -i '\$d' /home/spark-admin/.ssh/authorized_keys|authorized_keys holds 2 keys"
+    "an extra authorised key|echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExtcmFrZXlvbmx5Zm9ydGhldGVzdG5vdHJlYWw drift' >>/etc/ssh/authorized_keys/spark-admin|sed -i '\$d' /etc/ssh/authorized_keys/spark-admin|the key file holds 3 keys"
+    "keys read from the account's own folder|echo 'AuthorizedKeysFile .ssh/authorized_keys' >/etc/ssh/sshd_config.d/05-drift.conf|rm /etc/ssh/sshd_config.d/05-drift.conf|not in effect: authorizedkeysfile /etc/ssh/authorized_keys/%u"
+    "a unit that is not installed loses its mask|systemctl unmask passim.service|systemctl mask passim.service|not masked"
+    "a member in the docker group|groupadd docker && usermod -aG docker spark-admin|groupdel docker|the docker group has members"
     "IPv6 switched on|sysctl -qw net.ipv6.conf.all.disable_ipv6=0|sysctl -qw net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1|disable_ipv6 (all, default): 0"
     "the age key readable by all|chmod 0644 /etc/aetherspark/age/host.key|chmod 0400 /etc/aetherspark/age/host.key|not root-only 0400"
     "node-exporter on every address|sed -i 's/127.0.0.1:9100/:9100/' /etc/default/prometheus-node-exporter && systemctl restart prometheus-node-exporter|sed -i 's/=:9100/=127.0.0.1:9100/' /etc/default/prometheus-node-exporter && systemctl restart prometheus-node-exporter|listens beyond loopback"
@@ -89,6 +92,32 @@ case "$drift" in *" changed=0 "*) r=no ;; *" changed="*) r=yes ;; *) r=no ;; esa
 check D "check mode finds a changed resolver file" yes "$r"
 inside "sed -i '\$d' /etc/systemd/resolved.conf.d/90-aetherspark.conf"
 check D "the file restored: check mode finds no difference" "rc=0 changed=0 failed=0" "$(role --check | counts)"
+
+# run.sh's gates (without AS_ROLE_UNSIGNED): a copy of the checkout as a git repository, a
+# throwaway signing key as the only allowed signer; --version stands in for a run of the role
+# shellcheck disable=SC2016 # expands inside the container
+inside 'set -e
+    rm -rf /trust && cp -a /repo /trust && rm -rf /trust/.venv && cd /trust
+    git init -q && git config user.email test@example.invalid && git config user.name test
+    git config gpg.format ssh && ssh-keygen -q -t ed25519 -N "" -f /root/tagkey && ssh-keygen -q -t ed25519 -N "" -f /root/otherkey
+    git config user.signingkey /root/tagkey.pub && git add -A && git commit -qm test && git tag -s -m test v0.0.1-test
+    echo "test@example.invalid namespaces=\"git\" $(cat /root/tagkey.pub)" >/etc/aetherspark/allowed_signers'
+gate() { # what to change first (run in /trust); prints ok when run.sh lets the run through
+    if inside "cd /trust && { $1; } && deploy/ansible/run.sh --version 2>&1" | grep '^ansible-playbook' >/dev/null; then echo ok; else echo refused; fi
+}
+check T "a release tag signed with the allowed key" ok "$(gate 'true')"
+check T "a commit without a tag" refused "$(gate 'git commit -q --allow-empty -m next')"
+check T "a tag without a signature" refused "$(gate 'git tag v0.0.2-test')"
+check T "a tag signed with another key" refused \
+    "$(gate 'git -c user.signingkey=/root/otherkey.pub tag -s -m other v0.0.3-test HEAD~0 && git tag -d v0.0.2-test >/dev/null')"
+inside 'cd /trust && git tag -d v0.0.3-test >/dev/null && git reset -q --hard HEAD~1'
+check T "back at the signed tag" ok "$(gate 'true')"
+check T "a checkout with local changes" refused "$(gate 'echo "# changed" >>deploy/ansible/spark.yml')"
+inside 'cd /trust && git checkout -q -- deploy/ansible/spark.yml'
+check T "a file another account owns" refused "$(gate 'chown nobody deploy/ansible/spark.yml')"
+inside 'chown root /trust/deploy/ansible/spark.yml'
+check T "a file others may write" refused "$(gate 'chmod o+w deploy/ansible/spark.yml')"
+inside 'chmod o-w /trust/deploy/ansible/spark.yml'
 
 echo "not in this container (the Spark's own tests): radios, held packages, Ubuntu Pro news,"
 echo "the LAN connection and resolv.conf, Docker's proxy, the UPS client, the rules (the host lab)"
