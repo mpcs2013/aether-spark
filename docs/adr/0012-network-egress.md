@@ -1,5 +1,5 @@
 # ADR-0012: Network segmentation & egress control
-- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check) · **Amendment 2026-10-26 Accepted** (Spark host flows) · **Amendment 2026-10-30 proposed** (host time from public servers)
+- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check) · **Amendment 2026-10-26 Accepted** (Spark host flows) · **Amendment 2026-10-30 Accepted** (host time from public servers)
 
 ## In plain words
 The router separates the home into three networks and keeps the internet out. The strict "only these websites" rule lives on the Spark itself, so it works with any router.
@@ -79,7 +79,7 @@ Design: [architecture/spark-host.md](../architecture/spark-host.md) (WP6.2). Rev
 - **Development** happens on the desktop; the Spark is a runtime host (ADR-0018 note).
 - **Consequences (bad):** a broken rule set needs the local console (runbook `docs/runbooks/spark-console.md`); packet sockets of root processes bypass `OUTPUT`, covered by keeping root services known and repeating the router capture (P1) after DGX OS updates.
 
-## Amendment (2026-10-30, proposed) — the Spark host's time from public servers
+## Amendment (2026-10-30, accepted) — the Spark host's time from public servers
 The router does not answer time requests from the AetherSpark network, and the home infrastructure keeps router management closed there (exchange A-012, 2026-10-29). Design: [architecture/spark-host.md](../architecture/spark-host.md), flow H6.
 - **Replaces** "NTP to the router" in the named flows of the amendments of 2026-10-23 and 2026-10-26: the Spark host's time service sends UDP 123 only to listed public time servers, the only process allowed to; DNS stays with the router.
 - **By address:** the host resolves no internet names, so the servers are named by address in the host's settings: Cloudflare's public time service (`time.cloudflare.com`), at the two addresses Cloudflare publishes for it. If they stop answering, the host role's "clock synchronized" check fails and the setting changes.
