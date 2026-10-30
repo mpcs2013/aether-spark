@@ -1,7 +1,7 @@
 ---
 # Names: every program asks systemd-resolved, which sends only home.arpa names to the router (flow
-# H5). Time from the router only (H6). NetworkManager makes no connectivity checks and leaves the
-# radios and the ConnectX ports alone. IPv6 off everywhere.
+# H5). Time from the listed public time servers only (H6). NetworkManager makes no connectivity
+# checks and leaves the radios and the ConnectX ports alone. IPv6 off everywhere.
 - name: Directories for the resolver, time and NetworkManager settings
   ansible.builtin.file:
     path: "{{ item }}"
@@ -29,13 +29,15 @@
     mode: "0644"
   notify: Restart systemd-resolved
 
-- name: Time from the router only
+# The router does not answer time requests from the AetherSpark network (A-012, Q1): the public
+# time servers, by address, since the host resolves no internet names
+- name: Time from the listed public time servers only
   ansible.builtin.copy:
     dest: /etc/systemd/timesyncd.conf.d/90-aetherspark.conf
     content: |
       # docs/architecture/spark-host.md, flow H6; written by the host role
       [Time]
-      NTP={{ spark_host_router }}
+      NTP={{ spark_host_ntp_servers | join(' ') }}
       FallbackNTP=
     owner: root
     group: root

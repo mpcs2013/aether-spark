@@ -1,5 +1,5 @@
 # ADR-0012: Network segmentation & egress control
-- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check) · **Amendment 2026-10-26 Accepted** (Spark host flows)
+- **Status:** Accepted · **Date:** 2026-10-03 (revised with the Q1 answer; site details in `ops.local/site.md`) · **Amendments** 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (router and upstream as set up; private package feed) · **Amendment 2026-10-23 Accepted** (two proxies, named flows, host default-deny, SNI check) · **Amendment 2026-10-26 Accepted** (Spark host flows) · **Amendment 2026-10-30 Accepted** (host time from public servers)
 
 ## In plain words
 The router separates the home into three networks and keeps the internet out. The strict "only these websites" rule lives on the Spark itself, so it works with any router.
@@ -78,3 +78,9 @@ Design: [architecture/spark-host.md](../architecture/spark-host.md) (WP6.2). Rev
 - **Fail closed:** on the Spark the built-in `INPUT` and `OUTPUT` policies are `DROP` and are set before any other rule, so emptied rule lists leave the host closed; deleted tables (which take the policies with them) are found by `check` on a timer with an alert.
 - **Development** happens on the desktop; the Spark is a runtime host (ADR-0018 note).
 - **Consequences (bad):** a broken rule set needs the local console (runbook `docs/runbooks/spark-console.md`); packet sockets of root processes bypass `OUTPUT`, covered by keeping root services known and repeating the router capture (P1) after DGX OS updates.
+
+## Amendment (2026-10-30, accepted) — the Spark host's time from public servers
+The router does not answer time requests from the AetherSpark network, and the home infrastructure keeps router management closed there (exchange A-012, 2026-10-29). Design: [architecture/spark-host.md](../architecture/spark-host.md), flow H6.
+- **Replaces** "NTP to the router" in the named flows of the amendments of 2026-10-23 and 2026-10-26: the Spark host's time service sends UDP 123 only to listed public time servers, the only process allowed to; DNS stays with the router.
+- **By address:** the host resolves no internet names, so the servers are named by address in the host's settings: Cloudflare's public time service (`time.cloudflare.com`), at the two addresses Cloudflare publishes for it. If they stop answering, the host role's "clock synchronized" check fails and the setting changes.
+- **Consequences (bad):** the clock comes from the internet over plain NTP (timesyncd has no authenticated time), so it can be shifted by an attacker on the path; addresses can change without notice. Authenticated time (NTS) would need chrony instead of timesyncd, decided later if the threat model asks for it. If the router later answers time requests on that network, the host returns to the router.

@@ -8,6 +8,7 @@ spark_host_admin_ssh_keys:
   - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAJGxhYm9ubHlub3RhcmVhbGtleWZvcnRoZWNvbnRhaW5lcgAAAARzc2g6 lab-only-spare"
 spark_host_admin_addr: 192.0.2.50
 spark_host_router: 192.0.2.1
+spark_host_ntp_servers: [203.0.113.123, 203.0.113.124]
 spark_host_lan_connection: ""
 spark_host_manage_network: false
 spark_host_docker: false

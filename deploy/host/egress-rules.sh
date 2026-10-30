@@ -28,7 +28,8 @@
 #   AS_NAS_PORT      backup target port
 # Host mode only:
 #   AS_LAN_IF        the host's LAN interface; nothing else carries host traffic
-#   AS_ROUTER        the router: DHCP, DNS (resolver user only) and NTP (time user only)
+#   AS_ROUTER        the router: DHCP and DNS (resolver user only)
+#   AS_NTP_SERVERS   the public time servers' addresses (time user only, UDP 123; space separated)
 #   AS_ADMIN_ADDR    the admin desktop: the only source of SSH
 #   AS_UPS_PORT      UPS status port on AS_NAS_ADDR (empty: no UPS flow)
 #   AS_OPS_PROXY     the ops proxy's fixed address:port (default the egress overlay's)
@@ -140,8 +141,9 @@ host_rules_v4() {
     echo '-A AETHERSPARK-INPUT -j AETHERSPARK-HOST-DROP'
 
     # Out: replies, loopback; DHCP to the router and to broadcast (renewals are plain UDP); DNS
-    # and NTP to the router, each for its service's user only; the UPS client to the NAS; root and
-    # apt to the ops proxy only; the host collector to the stack's collector only
+    # to the router and NTP to the public time servers, each for its service's user only; the UPS
+    # client to the NAS; root and apt to the ops proxy only; the host collector to the stack's
+    # collector only
     echo '-A AETHERSPARK-OUTPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
     echo '-A AETHERSPARK-OUTPUT -m conntrack --ctstate INVALID -j DROP'
     echo '-A AETHERSPARK-OUTPUT -o lo -j ACCEPT'
@@ -149,7 +151,9 @@ host_rules_v4() {
     echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d 255.255.255.255 -p udp --sport 68 --dport 67 -j ACCEPT"
     echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $AS_ROUTER -p udp --dport 53 -m owner --uid-owner $AS_RESOLVER_USER -j ACCEPT"
     echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $AS_ROUTER -p tcp --dport 53 -m owner --uid-owner $AS_RESOLVER_USER -j ACCEPT"
-    echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $AS_ROUTER -p udp --dport 123 -m owner --uid-owner $AS_TIME_USER -j ACCEPT"
+    for i in $AS_NTP_SERVERS; do
+        echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $i -p udp --dport 123 -m owner --uid-owner $AS_TIME_USER -j ACCEPT"
+    done
     if [ -n "$AS_UPS_PORT" ]; then
         echo "-A AETHERSPARK-OUTPUT -o $AS_LAN_IF -d $AS_NAS_ADDR -p tcp --dport $AS_UPS_PORT -m owner --uid-owner $AS_UPS_USER -j ACCEPT"
     fi
@@ -232,7 +236,7 @@ settings() {
     [ -z "$AS_NAS_ADDR" ] || : "${AS_NAS_PORT:?AS_NAS_PORT is needed with AS_NAS_ADDR}"
     [ "$HOST" -eq 1 ] || return 0
     : "${AS_LAN_IF:?host mode needs AS_LAN_IF}" "${AS_ROUTER:?host mode needs AS_ROUTER}" \
-        "${AS_ADMIN_ADDR:?host mode needs AS_ADMIN_ADDR}"
+        "${AS_ADMIN_ADDR:?host mode needs AS_ADMIN_ADDR}" "${AS_NTP_SERVERS:?host mode needs AS_NTP_SERVERS}"
     AS_UPS_PORT=${AS_UPS_PORT:-} AS_COLLECTOR=${AS_COLLECTOR:-}
     AS_OPS_PROXY=${AS_OPS_PROXY:-172.30.20.2:3128}
     AS_RESOLVER_USER=${AS_RESOLVER_USER:-systemd-resolve} AS_TIME_USER=${AS_TIME_USER:-systemd-timesync}
@@ -245,7 +249,8 @@ settings() {
     # Single addresses and plain names only: a range here would widen a rule, and `check` compares
     # against the same settings, so it would not notice
     local v
-    for v in "$AS_ROUTER" "$AS_ADMIN_ADDR" ${AS_NAS_ADDR:+"$AS_NAS_ADDR"}; do
+    # shellcheck disable=SC2086 # AS_NTP_SERVERS is a list, split on purpose
+    for v in "$AS_ROUTER" "$AS_ADMIN_ADDR" ${AS_NAS_ADDR:+"$AS_NAS_ADDR"} $AS_NTP_SERVERS; do
         [[ $v =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || die "not a single IPv4 address: $v"
     done
     for v in "$AS_OPS_PROXY" ${AS_COLLECTOR:+"$AS_COLLECTOR"}; do

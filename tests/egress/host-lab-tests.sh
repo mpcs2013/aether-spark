@@ -9,6 +9,8 @@ R=/repo/deploy/host/egress-rules.sh
 ENV=/etc/aetherspark/egress-rules.env
 SPARK=192.0.2.10 ROUTER=192.0.2.1 NAS=192.0.2.20 DESKTOP=192.0.2.50 OTHER=192.0.2.60
 PUBLIC=203.0.113.10 OPS=172.30.20.2 RUNTIME=172.30.10.2 COLLECTOR=172.30.40.2
+# A public time server on the list, and one that is not
+TIME=203.0.113.123 TIME_OFF=203.0.113.20
 SPARK6=fd00:a::10 ROUTER6=fd00:a::1
 fails=0
 
@@ -83,8 +85,10 @@ peer nas "$NAS"
 peer desktop "$DESKTOP"
 peer other "$OTHER"
 ip -n router -6 addr add "$ROUTER6/64" dev eth0 nodad
-# A public server behind the router
+# Public servers behind the router: a web server and two time servers
 ip -n router addr add "$PUBLIC/32" dev lo
+ip -n router addr add "$TIME/32" dev lo
+ip -n router addr add "$TIME_OFF/32" dev lo
 dockerish() { # bridge, host address, container, container address: a Docker-style bridge
     ip link add "$1" type bridge
     ip addr add "$2/24" dev "$1"
@@ -112,7 +116,9 @@ listen router udp 0.0.0.0 67 'echo $SOCAT_PEERPORT >>/tmp/router-dhcp-ports; ech
 listening router "sport = :67"
 listen router udp "$ROUTER" 53;        listening router "src $ROUTER:53"
 listen router tcp "$ROUTER" 53
-listen router udp "$ROUTER" 123;       listening router "sport = :123"
+listen router udp "$ROUTER" 123;       listening router "src $ROUTER:123"
+listen router udp "$TIME" 123;         listening router "src $TIME:123"
+listen router udp "$TIME_OFF" 123;     listening router "src $TIME_OFF:123"
 listen router tcp "$PUBLIC" 443;       listening router "src $PUBLIC:443"
 listen router udp "$PUBLIC" 53;        listening router "src $PUBLIC:53"
 listen router tcp6 "$ROUTER6" 443;     listening router "src [$ROUTER6]:443"
@@ -133,11 +139,11 @@ lab_paths=$(
         "$(udp_out root "$PUBLIC" 53)" "$(tcp_out root "$PUBLIC" 443)" "$(tcp_out root "$NAS" 3493)" \
         "$(tcp_out root "$NAS" 8002)" "$(udp_out root "$OTHER" 123)" "$(tcp_out root "$OTHER" 3493)" \
         "$(tcp_out root "$OPS" 3128)" "$(tcp_out root "$RUNTIME" 3128)" "$(tcp_out root "$COLLECTOR" 4317)" \
-        "$(tcp_out root "$COLLECTOR" 9999)" \
+        "$(tcp_out root "$COLLECTOR" 9999)" "$(udp_out root "$TIME" 123)" "$(udp_out root "$TIME_OFF" 123)" \
         "$(answer "$(timeout 8 socat -t3 -T3 - "TCP6:[$ROUTER6]:443,connect-timeout=3" </dev/null 2>/dev/null)")" \
         "$(answer "$(ip netns exec router timeout 8 socat -t3 -T3 - "TCP6:[$SPARK6]:22,connect-timeout=3" </dev/null 2>/dev/null)")"
     do echo "$p"; done | sort | uniq -c | tr -s ' ' | sed 's/^ //')
-check LAB "every path answers before any rule (18 paths)" "18 ok" "$lab_paths"
+check LAB "every path answers before any rule (20 paths)" "20 ok" "$lab_paths"
 
 # --- Baseline: host mode on, no settings yet ---------------------------------------------------
 mkdir -p /etc/aetherspark /etc/docker
@@ -156,6 +162,7 @@ AS_NAS_PORT="8002"
 AS_LAN_IF="$1"
 AS_ROUTER="$ROUTER"
 AS_ADMIN_ADDR="$DESKTOP"
+AS_NTP_SERVERS="$TIME"
 AS_UPS_PORT="3493"
 AS_COLLECTOR="$COLLECTOR:4317"
 AS_COLLECTOR_IF="$2"
@@ -186,8 +193,10 @@ check S3 "DNS (UDP) to the router as the resolver user" ok "$(udp_out systemd-re
 check S3 "DNS (TCP) to the router as the resolver user" ok "$(tcp_out systemd-resolve "$ROUTER" 53)"
 check S3 "DNS to the router as root" fail "$(udp_out root "$ROUTER" 53)"
 check S3 "DNS to another server as the resolver user" fail "$(udp_out systemd-resolve "$PUBLIC" 53)"
-check S4 "NTP to the router as the time user" ok "$(udp_out systemd-timesync "$ROUTER" 123)"
-check S4 "NTP to the router as root" fail "$(udp_out root "$ROUTER" 123)"
+check S4 "NTP to the listed public time server as the time user" ok "$(udp_out systemd-timesync "$TIME" 123)"
+check S4 "NTP to the listed public time server as root" fail "$(udp_out root "$TIME" 123)"
+check S4 "NTP to an unlisted public server as the time user" fail "$(udp_out systemd-timesync "$TIME_OFF" 123)"
+check S4 "NTP to the router as the time user (no longer the time source)" fail "$(udp_out systemd-timesync "$ROUTER" 123)"
 check S4 "NTP to another device as the time user" fail "$(udp_out systemd-timesync "$OTHER" 123)"
 check S5 "ops proxy as root" ok "$(tcp_out root "$OPS" 3128)"
 check S5 "ops proxy as apt" ok "$(tcp_out _apt "$OPS" 3128)"

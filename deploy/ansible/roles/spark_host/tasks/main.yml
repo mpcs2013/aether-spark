@@ -10,12 +10,14 @@
       - spark_host_admin_ssh_keys | reject('match', '^sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com ') | list | length == 0
       - spark_host_admin_addr is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
       - spark_host_router is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+      - spark_host_ntp_servers | length > 0
+      - spark_host_ntp_servers | reject('match', '^([0-9]{1,3}\.){3}[0-9]{1,3}$') | list | length == 0
       - not spark_host_manage_network or spark_host_lan_connection | length > 0
       - spark_host_ups_port | string | length == 0 or (spark_host_nas_addr | length > 0 and spark_host_ups_user | length > 0)
     fail_msg: >-
       /etc/aetherspark/host.yml needs the admin user, the hardware keys' public lines (sk-...), the
-      admin desktop's and the router's addresses, the LAN connection, and with a UPS port the NAS
-      address and the UPS login (deploy/ansible/host.example.yml)
+      admin desktop's and the router's addresses, the time servers' addresses, the LAN connection, and
+      with a UPS port the NAS address and the UPS login (deploy/ansible/host.example.yml)
     quiet: true
 
 # Before anything changes: a run that would stop at the end on a missing or open file stops here
