@@ -26,6 +26,7 @@ __pycache__/
 # Agent logs and local Claude settings
 .agent-logs/
 .claude/settings.local.json
+.claude/journal.local.json
 
 # OS
 .DS_Store
