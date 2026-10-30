@@ -13,6 +13,9 @@ spark_host_admin_ssh_keys:
 # The admin desktop's reserved Home address, the router's address on the AetherSpark network
 spark_host_admin_addr: 198.51.100.50
 spark_host_router: 192.0.2.1
+# The public time servers, by address (the same as AS_NTP_SERVERS); on the Spark, the two Cloudflare
+# publishes for time.cloudflare.com
+spark_host_ntp_servers: [203.0.113.123, 203.0.113.124]
 # NetworkManager's connection on the LAN port (nmcli connection show)
 spark_host_lan_connection: "Wired connection 1"
 

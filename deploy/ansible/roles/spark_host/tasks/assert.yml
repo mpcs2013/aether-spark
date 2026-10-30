@@ -199,6 +199,25 @@
     quiet: true
   when: spark_host_manage_network | bool
 
+# The clock is set from the listed servers. A server address that stops answering (the time
+# service moved) shows here as an unsynchronized clock, not as a silent drift. Only on the Spark:
+# timesyncd does not run in a container.
+- name: Read whether the clock is synchronized
+  ansible.builtin.command: timedatectl show --property=NTPSynchronized --value
+  register: spark_host_assert_ntp
+  changed_when: false
+  check_mode: false
+  when: spark_host_manage_network | bool
+
+- name: Assert the clock is synchronized from the time servers
+  ansible.builtin.assert:
+    that: spark_host_assert_ntp.stdout == 'yes'
+    fail_msg: >-
+      the clock is not synchronized: check that the time servers in host.yml and egress-rules.env
+      still answer (timedatectl timesync-status)
+    quiet: true
+  when: spark_host_manage_network | bool
+
 - name: Check for the rfkill device
   ansible.builtin.stat:
     path: /dev/rfkill

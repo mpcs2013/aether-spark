@@ -10,8 +10,12 @@
 spark_host_admin_user: ""
 spark_host_admin_ssh_keys: []
 spark_host_admin_addr: ""
-# The router: DNS for home.arpa and time
+# The router: DNS for home.arpa
 spark_host_router: ""
+# The public time servers, by address (the host resolves no internet names); the same as
+# AS_NTP_SERVERS in the rules' settings. On the Spark: the two addresses Cloudflare publishes for
+# time.cloudflare.com
+spark_host_ntp_servers: []
 # NetworkManager's connection on the LAN port (`nmcli connection show`, read at arrival)
 spark_host_lan_connection: ""
 
