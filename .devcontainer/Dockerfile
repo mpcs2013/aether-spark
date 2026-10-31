@@ -1,13 +1,13 @@
 # Dev container: Ubuntu 24.04, the DGX OS userland, with the repo's pinned toolchain (WP2.4).
 # Every input is pinned by digest or checksum (ADR-0005); builds for amd64 and arm64.
 
-FROM ghcr.io/astral-sh/uv:0.13.3@sha256:bee0a2a458fd956c5df7b8b4c5fed2257b0af34866e3da7b51db0be3acb375d1 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
 # gitleaks from its tagged source, built with a current Go: the release image and binaries carry an
 # old Alpine and Go 1.24's standard library, with fixed High/Critical findings (#31). The source
 # archive is checked by SHA-256, its modules by go.sum. CI's gitleaks job runs this same binary
 # (target gitleaks-bin), so the pre-commit hook, the container and CI share one version.
-FROM golang:1.26.10-alpine3.24@sha256:a2012b4a1d1f9f7e9f44e0d39b805a901e856b1dd80b4e6ee4338db547050308 AS gitleaks-build
+FROM golang:1.27.3-alpine3.24@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS gitleaks-build
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=e90fb266d75837e75894c778bf594ab8e2787f12dce5a62651f21b893eaf9abb
 RUN set -eu; \
