@@ -1,5 +1,5 @@
 # ADR-0009: Identity — Keycloak OIDC everywhere
-- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium) · **Amendment 2** Accepted 2026-10-16 (signed release evidence)
+- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium) · **Amendment 2** Accepted 2026-10-16 (signed release evidence) · **Amendment 3** Proposed 2026-10-31 (Keycloak image from Ostium's baseline)
 
 ## In plain words
 Keycloak is the reception desk: people and agents check in once and get a badge (token); every other component only checks the badge.
@@ -58,3 +58,29 @@ In plain words: the owner checks, by hand and against a pinned key, that each Os
 - **Check per version change:** every `Ostium.*` version change is owner-only (agent-system D15). For each one, the owner runs the check script kept in Ostium on the development machine: the tag signature, the checksums signature, each hash against the lock file, and the SourceLink commit against the tag commit. The result is recorded in the pull request before merge.
 - **Replaces:** in amendment 1's release-evidence bullet, "They cannot check the tag signature themselves (accepted residual)."
 - **Consequences:** one manual step per version change; in exchange, a package that does not match the signed release is caught before it is merged.
+
+## Amendment 3 — Keycloak image from Ostium's baseline (2026-10-31, exchange D-008, #44)
+In plain words: AetherSpark no longer tracks Keycloak releases itself. Ostium picks one, tests and scans it, and posts a release notice in the exchange; AetherSpark pins that image by default and still checks it itself before using it.
+
+- **The baseline:** Ostium owns the Keycloak baseline: the version and image digest AetherSpark pins by default. For each release it adopts, after its update cooldown, Ostium posts a release notice thread in the exchange with:
+  - the version, the multi-architecture index digest (amd64 and arm64) and the registry;
+  - its pinned scanner and the scanner's database date, every High and Critical finding with its fix status, and the bundled-library advisories the release fixes;
+  - its package suite's result on x64 and linux-arm64, and what the suite does not cover: it runs a test container with a realm import, not a production configuration.
+- **What AetherSpark pins:** the index digest from Ostium's latest notice, as `<registry>/<image>@sha256:<digest>`, in the Compose base (WP3.1) and for `Ostium.Keycloak.Testing`. An index digest names one image per architecture, so the same pin works on the desktop (amd64) and on the Spark (arm64).
+- **What stays in AetherSpark:**
+  - the realm content (`deploy/keycloak/aetherspark-realm.json`) and its guard cases;
+  - the run settings (hostname, TLS, proxy headers, production start) and the deployment;
+  - each pin bump, in its own issue naming the notice's version and digest;
+  - a confirming Grype scan of the bumped image on linux/arm64 and linux/amd64, in CI on the pin-bump pull request, under ADR-0005's fail rule as then in force (applied here to a third-party image). Ostium's scan informs; this scan is the gate;
+  - the scheduled scan of the pinned digest between bumps (#31). Ostium does not re-scan between releases, so a new finding on the running pin comes from this scan; it is reported once in the thread of Ostium's current notice and handled under the security-first rule or as an exception;
+  - exception decisions, approved by the owner and recorded in the pin-bump issue with the advisory, why it does not apply or is accepted, and a review date. ADR-0005 (#31) defines the general rule.
+- **Order:** #31 (the scan job and its exception rule) is settled before the first Keycloak pin in WP3.1.
+- **Registry:** the notice names it. If it is not in the ops list of the egress design (today `quay.io`, its CDN still to confirm; ADR-0012), a separate pull request adds it to the design and the proxy list (L2) before the bump.
+- **Security first:** for an urgent fix, AetherSpark bumps to a newer digest before Ostium's notice. The confirming scan and AetherSpark's tests with `Ostium.Keycloak.Testing` pass on amd64 and arm64, and the bump is reported in the thread of Ostium's current notice. The baseline never blocks a security bump.
+- **No shared Keycloak:** AetherSpark runs its own instance; a shared one would need its own decision.
+- **No notice yet:** if Ostium has published none when WP3.1 starts, AetherSpark asks in the exchange, and the Keycloak part of WP3.1 waits; AetherSpark does not choose a version on its own. The rest of WP3.1 continues.
+- **Dependabot:** when the Docker ecosystem is added (WP3.1), an ignore rule keeps it from proposing Keycloak image bumps; they come from the notice or the security-first rule.
+- **Replaces:** in amendment 1, "image pins" for `Ostium.Keycloak.Testing` now means the baseline digest.
+- **Consequences:**
+  - Good: the release scan and the package suite on x64 and arm64 run once, in Ostium; AetherSpark scans only the image it bumps and the pin it runs; known vendor gaps are named once, in the notice.
+  - Bad: a new Keycloak release reaches AetherSpark only after Ostium's cooldown and notice, except under the security-first rule; the first pin waits for Ostium's first notice, which comes only after Ostium has added its scanner (WP3.1, Gate G3's OIDC login).

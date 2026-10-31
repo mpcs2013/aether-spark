@@ -89,7 +89,8 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 
 ### P3a — Platform-lite *(≈ 31 Oct – 10 Nov)*
 - ADR-0009 amendment 1 (2026-10-11): `AetherSpark.Identity` consumes the shared identity kit Ostium (JWT validation, back-channel trust, Keycloak test fixture, realm guard) instead of writing its own; agent service accounts come from Ostium for P5a. Precondition: Ostium marks the needed blocks ready for AetherSpark; otherwise the phase waits and no local copy is written. Service accounts must be ready before WP5a.2.
-- WP3.1 Compose base: Traefik (TLS, step-ca), Keycloak, Postgres 18 + pgvector, Redis
+- ADR-0009 amendment 3 (2026-10-31): the Keycloak pin waits for Ostium's first baseline notice and for #31 (image scan job and exception rule); Gate G3's OIDC login depends on both. The rest of WP3.1 does not wait.
+- WP3.1 Compose base: Traefik (TLS, step-ca), Keycloak (pinned by the index digest in Ostium's latest baseline notice, after AetherSpark's own Grype scan on arm64 and amd64; ADR-0009 amendment 3), Postgres 18 + pgvector, Redis
 - WP3.2 Observability: Aspire dashboard (dev); LGTM compose profile defined, not run on PC
 - WP3.3 Secrets (ADR-0010): manifest, `just secrets generate`, age-encrypted dev store, tmpfs Docker secrets in `just up`, offline recovery key created
 - WP3.4 Backup: restic job + restore drill against a dev volume, target = NAS

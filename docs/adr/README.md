@@ -9,7 +9,7 @@
 | 0006 | Inference: LiteLLM gateway + model aliases (engine and models by Spark benchmark) | Accepted (gateway); engine pending benchmark |
 | 0007 | Data stores: Postgres 18/pgvector, ClickHouse; Redis optional | Accepted |
 | 0008 | MCP architecture & tool security (no web fetch in v1, template-only queries) | Accepted |
-| 0009 | Identity: Keycloak OIDC (5-min tokens, realm as code, break-glass; identity code from Ostium) | Accepted; amendments 1–2 Accepted |
+| 0009 | Identity: Keycloak OIDC (5-min tokens, realm as code, break-glass; identity code from Ostium; Keycloak image from Ostium's baseline) | Accepted; amendments 1–2 Accepted; amendment 3 Proposed |
 | 0010 | Secrets: generated, age-encrypted, kept off git (manifest only) | Accepted; amended 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials), 2026-10-19 (workstation backup key) |
 | 0011 | Observability: OpenTelemetry → Grafana (no research content; agent activity log 1 y) | Accepted; amended 2026-10-11 (NAS alerts by own-domain email) |
 | 0012 | Network: 3 networks on the home router; egress allowlist on the Spark; 1 GbE v1 | Accepted; amended 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (private package feed, build-time only; router and upstream as set up); amendment 2026-10-23 Accepted (two proxies, named flows, host default-deny, SNI check); amendment 2026-10-26 Accepted (Spark host flows); amendment 2026-10-30 Accepted (host time from public servers) |
