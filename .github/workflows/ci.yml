@@ -219,11 +219,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Image pinned by digest (ADR-0005); full history, findings redacted in the log
-      - run: >
-          docker run --rm -v "$PWD:/repo" -w /repo
-          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
-          git --no-banner --redact .
+      # The dev container's gitleaks build stage (pinned Go image, source by SHA-256, #31): the same
+      # binary as the pre-commit hook expects. Full history, findings redacted in the log.
+      - run: docker build --target gitleaks-bin --output "type=local,dest=$RUNNER_TEMP/gitleaks" .devcontainer
+
+      - run: '"$RUNNER_TEMP/gitleaks/gitleaks" git --no-banner --redact .'
 
   # The one required check: fails if any job failed or was cancelled; a job skipped because its
   # area did not change counts as passed. Jobs skipped by `if` report no check of their own, so

@@ -24,3 +24,27 @@ updates:
     groups:
       python:
         patterns: ["*"]
+
+  # Base and tool images in Dockerfiles, tag and digest together (ADR-0005, #31). The dev
+  # container's SDK image may move ahead of global.json, which names the minimum.
+  - package-ecosystem: docker
+    directories:
+      - /.devcontainer
+      - /deploy/compose/egress
+      - /tests/egress/lab
+      - /tests/host-role
+    schedule:
+      interval: weekly
+    groups:
+      images:
+        patterns: ["*"]
+
+  # Test client images in the egress tests' Compose files
+  - package-ecosystem: docker-compose
+    directories:
+      - /tests/egress
+    schedule:
+      interval: weekly
+    groups:
+      compose-images:
+        patterns: ["*"]
