@@ -1,5 +1,5 @@
 # ADR-0009: Identity — Keycloak OIDC everywhere
-- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium) · **Amendment 2** Accepted 2026-10-16 (signed release evidence) · **Amendment 3** Proposed 2026-10-31 (Keycloak image from Ostium's baseline)
+- **Status:** Accepted (with changes 1–3) · **Date:** 2026-10-03 · **Amendment 1** Accepted 2026-10-11 (identity code from the shared kit Ostium) · **Amendment 2** Accepted 2026-10-16 (signed release evidence) · **Amendment 3** Accepted 2026-10-31 (Keycloak image from Ostium's baseline)
 
 ## In plain words
 Keycloak is the reception desk: people and agents check in once and get a badge (token); every other component only checks the badge.
@@ -59,7 +59,7 @@ In plain words: the owner checks, by hand and against a pinned key, that each Os
 - **Replaces:** in amendment 1's release-evidence bullet, "They cannot check the tag signature themselves (accepted residual)."
 - **Consequences:** one manual step per version change; in exchange, a package that does not match the signed release is caught before it is merged.
 
-## Amendment 3 — Keycloak image from Ostium's baseline (2026-10-31, exchange D-008, #44)
+## Amendment 3 — Keycloak image from Ostium's baseline (2026-10-31, accepted, exchange D-008, #44)
 In plain words: AetherSpark no longer tracks Keycloak releases itself. Ostium picks one, tests and scans it, and posts a release notice in the exchange; AetherSpark pins that image by default and still checks it itself before using it.
 
 - **The baseline:** Ostium owns the Keycloak baseline: the version and image digest AetherSpark pins by default. For each release it adopts, after its update cooldown, Ostium posts a release notice thread in the exchange with:
