@@ -5,7 +5,7 @@
 | 0002 | Hybrid .NET 10 / Aspire 13 + Python (C# control plane, Python compute plane) | Accepted; amendment 1 Accepted |
 | 0003 | Docker Compose single-node runtime | Accepted |
 | 0004 | GitHub public repo + GitHub-hosted CI (no self-hosted runner) | Accepted; amendments 1–2 Accepted |
-| 0005 | Multi-arch, reproducible builds | Accepted; amended 2026-10-16 (native arm64 runners, no QEMU); amendment 2 Accepted 2026-10-20 (AppHost without lock file) |
+| 0005 | Multi-arch, reproducible builds | Accepted; amended 2026-10-16 (native arm64 runners, no QEMU); amendment 2 Accepted 2026-10-20 (AppHost without lock file); amendment 3 Proposed 2026-10-31 (image scan policy) |
 | 0006 | Inference: LiteLLM gateway + model aliases (engine and models by Spark benchmark) | Accepted (gateway); engine pending benchmark |
 | 0007 | Data stores: Postgres 18/pgvector, ClickHouse; Redis optional | Accepted |
 | 0008 | MCP architecture & tool security (no web fetch in v1, template-only queries) | Accepted |

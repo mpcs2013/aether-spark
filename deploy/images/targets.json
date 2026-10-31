@@ -1,0 +1,12 @@
+{
+  "build": [
+    { "name": "dev-container", "context": ".devcontainer" },
+    { "name": "egress-proxy", "context": "deploy/compose/egress" },
+    { "name": "egress-lab", "context": "tests/egress/lab" },
+    { "name": "host-role-test", "context": "tests/host-role" }
+  ],
+  "local_images": ["aetherspark/egress-proxy:local"],
+  "exclude": {
+    "deploy/images/grype.Dockerfile": "the scanner's own pin, read by scan.sh; nothing builds it"
+  }
+}

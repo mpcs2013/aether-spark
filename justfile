@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/workstation deploy/compose tests/python
+    {{ uv }} mypy src/python deploy/workstation deploy/compose deploy/images tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
