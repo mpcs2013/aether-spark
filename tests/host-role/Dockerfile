@@ -3,7 +3,7 @@
 # (ADR-0005): the base and uv by digest, packages by exact version; a newer Ubuntu update makes the
 # build fail until the pin is bumped. Hardware the container lacks (radios, the LAN port, Docker)
 # is left to the Spark's own tests.
-FROM ghcr.io/astral-sh/uv:0.13.3@sha256:bee0a2a458fd956c5df7b8b4c5fed2257b0af34866e3da7b51db0be3acb375d1 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
 FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
