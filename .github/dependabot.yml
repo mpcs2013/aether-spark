@@ -39,6 +39,16 @@ updates:
     groups:
       images:
         patterns: ["*"]
+    # New digests and patches only for these: Ubuntu stays on 24.04 (the DGX OS userland, and the
+    # egress proxy's package pins come from noble-security), and the SDK image stays on global.json's
+    # major. A move is a deliberate change, not a weekly update.
+    ignore:
+      - dependency-name: ubuntu
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: mcr.microsoft.com/dotnet/sdk
+        update-types: ["version-update:semver-major"]
+      - dependency-name: mcr.microsoft.com/dotnet/runtime-deps
+        update-types: ["version-update:semver-major"]
 
   # Test client images in the egress tests' Compose files
   - package-ecosystem: docker-compose
