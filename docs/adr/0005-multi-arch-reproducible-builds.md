@@ -1,5 +1,5 @@
 # ADR-0005: Multi-arch, reproducible builds
-- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment** 2026-10-16 (native arm64 runners) · **Amendment 2** Accepted 2026-10-20 (Aspire AppHost without lock file) · **Amendment 3** Proposed 2026-10-31 (image scan policy)
+- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment** 2026-10-16 (native arm64 runners) · **Amendment 2** Accepted 2026-10-20 (Aspire AppHost without lock file) · **Amendment 3** Accepted 2026-10-31 (image scan policy)
 ## Decision
 - All custom images built with `docker buildx` for `linux/arm64` (primary) and `linux/amd64` (dev). Before Spark arrives, arm64 builds run under QEMU; on Spark they build natively.
 - Base images pinned by digest; .NET central package management with lock files; Python `uv.lock`.
@@ -22,7 +22,7 @@ The Aspire AppHost SDK adds its dashboard and orchestration (DCP) packages for t
 
 Revisit when Aspire offers a lock-file-friendly way to restore these packages, or if the AppHost ever ships inside a deployed image.
 
-## Amendment 3 (2026-10-31) — image scan policy (#31)
+## Amendment 3 (2026-10-31, accepted) — image scan policy (#31)
 In plain words: every image the repository builds or runs is checked for known vulnerabilities, on both architectures. A High or Critical finding stops the merge whether or not a fix exists, unless the owner has approved a dated exception for it.
 
 - **Scanner:** Grype from a digest-pinned image (`deploy/images/grype.Dockerfile`, so Dependabot proposes its updates). Its database is downloaded at each run, and the report names Grype's version and the database date. Built images reach Grype as a saved archive, so Grype gets no access to the Docker socket.
