@@ -1,0 +1,34 @@
+name: image-scan
+
+# ADR-0005 amendment 3 (#31): every image the repository builds or pins, on both architectures.
+# Called from ci.yml when an image input changes; weekly, so a new advisory fails this run and not
+# an unrelated pull request; and by hand.
+on:
+  workflow_call:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+# ADR-0004: read-only GITHUB_TOKEN, no other secrets
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: image-scan (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: bash deploy/images/scan.sh ${{ matrix.arch }}

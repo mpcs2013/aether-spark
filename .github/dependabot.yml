@@ -33,6 +33,7 @@ updates:
       - /deploy/compose/egress
       - /tests/egress/lab
       - /tests/host-role
+      - /deploy/images   # grype.Dockerfile: the scanner's pin
     schedule:
       interval: weekly
     groups:
