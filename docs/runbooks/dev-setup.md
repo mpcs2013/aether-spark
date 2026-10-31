@@ -5,10 +5,10 @@ Once per machine, before the first `just ci`. The Windows 11 host runs the dev l
 ## Tools
 | Tool | Version | Install (Windows) | Check |
 |---|---|---|---|
-| .NET SDK | 10.0.401, pinned in `global.json` (no prereleases) | Visual Studio installer or `winget install Microsoft.DotNet.SDK.10` | `dotnet --version` in the repo prints `10.0.4xx` |
+| .NET SDK | 10.0.401 or a later 10.0 patch or feature band, the minimum in `global.json` (no prereleases; the dev container uses a newer patch) | Visual Studio installer or `winget install Microsoft.DotNet.SDK.10` | `dotnet --version` in the repo prints `10.0.4xx` |
 | uv | current | `winget install astral-sh.uv` | `uv --version` |
 | just | current | `winget install Casey.Just` | `just --version` |
-| gitleaks | 8.30.1, the version CI pins in `.github/workflows/ci.yml` | `winget install Gitleaks.Gitleaks --version 8.30.1` | `gitleaks version` prints `8.30.1` |
+| gitleaks | 8.30.1, the version the dev container builds and CI runs (`.devcontainer/Dockerfile`) | `winget install Gitleaks.Gitleaks --version 8.30.1` | `gitleaks version` prints `8.30.1` |
 
 uv fetches Python itself (the 3.12 floor is in `.python-version`); no system Python is needed. Open a new terminal after a winget install so the PATH change applies.
 
@@ -60,7 +60,7 @@ The login token changes on every run.
 **Driver pin.** GPU passthrough was verified on 2026-10-22 with NVIDIA driver **610.60**. A Windows update can change WSL2 or the driver (roadmap §Interim desktop): after one, repeat step 5; if it fails, roll the driver back to 610.60. Not yet verified: RAPIDS / the Polars GPU engine on Turing (with the first CPU/GPU parity test, ADR-0014).
 
 ## Dev container (WP2.4)
-`.devcontainer/` builds Ubuntu 24.04 (the DGX OS userland) with the repo's toolchain, every input pinned by digest or checksum: the .NET SDK image matching `global.json`, uv, just and gitleaks at CI's versions. CI builds it and runs `just ci` inside on amd64 and arm64, so the same definition works on the Spark.
+`.devcontainer/` builds Ubuntu 24.04 (the DGX OS userland) with the repo's toolchain, every input pinned by digest or checksum: the .NET SDK image (at or above `global.json`'s minimum), uv, just, and gitleaks built from its tagged source with a current Go (the same binary CI's gitleaks job runs). CI builds it and runs `just ci` inside on amd64 and arm64, so the same definition works on the Spark.
 - **VS Code:** Command Palette → Dev Containers: Reopen in Container. The container installs the extensions it needs.
 - **CLI:** `just container-ci` builds the image and runs `just ci` inside, with the repo mounted.
 - **Kept apart from the host:** the container's Python environment (`/home/app/.venv`) and .NET build output (`/home/app/artifacts`) live outside the workspace, so the host's `.venv` and `bin/obj` are never touched.

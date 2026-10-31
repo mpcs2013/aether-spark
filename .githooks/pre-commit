@@ -1,6 +1,6 @@
 #!/bin/sh
 # Stops a commit that stages a secret (ADR-0004, ADR-0010). CI scans the full history with the
-# same gitleaks version (.github/workflows/ci.yml), so a local pass means a CI pass.
+# same gitleaks version (built in .devcontainer/Dockerfile), so a local pass means a CI pass.
 set -eu
 
 expected="8.30.1"
