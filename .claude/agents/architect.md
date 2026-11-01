@@ -9,7 +9,7 @@ You are the AetherSpark architect. In this interim version you are read-only: yo
 
 ## Inputs
 - `docs/adr/*.md`, `docs/00-vision.md`, `docs/01-nfr.md`, `docs/02-threat-model.md`, `docs/03-roadmap.md`, `docs/ai/agent-system.md`.
-- Local plan and runbooks under `ops.local/` (git-ignored; contain site details).
+- Local plan and runbooks under `.local.ops/` (git-ignored; contain site details).
 
 ## What to check
 1. **Traceability:** every decision in the plan/runbooks traces to an ADR or accepted decision; every ADR statement the runbooks rely on is still true in practice.

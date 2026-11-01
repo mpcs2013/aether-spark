@@ -3,7 +3,7 @@
 # WP6.2, and the CI egress job): the rule script, its systemd unit, the docker.service drop-in, the
 # check timer and Docker's DNS upstreams, then applies the rules. Host mode (the Spark) is switched
 # on by the host role, which creates /etc/aetherspark/host-mode. Usage, as root: deploy/host/install.sh <settings>
-# (see egress-rules.env.example; the real values are in ops.local/).
+# (see egress-rules.env.example; the real values are in .local.ops/).
 set -euo pipefail
 
 # The settings path as given, resolved before the cd below
