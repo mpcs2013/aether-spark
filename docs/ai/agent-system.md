@@ -78,9 +78,9 @@ Both planes use the **same five governance primitives**. Learning one teaches th
 | test-engineer | G5 | `tests/**`, Traceability section in G1 file | sonnet | Decisya |
 | quant-validator | **G5v** | `tests/quant/**`, `tests/golden/**` (manifests only, no data), `docs/quant/**` | opus | **new** |
 | tech-writer | — (post-merge) | `docs/**` prose, `CHANGELOG.md`, `README.md` | sonnet | Decisya |
-| infra-admin | G4 (infra) | `ops.local/runbooks/**` (git-ignored site runbooks); public summaries stay with devops | opus | **new** (2026-10-04) |
+| infra-admin | G4 (infra) | `.local.ops/runbooks/**` (git-ignored site runbooks); public summaries stay with devops | opus | **new** (2026-10-04) |
 
-**Interim read-only agents (2026-10-04, until WP2.6):** `infra-admin`, `architect` and `security-reviewer` exist in `.claude/agents/` with tools `Read, Grep, Glob, WebSearch, WebFetch` only — no Edit/Write, no shell (ADR-0019). They review and report; the main session applies accepted changes. Write lanes come with `boundaries.json` in WP2.6, when AetherSpark locks Norma; then the core `architect` and `security-reviewer` replace these two, with AetherSpark's checks in their project addenda, and `infra-admin` stays in the project layer. The definitions are generic (public repo); site facts are read from `ops.local/` at run time.
+**Interim read-only agents (2026-10-04, until WP2.6):** `infra-admin`, `architect` and `security-reviewer` exist in `.claude/agents/` with tools `Read, Grep, Glob, WebSearch, WebFetch` only — no Edit/Write, no shell (ADR-0019). They review and report; the main session applies accepted changes. Write lanes come with `boundaries.json` in WP2.6, when AetherSpark locks Norma; then the core `architect` and `security-reviewer` replace these two, with AetherSpark's checks in their project addenda, and `infra-admin` stays in the project layer. The definitions are generic (public repo); site facts are read from `.local.ops/` at run time.
 
 Shared deny for every project agent: `docs/ai/pipeline/**`, `.claude/**`, `CLAUDE.md`, `policy/invariants.md`, `data/**`, `deploy/secrets/**`.
 
@@ -115,7 +115,7 @@ flowchart LR
 | docs-only | `docs/**`, `*.md` | G0, G7 |
 | ci-tooling | `.github/**`, `.claude/**`, build props, `nuget.config`, pre-commit | G0, G3, G6, G7 |
 | dependency | `Directory.Packages.props`, `packages.lock.json`, `pyproject.toml`/`uv.lock` only | G0, G6, G7 |
-| **infra** (new) | `ops.local/runbooks/**`, `docs/runbooks/*-setup.md`, network/backup ADRs | G0, G2 architect (ADR fit), G3 security-reviewer (threat delta), G4 infra-admin, G6, G7. The owner executes every step by hand; agents never touch devices |
+| **infra** (new) | `.local.ops/runbooks/**`, `docs/runbooks/*-setup.md`, network/backup ADRs | G0, G2 architect (ADR fit), G3 security-reviewer (threat delta), G4 infra-admin, G6, G7. The owner executes every step by hand; agents never touch devices |
 
 ### 4.4 Enforcement layers (dev plane)
 

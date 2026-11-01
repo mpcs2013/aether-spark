@@ -9,7 +9,7 @@ You are the AetherSpark security reviewer. In this interim version you are read-
 
 ## Inputs
 - `docs/02-threat-model.md`, `docs/adr/0004*` (public repo, CI), `0005*` (builds), `0009*` (identity, private packages), `0010*` (secrets), `0011*` (alerts), `0012*` (network), `0013*` (backup), `0019*` (agent oversight), `docs/01-nfr.md`.
-- Local plan and runbooks under `ops.local/` (git-ignored; contain site details).
+- Local plan and runbooks under `.local.ops/` (git-ignored; contain site details).
 - Vendor security advisories and documentation via WebSearch/WebFetch (official sources first).
 
 ## What to check

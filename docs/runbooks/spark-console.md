@@ -28,7 +28,7 @@ Print this page and keep it next to the Spark. It is for the day the Spark's fir
    ```
 
    `in place`: try SSH again from the desktop. Still an error: step 4.
-4. **The settings file.** An error naming a setting (`host mode needs AS_LAN_IF`, `not a single IPv4 address: …`) means `/etc/aetherspark/egress-rules.env` is wrong. Compare it with your copy in `ops.local/`:
+4. **The settings file.** An error naming a setting (`host mode needs AS_LAN_IF`, `not a single IPv4 address: …`) means `/etc/aetherspark/egress-rules.env` is wrong. Compare it with your copy in `.local.ops/`:
 
    ```bash
    sudo cat /etc/aetherspark/egress-rules.env
@@ -48,9 +48,9 @@ Print this page and keep it next to the Spark. It is for the day the Spark's fir
    If `run.sh` stops with a download error, the two releases pin different Ansible versions: start the ops proxy first (`sudo docker compose -f deploy/compose/egress/compose.yaml --profile egress-ops up -d --wait egress-ops`), then run it again.
 
 5. **The rules are fine, SSH still fails.** Usual causes, in order:
-   - **the desktop's address changed** (the router reservation). The firewall refuses it before SSH sees it, so look in the firewall's drop log: `sudo journalctl -k -g aetherspark-host-drop -n 20` shows `SRC=` with the address it came from. If that is your desktop's new address, put it into both settings files (`AS_ADMIN_ADDR` in `/etc/aetherspark/egress-rules.env`, `spark_host_admin_addr` in `/etc/aetherspark/host.yml`, with `sudoedit`) and in `ops.local/site.md`, then run `sudo /opt/aetherspark/deploy/ansible/run.sh`;
+   - **the desktop's address changed** (the router reservation). The firewall refuses it before SSH sees it, so look in the firewall's drop log: `sudo journalctl -k -g aetherspark-host-drop -n 20` shows `SRC=` with the address it came from. If that is your desktop's new address, put it into both settings files (`AS_ADMIN_ADDR` in `/etc/aetherspark/egress-rules.env`, `spark_host_admin_addr` in `/etc/aetherspark/host.yml`, with `sudoedit`) and in `.local.ops/site.md`, then run `sudo /opt/aetherspark/deploy/ansible/run.sh`;
    - the hardware key is not plugged in, or not touched in time; try the spare;
-   - the Spark's own address changed: `ip -4 address show` against `ops.local/site.md`.
+   - the Spark's own address changed: `ip -4 address show` against `.local.ops/site.md`.
 
 **Never run `aetherspark-egress-rules remove` on the Spark.** It is for tests: it takes the rules away and opens the host.
 
@@ -68,4 +68,4 @@ The lines before `rules not in place` say what differs. `not the DROP policy wit
 4. `reboot` to try a normal start again. Do not delete or disable the firewall unit: it is what keeps the Spark closed.
 
 ## After any of this
-Note in `ops.local/site.md` what happened, when, and what fixed it. If the cause is not clear, tell Claude in the next session: it becomes a finding for the design or the role.
+Note in `.local.ops/site.md` what happened, when, and what fixed it. If the cause is not clear, tell Claude in the next session: it becomes a finding for the design or the role.

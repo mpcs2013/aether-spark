@@ -32,7 +32,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Site-specific details of the home installation (public repo, ADR-0004)
+# Site-specific details of the home installation (public repo, ADR-0004). The folder is
+# .local.ops/ since 2026-11-01 (exchange N-016, #54); the old name stays ignored for good.
+.local.ops/
 ops.local/
 
 # Scratch output folder of Claude desktop sessions (may contain site details)

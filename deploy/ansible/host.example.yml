@@ -1,6 +1,6 @@
 ---
 # /etc/aetherspark/host.yml on the Spark (root, 0600): this Spark's values for the host role. The
-# real values live in the desktop's site folder (ops.local/); these are documentation values.
+# real values live in the desktop's site folder (.local.ops/); these are documentation values.
 # Every setting the role takes is in roles/spark_host/defaults/main.yml.
 
 # The owner's account, created at first boot
