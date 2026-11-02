@@ -5,7 +5,7 @@
 # is left to the Spark's own tests.
 FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 ARG SYSTEMD_VERSION=255.4-1ubuntu8.18
 ARG OPENSSH_VERSION=1:9.6p1-3ubuntu13.20
