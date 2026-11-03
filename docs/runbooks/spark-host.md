@@ -2,20 +2,20 @@
 
 How to set up the Spark's host after first boot, and how to run an ops session later. The design is [spark-host.md](../architecture/spark-host.md); this page is the order of work. Run it at the Spark's own keyboard and screen: the last step switches on the host firewall, and a mistake there must not cut off the session you are typing in. When something here goes wrong, [spark-console.md](spark-console.md) is the way back.
 
-**Status:** ready for arrival, not run yet. Steps marked *(arrival)* read facts that are only known on the Spark; write each result into the Spark section of `.local.ops/site.md`.
+**Status:** ready for arrival, not run yet. Steps marked *(arrival)* read facts that are only known on the Spark; write each result into the Spark section of `.local.ref/site.md`.
 
 ## Before the Spark arrives
 - **Two hardware security keys** (FIDO2; two YubiKey 5 NFC, bought): the first for daily use, the second a spare kept apart from it, so a lost or broken key does not lock you out. On the desktop, in PowerShell, once per key, with only that key plugged in: `ssh-keygen -t ed25519-sk -O resident -O application=ssh:spark-key1 -C spark-key1 -f $HOME\.ssh\spark_key1_ed25519_sk` (then `key2` for the spare). It asks for the key's FIDO2 PIN; touch the key only when asked (a touch at any other time types a one-time password). **Resident** means the key lives on the YubiKey, protected by its PIN, so the YubiKey alone can restore the small `_sk` file if the desktop is lost (`ssh-keygen -K`; Windows' built-in OpenSSH cannot do that, Linux can: step 6). Each `.pub` file is a line the Spark will accept; the `_sk` file is useless without its key. Until step 6 proves the restore, the two `_sk` files go on the offline USB copies with the tag key (rule L-002). The register of keys and where the spare is kept are the home infrastructure's (a request to it). Done 2026-10-29.
 - **AetherSpark's tag signing key** (done 2026-10-27). Release tags are signed with AetherSpark's own SSH key, `~/.ssh/aetherspark-tag-signing` (ED25519, passphrase in the password manager, registered with the home infrastructure under rule L-002); the first signed tag is `v0.1.0`. The repository's git settings sign tags with it (`gpg.format ssh`, `user.signingkey`, `tag.gpgSign`). Its `.pub` line goes on the Spark as the only allowed signer; the line for step 3 is the same one used to check a tag on the desktop: `<your git email> namespaces="git" <the .pub line>`.
-- **The two settings files**, filled in from `.local.ops/site.md` (never in the repository):
-  - `host.yml`, from [deploy/ansible/host.example.yml](../../deploy/ansible/host.example.yml): your account name, both keys' `.pub` lines, the desktop's and the router's addresses, the public time servers' addresses. The LAN connection's name is read at arrival.
+- **The two settings files**, filled in from `.local.ref/site.md` (never in the repository):
+  - `host.yml`, from [deploy/ansible/host.example.yml](../../deploy/ansible/host.example.yml): the admin account's name `spark-admin`, both keys' `.pub` lines, the desktop's and the router's addresses, the public time servers' addresses. The LAN connection's name is read at arrival.
   - `egress-rules.env`, from [deploy/host/egress-rules.env.example](../../deploy/host/egress-rules.env.example): the router, the Home range, the NAS address and port, and the host-mode values (LAN interface, router, desktop, the public time servers' addresses: the two Cloudflare publishes for time.cloudflare.com).
 
 ## 1. First boot (WP6.1)
-On the AetherSpark network: first boot needs the internet and installs the full software image; do not interrupt it. **Decline** the analytics and crash-reporting question. Then the OS and firmware updates, the disk layout and the Docker check of WP6.1.
+On the AetherSpark network: first boot needs the internet and installs the full software image; do not interrupt it. **Decline** the analytics and crash-reporting question. **The admin account:** the setup asks for one; enter the full name `Spark admin` and the user name `spark-admin`, and the passphrase from the password manager's Spark admin entry. A role name, not your own: it keeps personal data out of the Spark's settings and logs, and the account can be handed over. The name is not a security control; the hardware keys, the desktop's address and the one allowed account are. Then the OS and firmware updates, the disk layout and the Docker check of WP6.1.
 
 ## 2. Observe *(arrival)*
-At the console, as your account. Write each answer down.
+At the console, as `spark-admin`. Write each answer down.
 
 | Command | What to note |
 |---|---|
@@ -100,7 +100,7 @@ With [spark-console.md](spark-console.md) printed next to the Spark: follow its 
 - **Quarterly, with the restore drill:** log in once with the spare (step 6's second row), then put it back. Tell the home infrastructure the date, for its register.
 - **A key is lost or broken:** first take it off the Spark, then replace it. At the console: delete its line from `spark_host_admin_ssh_keys` in `/etc/aetherspark/host.yml` (`sudoedit`), then `sudo /opt/aetherspark/deploy/ansible/run.sh`; the role's check then accepts only the remaining key. A new key: `ssh-keygen -t ed25519-sk` on the desktop, add its `.pub` line the same way, run the role again, and tell the home infrastructure.
 
-**Never add your account to the `docker` group**, even where NVIDIA's guides suggest it: membership is root without a password. Use `sudo docker`. The role's checks fail if anyone is in that group.
+**Never add `spark-admin` (or any account) to the `docker` group**, even where NVIDIA's guides suggest it: membership is root without a password. Use `sudo docker`. The role's checks fail if anyone is in that group.
 
 ## Ops sessions (updates, about weekly)
 The host reaches the internet only while the ops proxy runs, so every update starts and ends with it. Updates and the drift check work over SSH. **A full run of the role (`run.sh` without `--check`) happens at the console**: it can restart SSH and the network, and a run cut off halfway leaves the host closed.

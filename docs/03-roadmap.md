@@ -1,7 +1,7 @@
 # 03 — Roadmap, Work Packages & Gates
 
 ## Planning basis (updated 2026-10-23)
-- **Spark delivery (D):** the DGX Spark is **ordered**; D is now expected **before** the earlier basis of 2026-11-15, no guarantee. All Spark work is scheduled relative to **D**, not to calendar dates. The delivery window, prices and retailer are kept locally (`.local.ops/inventory.md`, `.local.ops/site.md`). With D earlier, P3n (WP3n.4 physical, WP3n.5 workstation backup) has to be done before D, as P6 depends on it.
+- **Spark delivery (D):** the DGX Spark is **ordered**; D is now expected **before** the earlier basis of 2026-11-15, no guarantee. All Spark work is scheduled relative to **D**, not to calendar dates. The delivery window, prices and retailer are kept locally (`.local.ref/inventory.md`, `.local.ref/site.md`). With D earlier, P3n (WP3n.4 physical, WP3n.5 workstation backup) has to be done before D, as P6 depends on it.
 - **Procurement (2026-10-05, superseded by the order above):** the DGX Spark was out of stock; the fallback was an OEM system with the same GB10 chip and 128 GB (plan, ADRs and NFRs unchanged).
 - **Interim host:** Windows 11 desktop (x64), WSL2, **NVIDIA RTX 2060** (Turing, CUDA-capable, small VRAM). Too weak for real model serving or performance numbers; good enough for code, configuration, data work, small GPU tests and plumbing. Turing has no FP8/FP4, so no Spark performance can be inferred from it.
 - **Principle:** the critical path to a useful system is mostly **not compute**. Everything that doesn't need the Spark's GPU or 128 GB is done before D, so cutover is a deployment, not a project.
@@ -33,7 +33,7 @@ gantt
 *Track B bars are drawn at the earliest D. If D slips, Track B shifts as a block and Track A packages extend (see §Slip policy).*
 
 ## Interim desktop resource budget (WSL2)
-Desktop (confirmed 2026-10-03; full specs in `.local.ops/site.md`): 8 cores, **64 GB RAM**, NVMe + HDD + USB SSD, RTX 2060 (6 GB), 1 GbE, Windows 11.
+Desktop (confirmed 2026-10-03; full specs in `.local.ref/site.md`): 8 cores, **64 GB RAM**, NVMe + HDD + USB SSD, RTX 2060 (6 GB), 1 GbE, Windows 11.
 `%USERPROFILE%\.wslconfig`: `memory=32GB`, `processors=6` (leaves 32 GB and 2 cores for Windows, VS Code and the browser).
 
 | Component | RAM | Notes |
@@ -74,7 +74,7 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - WP2.2 .NET 10 solution: Aspire AppHost, ServiceDefaults, Directory.Packages.props (central package mgmt)
 - WP2.3 Python workspace: `uv` workspace, `ruff`, `mypy --strict`, `pytest`
 - WP2.4 Devcontainer (Ubuntu 24.04) matching DGX OS userland
-- WP2.5 GitHub repo (public, ADR-0004), `main` ruleset (id in `.local.ops/site.md`), CI on GitHub-hosted runners incl. native arm64 (`ubuntu-24.04-arm`), fork-PR approval, secret scanning + push protection, Grype (the image scan job came later, with #31: ADR-0005 amendment 3), gitleaks, Dependabot (images since #46), SHA-pinned actions
+- WP2.5 GitHub repo (public, ADR-0004), `main` ruleset (id in `.local.ref/site.md`), CI on GitHub-hosted runners incl. native arm64 (`ubuntu-24.04-arm`), fork-PR approval, secret scanning + push protection, Grype (the image scan job came later, with #31: ADR-0005 amendment 3), gitleaks, Dependabot (images since #46), SHA-pinned actions
 - WP2.6 Dev agent setup ([agent-system.md](ai/agent-system.md) §4, ADR-0016 amendment 1): **waits for Norma**, the shared Claude Code core, instead of copying Decisya `.claude/`. When a Norma version covers AetherSpark's needs: lock it (`core.lock.json`, tag signature checked by the owner); add the project layer (`project.json`, `boundaries.json`, CLAUDE.md, domain skills, implementer agents) and AetherSpark's additions as a Python pack or overlay (`data_guard.py`, budgets, identity-tied approvals, full audit log + deny → freeze + no-interpreter lint, ADR-0019); first issue through its own pipeline. The git-ignored `usage.local/` folder starts here (exchange G-003): Claude Code development usage only, never runtime usage, and never in git. The workstation backup (ADR-0013 amendment 5) must cover it from the first record, and the usage-capture copy job (amendment 6) adds it to its folder list. The status-tracking pack is opt-in; delivery reports go through the exchange (G-002). Until then: the three interim read-only agents only.
 - **Gate G2:** `just ci` green locally and in GitHub Actions; CI builds amd64 + arm64.
 - **Gate G2b** (when WP2.6 lands): `lint.py` + `roster.py --check` green; core-lock test green; hook denial tests prove lanes and data guard.
@@ -167,7 +167,7 @@ Code + tests + ADR/doc updated + CI green + OTel instrumented + runbook entry if
 ## Open questions
 | # | Question | Needed by |
 |---|---|---|
-| ~~Q1~~ | ~~Router~~ → answered 2026-10-03: existing router supports VLANs after a firmware update (ADR-0012; details in `.local.ops/site.md`) | — |
+| ~~Q1~~ | ~~Router~~ → answered 2026-10-03: existing router supports VLANs after a firmware update (ADR-0012; details in `.local.ref/site.md`) | — |
 | ~~Q2~~ | ~~NAS~~ → answered 2026-10-04: existing NAS, dedicated SSD volume as backup target, second port on the AetherSpark network (ADR-0013) | — |
 | ~~Q3~~ | ~~Research universe~~ → answered 2026-10-03: ADR-0020 | — |
 | ~~Q4~~ | ~~Market price source~~ → answered 2026-10-03: PoC on Sharadar free tier (Dow 30) + synthetic prices; PROD Sharadar Prices **full history** bought after the PoC works (first month monthly to verify delisted coverage, then annual). Provider-neutral internal price schema keyed by CIK; raw prices + corporate actions, adjustments computed in-house. Before paying: written confirmation of personal-licence eligibility (details in `.local.ops/site.md`). | — |
