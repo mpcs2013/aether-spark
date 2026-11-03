@@ -1,10 +1,11 @@
 ---
 # /etc/aetherspark/host.yml on the Spark (root, 0600): this Spark's values for the host role. The
-# real values live in the desktop's site folder (.local.ops/); these are documentation values.
+# real values live in the desktop's site folder (.local.ref/); these are documentation values.
 # Every setting the role takes is in roles/spark_host/defaults/main.yml.
 
-# The owner's account, created at first boot
-spark_host_admin_user: owner
+# The admin account, created at first boot: a role name, never a person's (no personal data in
+# this file; the account can be handed over)
+spark_host_admin_user: spark-admin
 # Both hardware keys' public lines (ssh-keygen -t ed25519-sk on the desktop, once per key; the
 # .pub files); the second key is the spare, kept apart from the first
 spark_host_admin_ssh_keys:

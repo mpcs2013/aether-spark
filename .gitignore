@@ -32,8 +32,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Site-specific details of the home installation (public repo, ADR-0004). The folder is
-# .local.ops/ since 2026-11-01 (exchange N-016, #54); the old name stays ignored for good.
+# Site-specific details of the home installation (public repo, ADR-0004), local only (exchange
+# N-016, L-004): .local.ref/ holds what Claude reads (site facts, the Spark's settings),
+# .local.ops/ the personal items Claude may not read. ops.local/ (the old name) stays ignored.
+.local.ref/
 .local.ops/
 ops.local/
 

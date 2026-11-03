@@ -20,7 +20,7 @@
 #
 # Host mode is on when /etc/aetherspark/host-mode exists (the Spark's host role creates it).
 #
-# Settings, from the environment or else /etc/aetherspark/egress-rules.env (values in .local.ops/):
+# Settings, from the environment or else /etc/aetherspark/egress-rules.env (values in .local.ref/):
 #   AS_RESOLVERS     upstream resolvers the proxies may query on port 53 (IPv4, space separated);
 #                    also Docker's "dns" in /etc/docker/daemon.json
 #   AS_HOME_SUBNETS  sources allowed to open TCP 443 to the `ingress` network (space separated)
