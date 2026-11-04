@@ -257,6 +257,9 @@ def load_findings(target: Target, path: Path, arch: str) -> tuple[list[Finding],
         raise InputError(f"{target.name}: unusable Grype result {path.name}: {error}") from error
     if not isinstance(matches, list):
         raise InputError(f"{target.name}: matches is not a list")
+    status = ((descriptor.get("db") or {}) if isinstance(descriptor, dict) else {}).get("status")
+    if isinstance(status, dict) and status.get("valid") is not True:
+        raise InputError(f"{target.name}: Grype reports its vulnerability database as not valid")
     _check_source(target, doc, arch)
     found: dict[tuple[str, str, str, str], Finding] = {}
     counts: Counter[str] = Counter()
@@ -294,7 +297,12 @@ def load_findings(target: Target, path: Path, arch: str) -> tuple[list[Finding],
 
 
 def _db_date(descriptor: dict[str, Any]) -> str:
+    """The database's build time: `db.status.built` (Grype 0.121), else `db.built`, else the newest
+    provider capture time."""
     db = descriptor.get("db") or {}
+    status = db.get("status") or {}
+    if isinstance(status, dict) and isinstance(status.get("built"), str):
+        return str(status["built"])
     if isinstance(db.get("built"), str):
         return str(db["built"])
     captured = [
