@@ -310,6 +310,26 @@ def test_the_database_date_comes_from_the_providers() -> None:
     assert policy._db_date({"db": {"providers": providers}}) == "2026-10-31T02:00:00Z"
 
 
+def test_the_database_date_is_grypes_status_built_first() -> None:
+    db = {"status": {"built": "2026-11-04T06:20:59Z", "valid": True}, "built": "older"}
+    assert policy._db_date({"db": db}) == "2026-11-04T06:20:59Z"
+
+
+@pytest.mark.parametrize("valid", [False, None, "true"])
+def test_a_database_grype_marks_not_valid_is_refused(tmp_path: Path, valid: Any) -> None:
+    doc = _doc()
+    doc["descriptor"]["db"] = {"status": {"built": "2026-11-04T06:20:59Z", "valid": valid}}
+    with pytest.raises(policy.InputError, match="not valid"):
+        policy.load_findings(APP, _write(tmp_path, "app", doc), "amd64")
+
+
+def test_a_valid_database_passes(tmp_path: Path) -> None:
+    doc = _doc()
+    doc["descriptor"]["db"] = {"status": {"built": "2026-11-04T06:20:59Z", "valid": True}}
+    findings, meta = policy.load_findings(APP, _write(tmp_path, "app", doc), "amd64")
+    assert findings == [] and meta["db"] == "2026-11-04T06:20:59Z"
+
+
 # Targets: every Dockerfile and every Compose image, or the scan does not start
 
 
