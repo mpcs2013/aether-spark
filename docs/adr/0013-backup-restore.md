@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** Accepted 2026-10-26 (UPS shutdown signal)
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** Accepted 2026-10-26 (UPS shutdown signal) · **Amendment 8** Accepted 2026-11-04 (internal CA and Keycloak's database)
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -98,6 +98,14 @@ On a power cut the Spark shuts down cleanly before the UPS runs out, so its data
 - **Inbound (extends Amendment 4):** on the AetherSpark interface the backup target's firewall allows the backup port and the UPS status port, both from the Spark only, and denies everything else. Amendment 4's invariant extends to that port: no other service uses it on any of the backup target's addresses.
 - **Account:** the Spark's UPS account reads the status and receives the shutdown notice, never sends commands to the UPS.
 - Port, protocol and account are in the local site files.
+
+## Amendment 8 (2026-11-04, accepted) — the internal CA and Keycloak's database
+With WP3.1 ([compose-base.md](../architecture/compose-base.md)):
+- **In the backup:** each machine's CA volume (the intermediate key, encrypted with a sealed secret; the CA's configuration and its database of issued certificates) and a dump of `postgres-auth` (Keycloak's realm data).
+- **The off-line root key** is not in the CA volume: it lives in the sealed store with the off-line recovery key (ADR-0010) and is backed up with it.
+- **A restore** keeps the trusted root, so browsers and services need no re-trust.
+- **Not backed up:** Traefik's ACME store (re-issued at start) and the renewers' certificates (re-bootstrapped at `just up`).
+- **Consequence:** the restore drill also proves sign-in after a restore of `postgres-auth`.
 
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.

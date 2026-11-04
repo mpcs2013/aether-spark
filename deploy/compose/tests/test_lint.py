@@ -65,6 +65,8 @@ def _valid() -> dict[str, Any]:
             "ingress",
             "edge",
             "pki",
+            "auth-front",
+            "auth-edge",
             image="traefik:test",
             ports=[{"target": 443, "published": "443"}],
             cap_add=["NET_BIND_SERVICE"],
@@ -109,6 +111,10 @@ def _valid() -> dict[str, Any]:
         "grafana": _service(
             "grafana", "edge", "auth-edge", "obs-edge", cap_add=["CHOWN", "SETUID", "SETGID"]
         ),
+        # Keycloak behind Traefik only, with its own database (compose-base.md)
+        "keycloak": _service("keycloak", "auth-front", "db-auth"),
+        "postgres-auth": _service("postgres", "db-auth"),
+        "keycloak-cert": _service("cert-renewer", "pki"),
     }
     used = sorted({n for s in services.values() for n in s["networks"]})
     return {
@@ -323,6 +329,21 @@ CASES: list[tuple[str, Mutation, str]] = [
         "role ingester may not join out-runtime",
     ),
     (
+        "Keycloak reached directly from edge",
+        _join("keycloak", "edge"),
+        "role keycloak may not join edge",
+    ),
+    (
+        "Keycloak on a group's back-channel network",
+        _join("keycloak", "auth-ingest"),
+        "role keycloak may not join auth-ingest",
+    ),
+    (
+        "a renewer outside pki",
+        _join("keycloak-cert", "db-auth"),
+        "role cert-renewer may not join db-auth",
+    ),
+    (
         "serving on a proxy network",
         _join("vllm", "egress-ops"),
         "role llm-serving may not join egress-ops",
@@ -370,6 +391,16 @@ def test_pair_rule_holds_even_if_the_matrix_is_widened() -> None:
     _join("ingester", "llm")(project)
     findings = _findings(project, policy)
     assert findings == ["network llm: ['ingester'] share it with ['llm-serving']"]
+
+
+def test_only_traefik_shares_a_network_with_keycloak_even_if_the_matrix_is_widened() -> None:
+    """Traefik is the only way to Keycloak: no other role may meet it, even after a matrix edit."""
+    policy = copy.deepcopy(POLICY)
+    policy["networks"]["auth-front"]["roles"].append("ui-api")
+    project = _valid()
+    project["services"]["ui"] = _service("ui-api", "auth-front")
+    findings = _findings(project, policy)
+    assert findings == ["network auth-front: ['keycloak'] share it with ['ui-api']"]
 
 
 def test_role_with_a_way_out_needs_an_image_binding() -> None:
