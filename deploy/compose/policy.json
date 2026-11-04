@@ -6,16 +6,18 @@
     "litellm", "llm-serving", "agent-host", "mcp-server", "verifier",
     "postgres", "clickhouse", "ingester", "price-job", "pipeline",
     "otel-collector", "runtime-proxy", "ops-proxy",
-    "pull-job", "build-job", "taxonomy-job", "restic"
+    "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"
   ],
   "networks": {
     "ingress":        { "bridge": "as-ingress",     "internal": false, "roles": ["traefik"] },
-    "edge":           { "bridge": "as-edge",        "internal": true,  "roles": ["traefik", "ui-api", "keycloak", "grafana", "ntfy"] },
-    "auth-ingest":    { "bridge": "as-auth-ingest", "internal": true,  "roles": ["keycloak", "ingester", "price-job", "pipeline"] },
-    "auth-llm":       { "bridge": "as-auth-llm",    "internal": true,  "roles": ["keycloak", "litellm", "llm-serving"] },
-    "auth-agents":    { "bridge": "as-auth-agents", "internal": true,  "roles": ["keycloak", "agent-host", "mcp-server", "verifier"] },
-    "auth-edge":      { "bridge": "as-auth-edge",   "internal": true,  "roles": ["keycloak", "ui-api", "grafana", "ntfy"] },
-    "pki":            { "bridge": "as-pki",         "internal": true,  "roles": ["step-ca", "traefik"] },
+    "edge":           { "bridge": "as-edge",        "internal": true,  "roles": ["traefik", "ui-api", "grafana", "ntfy"] },
+    "auth-ingest":    { "bridge": "as-auth-ingest", "internal": true,  "roles": ["traefik", "ingester", "price-job", "pipeline"] },
+    "auth-llm":       { "bridge": "as-auth-llm",    "internal": true,  "roles": ["traefik", "litellm", "llm-serving"] },
+    "auth-agents":    { "bridge": "as-auth-agents", "internal": true,  "roles": ["traefik", "agent-host", "mcp-server", "verifier"] },
+    "auth-edge":      { "bridge": "as-auth-edge",   "internal": true,  "roles": ["traefik", "ui-api", "grafana", "ntfy"] },
+    "auth-front":     { "bridge": "as-auth-front",  "internal": true,  "roles": ["traefik", "keycloak"] },
+    "db-auth":        { "bridge": "as-db-auth",     "internal": true,  "roles": ["keycloak", "postgres"] },
+    "pki":            { "bridge": "as-pki",         "internal": true,  "roles": ["step-ca", "traefik", "cert-renewer"] },
     "llm":            { "bridge": "as-llm",         "internal": true,  "roles": ["litellm", "llm-serving", "agent-host", "pipeline"] },
     "mcp":            { "bridge": "as-mcp",         "internal": true,  "roles": ["agent-host", "mcp-server"] },
     "data-read":      { "bridge": "as-data-read",   "internal": true,  "roles": ["mcp-server", "verifier", "postgres", "clickhouse"] },
@@ -31,7 +33,8 @@
     "backup":         { "bridge": "as-backup",      "internal": false, "roles": ["restic"] }
   },
   "never_share_a_network": [
-    { "roles": ["ingester", "price-job"], "with": ["llm-serving", "mcp-server", "agent-host", "grafana"] }
+    { "roles": ["ingester", "price-job"], "with": ["llm-serving", "mcp-server", "agent-host", "grafana"] },
+    { "roles": ["keycloak"], "with": ["ui-api", "grafana", "ntfy", "step-ca", "litellm", "llm-serving", "agent-host", "mcp-server", "verifier", "clickhouse", "ingester", "price-job", "pipeline", "otel-collector", "runtime-proxy", "ops-proxy", "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"] }
   ],
   "published_ports_roles": ["traefik"],
   "_cap_add": "The only capabilities a service may add back after cap_drop: [ALL] (file ownership, user switching, low ports).",
