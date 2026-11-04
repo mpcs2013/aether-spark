@@ -1,5 +1,5 @@
 # ADR-0013: Backup & restore — restic to the NAS, append-only, 3-2-1
-- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** Accepted 2026-10-26 (UPS shutdown signal) · **Amendment 8** Proposed 2026-11-04 (internal CA and Keycloak's database)
+- **Status:** Accepted · **Date:** 2026-10-04 (answers roadmap Q2; NAS details in `ops.local/site.md`) · **Amendments 1–2** Accepted 2026-10-04 · **Amendment 3** Accepted 2026-10-11 · **Amendment 4** Accepted 2026-10-12 (written 2026-10-11) · **Amendment 5** Accepted 2026-10-19 · **Amendment 6** Accepted 2026-10-21 (amended 2026-10-21 after the code review, and 2026-10-22, #22) · **Amendment 7** Accepted 2026-10-26 (UPS shutdown signal) · **Amendment 8** Accepted 2026-11-04 (internal CA and Keycloak's database)
 
 ## In plain words
 Every night the Spark sends a backup to the NAS. The NAS accepts new backups but never lets the Spark delete old ones. Once a week a copy goes to a USB disk that is unplugged afterwards.
@@ -99,7 +99,7 @@ On a power cut the Spark shuts down cleanly before the UPS runs out, so its data
 - **Account:** the Spark's UPS account reads the status and receives the shutdown notice, never sends commands to the UPS.
 - Port, protocol and account are in the local site files.
 
-## Amendment 8 (2026-11-04, proposed) — the internal CA and Keycloak's database
+## Amendment 8 (2026-11-04, accepted) — the internal CA and Keycloak's database
 With WP3.1 ([compose-base.md](../architecture/compose-base.md)):
 - **In the backup:** each machine's CA volume (the intermediate key, encrypted with a sealed secret; the CA's configuration and its database of issued certificates) and a dump of `postgres-auth` (Keycloak's realm data).
 - **The off-line root key** is not in the CA volume: it lives in the sealed store with the off-line recovery key (ADR-0010) and is backed up with it.

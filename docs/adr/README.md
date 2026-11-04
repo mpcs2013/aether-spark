@@ -2,18 +2,18 @@
 | # | Title | Status |
 |---|---|---|
 | 0001 | Record architecture decisions | Accepted |
-| 0002 | Hybrid .NET 10 / Aspire 13 + Python (C# control plane, Python compute plane) | Accepted; amendment 1 Accepted; note 2026-11-04 proposed (infrastructure Compose hand-written) |
-| 0003 | Docker Compose single-node runtime | Accepted; notes 2026-10-23 (`egress-ops` profile), 2026-11-04 proposed (the Compose files) |
+| 0002 | Hybrid .NET 10 / Aspire 13 + Python (C# control plane, Python compute plane) | Accepted; amendment 1 Accepted; note 2026-11-04 accepted (infrastructure Compose hand-written) |
+| 0003 | Docker Compose single-node runtime | Accepted; notes 2026-10-23 (`egress-ops` profile), 2026-11-04 accepted (the Compose files) |
 | 0004 | GitHub public repo + GitHub-hosted CI (no self-hosted runner) | Accepted; amendments 1–2 Accepted |
 | 0005 | Multi-arch, reproducible builds | Accepted; amended 2026-10-16 (native arm64 runners, no QEMU); amendment 2 Accepted 2026-10-20 (AppHost without lock file); amendment 3 Accepted 2026-10-31 (image scan policy) |
 | 0006 | Inference: LiteLLM gateway + model aliases (engine and models by Spark benchmark) | Accepted (gateway); engine pending benchmark |
 | 0007 | Data stores: Postgres 18/pgvector, ClickHouse; Redis optional | Accepted |
 | 0008 | MCP architecture & tool security (no web fetch in v1, template-only queries) | Accepted |
-| 0009 | Identity: Keycloak OIDC (5-min tokens, realm as code, break-glass; identity code from Ostium; Keycloak image from Ostium's baseline) | Accepted; amendments 1–3 Accepted; note 2026-11-04 proposed (Keycloak image and networks) |
-| 0010 | Secrets: generated, age-encrypted, kept off git (manifest only) | Accepted; amended 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials), 2026-10-19 (workstation backup key); note 2026-11-04 proposed (where decrypted values live) |
+| 0009 | Identity: Keycloak OIDC (5-min tokens, realm as code, break-glass; identity code from Ostium; Keycloak image from Ostium's baseline) | Accepted; amendments 1–3 Accepted; note 2026-11-04 accepted (Keycloak image and networks) |
+| 0010 | Secrets: generated, age-encrypted, kept off git (manifest only) | Accepted; amended 2026-10-04 (infrastructure credentials), 2026-10-11 (developer credentials), 2026-10-19 (workstation backup key); note 2026-11-04 accepted (where decrypted values live) |
 | 0011 | Observability: OpenTelemetry → Grafana (no research content; agent activity log 1 y) | Accepted; amended 2026-10-11 (NAS alerts by own-domain email) |
 | 0012 | Network: 3 networks on the home router; egress allowlist on the Spark; 1 GbE v1 | Accepted; amended 2026-10-04 (router support dates, explicit firewall rules), 2026-10-11 (private package feed, build-time only; router and upstream as set up); amendment 2026-10-23 Accepted (two proxies, named flows, host default-deny, SNI check); amendment 2026-10-26 Accepted (Spark host flows); amendment 2026-10-30 Accepted (host time from public servers) |
-| 0013 | Backup: restic to a dedicated NAS SSD volume (append-only), weekly offline USB disk | Accepted; amendments 1–2 Accepted 2026-10-04 (second off-site disk; NAS as dual-homed container host); amendment 3 Accepted 2026-10-11 (private package feed copy); amendment 4 Accepted 2026-10-12 (NAS network controls as measured); amendment 5 Accepted 2026-10-19 (desktop data in a shared workstation backup); amendment 6 Accepted 2026-10-21 (usage-capture copy job; moved to the home infrastructure project, note 2026-11-04); amendment 7 Accepted 2026-10-26 (UPS shutdown signal); amendment 8 Proposed 2026-11-04 (internal CA and Keycloak's database) |
+| 0013 | Backup: restic to a dedicated NAS SSD volume (append-only), weekly offline USB disk | Accepted; amendments 1–2 Accepted 2026-10-04 (second off-site disk; NAS as dual-homed container host); amendment 3 Accepted 2026-10-11 (private package feed copy); amendment 4 Accepted 2026-10-12 (NAS network controls as measured); amendment 5 Accepted 2026-10-19 (desktop data in a shared workstation backup); amendment 6 Accepted 2026-10-21 (usage-capture copy job; moved to the home infrastructure project, note 2026-11-04); amendment 7 Accepted 2026-10-26 (UPS shutdown signal); amendment 8 Accepted 2026-11-04 (internal CA and Keycloak's database) |
 | 0014 | Quant compute: Polars GPU engine, CPU reference + parity test | Accepted |
 | 0015 | Cloud LLM (Claude) for code only, never data | Accepted |
 | 0016 | Dev-time agent pipeline adapted from Decisya | Accepted (design); amendment 1 Accepted 2026-10-16 (shared core Norma instead of a copy) |

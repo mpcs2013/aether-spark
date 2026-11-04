@@ -1,6 +1,6 @@
 # Compose base — design (WP3.1, with WP3.3 first)
 
-**Status:** draft for the owner's review, 2026-11-04. Builds on [ADR-0002](../adr/0002-hybrid-dotnet-python.md), [ADR-0003](../adr/0003-docker-compose-runtime.md), [ADR-0007](../adr/0007-data-stores.md), [ADR-0009](../adr/0009-identity-keycloak.md), [ADR-0010](../adr/0010-secrets-sops-age.md), [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md).
+**Status:** accepted 2026-11-04, with the notes to ADR-0002, 0003, 0009 and 0010 and ADR-0013 amendment 8; to be built in pull requests 2 to 6 (Order of work). Builds on [ADR-0002](../adr/0002-hybrid-dotnet-python.md), [ADR-0003](../adr/0003-docker-compose-runtime.md), [ADR-0007](../adr/0007-data-stores.md), [ADR-0009](../adr/0009-identity-keycloak.md), [ADR-0010](../adr/0010-secrets-sops-age.md), [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md).
 
 **Reviews (2026-11-04, on the first draft):** `architect` CONSISTENT WITH AMENDMENTS (2 blockers, 7 major), `security-reviewer` (coverage audit) GO WITH FIXES (5 must, 4 should). Every finding is folded into this text; the product facts marked *to verify* are checked on the pinned versions in the pull request that uses them.
 
