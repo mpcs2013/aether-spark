@@ -51,7 +51,7 @@ jobs:
           all=false; any '^\.github/workflows/' && all=true
           code=$all; [ -n "$code_files" ] && code=true
           # Python on Windows: the workstation jobs and the Python workspace
-          python=$all; any '^(src/python/|deploy/workstation/|deploy/compose/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          python=$all; any '^(src/python/|deploy/compose/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
           # Dev container: its definition and the toolchain pins it builds on
           devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
           # Egress proxies and their tests
@@ -129,7 +129,7 @@ jobs:
           docker run --rm -v "$PWD:/workspace" -w /workspace aetherspark-dev
           sh -c 'git config --global --add safe.directory /workspace && just ci'
 
-  # Windows-only checks of the workstation jobs (reparse points, junctions, file ids)
+  # The Python workspace on Windows (paths, line endings, the desktop's own platform)
   python-windows:
     name: just py-ci (windows)
     needs: changes
