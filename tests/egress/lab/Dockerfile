@@ -2,7 +2,7 @@
 # tools the tests use. Pinned like the proxy image (ADR-0005): the base by digest, packages by exact
 # version; a newer Ubuntu update makes the build fail until the pin is bumped. Runs privileged, with
 # no network of its own: it builds a small LAN out of network namespaces inside itself.
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 ARG IPTABLES_VERSION=1.8.10-3ubuntu2
 ARG IPROUTE2_VERSION=6.1.0-1ubuntu6.4
