@@ -253,7 +253,9 @@ def test_an_unusable_exceptions_file_is_refused(tmp_path: Path, text: str) -> No
 
 
 def test_the_repositorys_exceptions_file_is_valid() -> None:
-    entries = policy.load_exceptions(policy.HERE / "exceptions.json", TODAY)
+    # The real file against the real date: an exception approved today is valid today
+    today = dt.datetime.now(dt.UTC).date()
+    entries = policy.load_exceptions(policy.HERE / "exceptions.json", today)
     targets = {t.name for t in policy.load_targets()}
     assert {e.target for e in entries} <= targets
 
