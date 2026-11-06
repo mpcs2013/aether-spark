@@ -1,0 +1,7 @@
+# TLS for every router (compose-base.md, "Keycloak exposure"): TLS 1.2 or newer, and a handshake for
+# a name with no certificate fails instead of falling back to Traefik's default certificate
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true

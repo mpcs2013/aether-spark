@@ -1,0 +1,188 @@
+# The stack's infrastructure (docs/architecture/compose-base.md, WP3.1). Started by `just up`, which
+# unseals the secrets, prepares the CA (deploy/ca/ca.py) and runs the bootstrap step first; a bare
+# `docker compose up` lacks all three. Every service that reads a secret or a certificate runs as
+# the stack user (AETHERSPARK_UID/GID; the WSL user on the desktop).
+name: aetherspark
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
+
+# step-ca, the bootstrap step and the renewers share one image, built from step-ca/Dockerfile (its
+# FROM line is the only pin; deploy/ca/ca.py reads it too)
+x-step: &step
+  <<: *hardening
+  build: ./step-ca
+  image: aetherspark/step-ca:local
+  tmpfs: [/tmp]
+  environment:
+    HOME: /tmp
+    STEPPATH: /tmp/.step
+    CA_URL: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000"
+  mem_limit: 256m
+  pids_limit: 200
+
+# The CA's certificates only (root and intermediate), never its key or configuration
+x-ca-certs: &ca-certs
+  type: volume
+  source: step-ca
+  target: /ca-certs
+  read_only: true
+  volume: { subpath: certs }
+
+services:
+  step-ca:
+    <<: *step
+    labels: { aetherspark.role: step-ca }
+    entrypoint: ["step-ca"]
+    command: ["/ca/config/ca.json", "--password-file", "/run/secrets/step-ca-password"]
+    environment:
+      HOME: /tmp
+      STEPPATH: /ca
+    secrets: [step-ca-password]
+    volumes: ["step-ca:/ca"]
+    networks:
+      pki:
+        aliases: ["step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+    healthcheck:
+      test: ["CMD", "step", "ca", "health", "--ca-url", "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000", "--root", "/ca/certs/root_ca.crt"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+
+  # One-shot, run by `just up` before the services: a certificate for each service that has none
+  # or an expired one, with that service's JWK provisioner (its password is read here only)
+  cert-bootstrap:
+    <<: *step
+    profiles: [bootstrap]
+    restart: "no"
+    labels: { aetherspark.role: cert-renewer }
+    entrypoint: ["sh", "/bootstrap.sh"]
+    environment:
+      HOME: /tmp
+      STEPPATH: /tmp/.step
+      CA_URL: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000"
+      PLACE: "${AETHERSPARK_PLACE:-localhost}"
+      SERVICES: postgres-auth
+    secrets: [step-ca-provisioner-postgres-auth]
+    volumes:
+      - ./cert-bootstrap.sh:/bootstrap.sh:ro
+      - *ca-certs
+      - postgres-auth-tls:/tls/postgres-auth
+    networks: [pki]
+    depends_on:
+      step-ca: { condition: service_healthy }
+
+  # Renews postgres-auth's certificate at two thirds of its lifetime, authenticated by the current
+  # certificate (mTLS), with no password. postgres-auth itself joins in PR 4.
+  postgres-auth-renewer:
+    <<: *step
+    labels: { aetherspark.role: cert-renewer }
+    entrypoint: ["step"]
+    command: ["ca", "renew", "--daemon", "--ca-url", "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000", "--root", "/ca-certs/root_ca.crt", "/tls/tls.crt", "/tls/tls.key"]
+    volumes:
+      - *ca-certs
+      - postgres-auth-tls:/tls
+    networks: [pki]
+    depends_on:
+      step-ca: { condition: service_healthy }
+    # The daemon renews before two thirds have passed; less than 30 % left means overdue, and after
+    # a stop past that point the renewer is healthy only once it has renewed (C9a)
+    healthcheck:
+      test: ["CMD", "sh", "-c", "step certificate needs-renewal /tls/tls.crt --expires-in 30% >/dev/null 2>&1; [ $$? -eq 1 ]"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 1s
+
+  traefik:
+    <<: *hardening
+    image: traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a
+    labels: { aetherspark.role: traefik }
+    # 443 inside the container without a capability: the port floor of its own network namespace
+    sysctls: { net.ipv4.ip_unprivileged_port_start: 443 }
+    tmpfs:
+      - /tmp
+      # Traefik's ACME account and certificates live in memory; a restart orders new ones
+      - "/acme:uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+    mem_limit: 256m
+    pids_limit: 200
+    # Static configuration from the environment only (Traefik reads one source; no file, no flags)
+    environment:
+      TRAEFIK_GLOBAL_CHECKNEWVERSION: "false"
+      TRAEFIK_GLOBAL_SENDANONYMOUSUSAGE: "false"
+      TRAEFIK_LOG_LEVEL: INFO
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS: ":443"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_TLS: "true"
+      # Refuse encoded path characters, so no encoded variant slips past a path rule (Keycloak's
+      # admin paths, PR 5), and headers that alias another header's name
+      TRAEFIK_GLOBAL_ALIASHEADERSSTRATEGY: reject
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDSLASH: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDBACKSLASH: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDNULLCHARACTER: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDSEMICOLON: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDPERCENT: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDQUESTIONMARK: "false"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDHASH: "false"
+      TRAEFIK_ENTRYPOINTS_PING_ADDRESS: ":8082"
+      TRAEFIK_PING: "true"
+      TRAEFIK_PING_ENTRYPOINT: ping
+      TRAEFIK_PROVIDERS_FILE_DIRECTORY: /etc/traefik/dynamic
+      TRAEFIK_PROVIDERS_FILE_WATCH: "false"
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_CASERVER: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000/acme/traefik/directory"
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_CACERTIFICATES: /ca-certs/root_ca.crt
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_CASYSTEMCERTPOOL: "false"
+      # Hours; matches step-ca's 24-hour certificates (the default of 90 days would not)
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_CERTIFICATESDURATION: "${AETHERSPARK_TRAEFIK_CERT_HOURS:-24}"
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_STORAGE: /acme/acme.json
+      TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_TLSCHALLENGE: "true"
+      AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
+    volumes:
+      # Traefik reads the folder recursively; the tests add their route under dynamic/test/
+      - ./traefik/dynamic:/etc/traefik/dynamic/stack:ro
+      - *ca-certs
+    ports:
+      - { target: 443, published: "443", host_ip: "${AETHERSPARK_PUBLISH_ADDRESS:-127.0.0.1}", protocol: tcp }
+    networks:
+      ingress: {}
+      # Its public names, so step-ca's TLS-ALPN challenge reaches it (and nothing else claims them)
+      pki:
+        aliases:
+          - "auth.aether.${AETHERSPARK_PLACE:-localhost}"
+          - "auth-admin.aether.${AETHERSPARK_PLACE:-localhost}"
+          - "whoami.aether.${AETHERSPARK_PLACE:-localhost}"
+    depends_on:
+      step-ca: { condition: service_healthy }
+    healthcheck:
+      # No flags: a flag would make Traefik ignore its environment, and with it the ping entrypoint
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+
+# Files in the in-memory folder (`just secrets unseal`); the lint accepts no other source
+secrets:
+  step-ca-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-password"
+  step-ca-provisioner-postgres-auth:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-postgres-auth"
+
+# Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
+volumes:
+  step-ca: {}
+  postgres-auth-tls: {}
+
+networks:
+  ingress:
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-ingress }
+  pki:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-pki }
+    ipam: { config: [{ subnet: 172.30.50.0/24, gateway: 172.30.50.1 }] }

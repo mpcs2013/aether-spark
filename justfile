@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/compose deploy/images deploy/secret-store tests/python
+    {{ uv }} mypy src/python deploy/ca deploy/compose deploy/images deploy/secret-store tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -37,8 +37,25 @@ py-fix:
 hooks:
     git config core.hooksPath .githooks
 
-# Bring the dev stack up (Gate G3)
-up: (pending "WP3.1" "up")
+# Bring the stack up: secrets, CA, certificates, services (compose-base.md; WSL2 or the Spark)
+[unix]
+up:
+    bash deploy/compose/stack/up.sh
+
+# Stop the stack and empty the in-memory secrets folder; volumes stay
+[unix]
+down:
+    bash deploy/compose/stack/down.sh
+
+# The CA (docs/runbooks/certificates.md): status | root | renew-intermediate | init | configure
+[unix]
+ca *args:
+    python3 -I deploy/ca/ca.py {{ args }}
+
+# step-ca and Traefik end to end: tests C3, C3b, C9a, C9b, C11 (tests/stack/run.sh; ~10 minutes)
+[unix]
+stack-test:
+    bash tests/stack/run.sh
 
 # Ops proxy for owner-started pull jobs: `just egress-ops up`, then `just egress-ops down` (egress.md)
 egress-ops action:

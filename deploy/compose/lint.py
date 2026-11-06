@@ -82,6 +82,15 @@ def host_path_hit(source: str, forbidden: Iterable[str]) -> str | None:
     return None
 
 
+def image_matches(image: str, bound: str) -> bool:
+    """`bound` is an exact reference (a local build), or a repository alone: then any tag of that
+    repository, pinned by digest, so a version bump needs no policy change."""
+    if ":" in bound or "@" in bound:
+        return image == bound
+    name, _, digest = image.partition("@")
+    return digest.startswith("sha256:") and name.rsplit(":", 1)[0] == bound
+
+
 def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
     """L1: every finding in a rendered Compose project, one line each."""
     findings: list[str] = []
@@ -235,7 +244,7 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
                         f"{where}: role {role} joins {open_nets[0]}, which has a way out;"
                         " policy.json binds no image to the role"
                     )
-                elif service.get("image") != image:
+                elif not image_matches(str(service.get("image") or ""), image):
                     findings.append(
                         f"{where}: role {role} runs only {image}, not {service.get('image')!r}"
                     )

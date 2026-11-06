@@ -27,8 +27,7 @@ def _load() -> ModuleType:
 
 lint = _load()
 POLICY: dict[str, Any] = json.loads(lint.POLICY.read_text(encoding="utf-8"))
-# Traefik's image is bound when the stack's Compose files arrive (P3a); a stand-in until then
-POLICY["role_images"]["traefik"] = "traefik:test"
+TRAEFIK = "traefik:v3.7.17@sha256:" + "0" * 64
 PROJECT = "aetherspark"
 
 
@@ -67,7 +66,7 @@ def _valid() -> dict[str, Any]:
             "pki",
             "auth-front",
             "auth-edge",
-            image="traefik:test",
+            image=TRAEFIK,
             ports=[{"target": 443, "published": "443", "host_ip": "127.0.0.1"}],
             cap_add=["NET_BIND_SERVICE"],
         ),
@@ -448,6 +447,30 @@ def test_only_traefik_shares_a_network_with_keycloak_even_if_the_matrix_is_widen
     project["services"]["ui"] = _service("ui-api", "auth-front")
     findings = _findings(project, policy)
     assert findings == ["network auth-front: ['keycloak'] share it with ['ui-api']"]
+
+
+@pytest.mark.parametrize(
+    ("image", "ok"),
+    [
+        (TRAEFIK, True),
+        ("traefik:v3.8.0@sha256:" + "1" * 64, True),
+        ("traefik@sha256:" + "2" * 64, True),
+        ("traefik:v3.7.17", False),  # a tag alone can move
+        ("traefik", False),
+        ("evil/traefik:v3@sha256:" + "3" * 64, False),
+        ("traefikx:v3@sha256:" + "4" * 64, False),
+    ],
+)
+def test_a_repository_binding_needs_that_repository_and_a_digest(image: str, ok: bool) -> None:
+    project = _valid()
+    project["services"]["traefik"]["image"] = image
+    assert (_findings(project) == []) is ok, image
+
+
+def test_an_exact_binding_needs_that_exact_image() -> None:
+    bound = "aetherspark/egress-proxy:local"
+    assert lint.image_matches(bound, bound)
+    assert not lint.image_matches("aetherspark/egress-proxy:other", bound)
 
 
 def test_role_with_a_way_out_needs_an_image_binding() -> None:
