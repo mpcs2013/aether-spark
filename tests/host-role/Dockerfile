@@ -14,7 +14,7 @@ ARG PYTHON3_APT_VERSION=2.7.7ubuntu5.3
 ARG SUDO_VERSION=1.9.15p5-3ubuntu5.24.04.4
 ARG KMOD_VERSION=31+20240202-2ubuntu7.2
 # The role switches apt to HTTPS; DGX OS has the CA bundle, the bare base image does not
-ARG CA_CERTIFICATES_VERSION=20260816ubuntu0.24.04.1
+ARG CA_CERTIFICATES_VERSION=20260816ubuntu0.24.04.2
 # ss, for the node-exporter assertion; DGX OS has it
 ARG IPROUTE2_VERSION=6.1.0-1ubuntu6.4
 # git, for the signed-tag checks of deploy/ansible/run.sh
