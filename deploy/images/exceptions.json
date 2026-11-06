@@ -53,6 +53,15 @@
       "issue": 31,
       "approved": "2026-11-04",
       "expires": "2026-12-04"
+    },
+    {
+      "id": "GHSA-mgcc-cww5-fp2q",
+      "target": "step-ca",
+      "package": "github.com/go-jose/go-jose/v3",
+      "reason": "CPU denial of service from a crafted RSA key in a JWK; no forged certificate. No fixed v3 release, and step's go.step.sm/crypto still uses v3 (v4 is raised to the fixed 4.1.6 in the same image). step-ca is reached only from the internal pki network (Traefik, the bootstrap step, the renewers); the worst case is a stalled CA, visible through its health check. The weekly scan and Dependabot show when upstream moves.",
+      "issue": 31,
+      "approved": "2026-11-06",
+      "expires": "2026-12-06"
     }
   ]
 }

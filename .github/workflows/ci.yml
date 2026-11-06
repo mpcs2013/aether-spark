@@ -27,6 +27,7 @@ jobs:
       lint: ${{ steps.c.outputs.lint }}
       host_role: ${{ steps.c.outputs.host_role }}
       images: ${{ steps.c.outputs.images }}
+      stack: ${{ steps.c.outputs.stack }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,7 +42,7 @@ jobs:
         run: |
           set -eu
           if [ "$EVENT" != pull_request ]; then
-            printf 'code=true\npython=true\ndevcontainer=true\negress=true\nlint=true\nhost_role=true\nimages=true\n' >> "$GITHUB_OUTPUT"; exit 0
+            printf 'code=true\npython=true\ndevcontainer=true\negress=true\nlint=true\nhost_role=true\nimages=true\nstack=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "$BASE...$HEAD")
           printf '%s\n' "$files"
@@ -51,19 +52,21 @@ jobs:
           all=false; any '^\.github/workflows/' && all=true
           code=$all; [ -n "$code_files" ] && code=true
           # Python on Windows: the workstation jobs and the Python workspace
-          python=$all; any '^(src/python/|deploy/compose/|deploy/images/|deploy/secret-store/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          python=$all; any '^(src/python/|deploy/ca/|deploy/compose/|deploy/images/|deploy/secret-store/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
           # Dev container: its definition and the toolchain pins it builds on
           devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
           # Egress proxies and their tests
           egress=$all; any '^(deploy/compose/egress/|deploy/host/|tests/egress/)' && egress=true
           # Lints: their inputs, and the design note they compare with (a docs file, so on all files)
-          lint=$all; printf '%s\n' "$files" | grep -E '^(deploy/compose/|deploy/host/|tests/egress/|docs/architecture/egress\.md$)' >/dev/null && lint=true
+          lint=$all; printf '%s\n' "$files" | grep -E '^(deploy/compose/|deploy/host/|deploy/secret-store/|deploy/secrets\.manifest\.json$|tests/egress/|docs/architecture/egress\.md$)' >/dev/null && lint=true
           # The Spark host role: the role, the rule files it installs, and Ansible's pin
           host_role=$all; any '^(deploy/ansible/|deploy/host/|tests/host-role/)|^(pyproject\.toml|uv\.lock)$' && host_role=true
           # Image scan: anything that changes what an image contains, or the scan itself. The
           # contexts are deploy/images/targets.json's (a test keeps them in step).
-          images=$all; any '(^|/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$|(^|/)(docker-)?compose[^/]*\.ya?ml$|^(\.devcontainer/|deploy/compose/egress/|deploy/images/|tests/egress/lab/|tests/host-role/)' && images=true
-          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\nhost_role=%s\nimages=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" "$host_role" "$images" | tee -a "$GITHUB_OUTPUT"
+          images=$all; any '(^|/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$|(^|/)(docker-)?compose[^/]*\.ya?ml$|^(\.devcontainer/|deploy/compose/egress/|deploy/compose/stack/step-ca/|deploy/images/|tests/egress/lab/|tests/host-role/)' && images=true
+          # step-ca and Traefik end to end: the stack, the CA and secrets tools, and their test
+          stack=$all; any '^(deploy/ca/|deploy/compose/stack/|deploy/secret-store/|deploy/secrets\.manifest\.json$|tests/stack/)' && stack=true
+          printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\nhost_role=%s\nimages=%s\nstack=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" "$host_role" "$images" "$stack" | tee -a "$GITHUB_OUTPUT"
 
   build:
     name: just ci (${{ matrix.arch }})
@@ -188,6 +191,33 @@ jobs:
       # with them, then the layer-3 tests
       - run: sudo bash tests/egress/layer3.sh
 
+  # step-ca and Traefik end to end (compose-base.md, tests C3, C3b, C9a, C9b, C11) on both
+  # architectures (arm64 = the Spark): 3-minute certificates, so renewal and expiry happen in the run
+  stack:
+    name: stack-test (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.stack == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # The step image compiles step-ca and the step CLI first (a few minutes)
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # age seals the throw-away secrets and the CA's root key (ADR-0010)
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age && age --version
+
+      - run: bash tests/stack/run.sh
+
   # Lints L1-L3 (egress.md, "Compose and config lint"); the fixture tests run in `just ci`. Root for
   # the rule load in a scratch namespace; no host rules are changed.
   egress-lint:
@@ -243,7 +273,7 @@ jobs:
   # requiring them directly would leave docs-only PRs pending forever.
   ci-result:
     if: always()
-    needs: [changes, build, devcontainer, python-windows, egress, egress-lint, host-role, image-scan, gitleaks]
+    needs: [changes, build, devcontainer, python-windows, egress, egress-lint, stack, host-role, image-scan, gitleaks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

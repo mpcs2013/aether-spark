@@ -47,8 +47,9 @@
     "/run/containerd", "/var/run/containerd", "/var/lib/docker", "/var/lib/containerd", "/etc/docker",
     "/run/netns", "/var/run/netns", "/proc", "/sys", "/dev", "/run", "/var/run", "/boot", "/lib/modules"
   ],
-  "_role_images": "Roles on a network with a way out (not internal) run only this image, so a service cannot claim such a role by its label alone. A role on such a network without an entry here is refused until one is added.",
+  "_role_images": "Roles on a network with a way out (not internal) run only this image, so a service cannot claim such a role by its label alone. A role on such a network without an entry here is refused until one is added. An exact reference (a local build), or a repository alone: then any tag of it, pinned by digest.",
   "role_images": {
+    "traefik": "traefik",
     "runtime-proxy": "aetherspark/egress-proxy:local",
     "ops-proxy": "aetherspark/egress-proxy:local"
   },

@@ -25,17 +25,26 @@ step() { # [-s] description, command...; prints the output on failure, and with 
 
 # L1: the project as Compose renders it, every profile
 l1() { dc --profile '*' config --format json | "${py[@]}" deploy/compose/lint.py compose -; }
-step -s "L1 rendered Compose" l1
+step -s "L1 rendered Compose, egress" l1
+# The stack (WP3.1), rendered as on the Spark: its secrets come from the Spark's in-memory folder.
+# Git Bash on Windows would rewrite that path for docker.exe; MSYS2_ENV_CONV_EXCL keeps it as is.
+stack() {
+    MSYS2_ENV_CONV_EXCL=AETHERSPARK_SECRETS_DIR AETHERSPARK_SECRETS_DIR=/run/aetherspark/secrets \
+        docker compose -f deploy/compose/stack/compose.yaml "$@"
+}
+l1_stack() { stack --profile '*' config --format json | "${py[@]}" deploy/compose/lint.py compose -; }
+step -s "L1 rendered Compose, stack" l1_stack
 
 # The secrets manifest and the rendered Compose agree (ADR-0010): every secret is in the manifest,
 # read only by its consumers, and every manifest entry is used
 secrets_agree() {
-    local rendered
-    rendered="$(mktemp)" || return 1
-    dc --profile '*' config --format json > "$rendered" \
-        && "${py[@]}" deploy/secret-store/secret_store.py check "$rendered"
-    local rc=$?
-    rm -f "$rendered"
+    local egress stack_json rc
+    egress="$(mktemp)" && stack_json="$(mktemp)" || return 1
+    dc --profile '*' config --format json > "$egress" \
+        && stack --profile '*' config --format json > "$stack_json" \
+        && "${py[@]}" deploy/secret-store/secret_store.py check "$egress" "$stack_json"
+    rc=$?
+    rm -f "$egress" "$stack_json"
     return "$rc"
 }
 step -s "secrets manifest matches the rendered Compose" secrets_agree

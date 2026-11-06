@@ -1,0 +1,10 @@
+# Test route only (tests/stack/run.sh): Traefik's ping behind whoami.aether.<place>, with a
+# certificate ordered from step-ca over ACME. Gate G3's real whoami page replaces it in PR 6.
+http:
+  routers:
+    test-whoami:
+      rule: 'Host(`whoami.aether.{{ env "AETHERSPARK_PLACE" }}`)'
+      entryPoints: [websecure]
+      service: ping@internal
+      tls:
+        certResolver: stepca

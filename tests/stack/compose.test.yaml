@@ -1,0 +1,6 @@
+# Test overlay (tests/stack/run.sh): adds the test route. Paths are relative to the first file's
+# folder, deploy/compose/stack/.
+services:
+  traefik:
+    volumes:
+      - ../../../tests/stack/test-route.yml:/etc/traefik/dynamic/test/test-route.yml:ro

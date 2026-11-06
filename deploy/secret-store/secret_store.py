@@ -188,6 +188,26 @@ def _recipient(key: Path) -> str:
     return out.stdout.strip()
 
 
+def seal(value: bytes, sealed: Path, recipient: str | None = None) -> None:
+    """Encrypts `value` to the dev key into `sealed` (0600); the value goes over stdin only."""
+    _private_dir(sealed.parent)
+    subprocess.run(  # noqa: S603 - fixed tool, no shell
+        [_tool("age"), "-r", recipient or _recipient(key_file()), "-o", str(sealed)],
+        input=value,
+        check=True,
+        capture_output=True,
+    )
+    sealed.chmod(0o600)
+
+
+def open_sealed(sealed: Path) -> bytes:
+    """A sealed file's value, in memory only."""
+    out = subprocess.run(  # noqa: S603 - fixed tool, no shell
+        [_tool("age"), "-d", "-i", str(key_file()), str(sealed)], check=True, capture_output=True
+    )
+    return out.stdout
+
+
 def generate(manifest: list[Secret]) -> list[str]:
     """Seals every generated secret that the store lacks; returns the names created."""
     store = store_dir()
@@ -198,14 +218,7 @@ def generate(manifest: list[Secret]) -> list[str]:
         sealed = store / f"{s.name}.age"
         if s.derived or sealed.exists():
             continue
-        value = token.token_urlsafe(s.random_bytes).encode("ascii")
-        subprocess.run(  # noqa: S603 - fixed tool; the value goes over stdin only
-            [_tool("age"), "-r", recipient, "-o", str(sealed)],
-            input=value,
-            check=True,
-            capture_output=True,
-        )
-        sealed.chmod(0o600)
+        seal(token.token_urlsafe(s.random_bytes).encode("ascii"), sealed, recipient)
         created.append(s.name)
     return created
 
@@ -224,10 +237,7 @@ def rotate(manifest: list[Secret], name: str) -> None:
 
 
 def _decrypt(sealed: Path) -> str:
-    out = subprocess.run(  # noqa: S603 - fixed tool, no shell
-        [_tool("age"), "-d", "-i", str(key_file()), str(sealed)], check=True, capture_output=True
-    )
-    return out.stdout.decode("utf-8")
+    return open_sealed(sealed).decode("utf-8")
 
 
 def _write_private(path: Path, text: str) -> None:

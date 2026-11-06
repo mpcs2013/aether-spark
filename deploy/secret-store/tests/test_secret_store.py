@@ -164,10 +164,12 @@ def test_check_finds_each_disagreement(tmp_path: Path) -> None:
     ]
 
 
-def test_the_empty_manifest_agrees_with_a_project_without_secrets() -> None:
-    assert (
-        store.check(store.load_manifest(), [{"name": "aetherspark-egress", "services": {}}]) == []
-    )
+def test_the_repositorys_manifest_loads() -> None:
+    """The real manifest follows the rules; tests/egress/lint.sh compares it with the rendered
+    Compose files."""
+    manifest = store.load_manifest()
+    assert manifest, "the manifest lists the stack's secrets"
+    assert all(s.random_bytes >= store.MIN_BYTES or s.derived for s in manifest)
 
 
 # The round trip with age, on a real tmpfs

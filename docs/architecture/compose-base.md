@@ -99,6 +99,36 @@ Placement in WP3.1:
 - **Expiry is watched, not remembered:** a check reports the intermediate's remaining validity and alerts at 60 days (ADR-0011); a runbook renews it with the off-line root.
 - **Trust distribution:** a runbook step installs the root in the owner's browsers (Firefox keeps its own store) and devices, and says how to remove it again.
 - **`postgres-auth`:** its renewer writes new files; Postgres re-reads certificates only on a reload, so its entrypoint wrapper reloads the configuration hourly, at least 8 hours before a certificate expires.
+- **As built in PR 3 (2026-11-06),** where it differs from or adds to the plan above:
+  1. **Our own tool writes the CA,** not `step ca init`: `deploy/ca/ca.py` (`just ca …`, standard library) runs the `step` CLI in throw-away containers (no network, read-only, all capabilities dropped, as the stack user) and writes `ca.json` itself. `just up` runs `ca prepare`: the volumes, the CA on first use, then `ca.json` again. So the provisioners follow the secrets manifest: one JWK provisioner per `step-ca-provisioner-<service>` secret. Keycloak's comes with PR 5, together with its service.
+  2. **The root key has no password of its own.** It is created in a container's in-memory folder, leaves over a pipe into `age` and is sealed into the store like any secret (`step-ca-root-key.age`). Unencrypted it exists only in that container's memory and in the tool's process. The CA's files go into place only after the key is sealed, so a failure on the way leaves no half-made CA, and `init` refuses to overwrite an earlier root key.
+  3. **Names are fixed by templates, not by provisioner policies.** In our probe, step-ca 0.30.2 did not restrict a JWK provisioner by its own policy. Each JWK provisioner's template sets the certificate's only name, whatever the request asks: requests for another service's name and for `github.com` both got the service's own name. The authority-wide policy allows `*.aether.<place>` and `*.svc.aether.<place>`; it needs two patterns because `*.` covers one label only. The ACME provisioner also keeps a policy for one label under the suffix, on top of the challenge.
+  4. **step-ca and the step CLI are built here from source** (`deploy/compose/stack/step-ca/Dockerfile`, as for gitleaks in #31). The upstream image fails twice:
+     - its latest release (0.30.2, 2026-03-23) carries Go 1.26.1, old modules and old Alpine packages: 223 fixed High and Critical findings at the scan of 2026-11-06;
+     - it gives the `step-ca` binary a file capability, which the kernel refuses to run with `cap_drop: ALL` and `no-new-privileges`.
+
+     The build:
+     - takes the tagged source archives (step-ca 0.30.2, CLI 0.31.0), checked by SHA-256, and a current Go (1.27.3);
+     - raises the flagged modules to their fixed versions, only upwards; the build fails if one stays below its target;
+     - puts the two static binaries on Alpine 3.24, without `curl`, `jq` or the KMS plugin, and without the capability (step-ca listens on 9000).
+
+     One finding remains: GHSA-mgcc-cww5-fp2q in `go-jose/v3` 3.0.5, a CPU denial of service from a crafted RSA key in a JWK. It has no fixed v3 release, and step's own `go.step.sm/crypto` still uses v3. The owner's exception: approved 2026-11-06, until 2026-12-06, issue #31 (ADR-0005 amendment 3; `deploy/images/exceptions.json`). step-ca, the bootstrap step and the renewers all use this one image, and `ca.py` runs it too; `just up` builds it first, and the first build takes a few minutes.
+  5. **Traefik:**
+     - static configuration from the environment only (Traefik reads one source, so the phone-home settings really apply);
+     - its ACME account and certificates in memory (tmpfs), ordered again at every start;
+     - runs as the stack user and binds 443 through its own network namespace's port floor (`net.ipv4.ip_unprivileged_port_start`), with no capability;
+     - strict SNI, TLS 1.2 or newer;
+     - on the public entrypoint, encoded path characters and header names that alias another header are refused, which prepares PR 5's path rules.
+
+     *To verify:* when Traefik renews a 24-hour certificate (its documentation no longer gives the schedule). The tests prove renewal with short certificates; the desktop's first day shows the real schedule.
+  6. **Renewer health:** unhealthy when less than 25 % of the certificate's life is left. step-ca backdates each certificate by a minute, and the daemon renews when a third of that lifetime is left, minus up to a twentieth as jitter, so never below 28 %. So after a stop past that point, `just up` reports healthy only once the renewal is done (C9a).
+
+     The check is `step certificate needs-renewal --expires-in 75%`: the percentage is the part of the life that **has passed**, not the part left (verified on a half-way certificate). The first version used `30%` read the other way round, which would have marked every renewer unhealthy from hour 7 to hour 16 of each day. The desktop runs missed it; CI on arm64 caught it.
+  7. **Volumes owned by the stack user:** `ca volumes` creates them with Compose's labels and gives their top folder to the stack user (a new volume belongs to root). It does this in a one-off container with only `CHOWN` and `FOWNER`.
+  8. **Lint:** `role_images` may bind a repository (`traefik`), which then must be pinned by digest, so Dependabot's version bumps need no policy change. Local builds stay bound exactly.
+  9. **Tests** C3, C3b, C9a, C9b and C11 for step-ca, Traefik and `postgres-auth`'s certificate: `tests/stack/run.sh` (`just stack-test`), CI job `stack-test` on amd64 and arm64. `postgres-auth` itself, and its part of C3 and C3b, come with PR 4.
+     Desktop runs (2026-11-06), with the upstream image and again with the image built here: all 37 checks pass, among them the CA volume check promised above (no password value and no root key in it; the intermediate key encrypted).
+  10. **`just up` always recreates the containers** (`--force-recreate`). Found by C9a on Docker Desktop: a stopped container keeps the secret file it was created with, and `unseal` writes new files, so a restarted step-ca failed to mount `/run/secrets/step-ca-password`. The same happens after a WSL restart, which empties the in-memory folder. Recreating is cheap, and every service then reads the secrets just unsealed.
 
 ## Secrets (WP3.3, first)
 As ADR-0010 decides, made buildable:
@@ -123,7 +153,7 @@ As ADR-0010 decides, made buildable:
   | Secret | Read by |
   |---|---|
   | `step-ca-password` | step-ca |
-  | `step-ca-provisioner-keycloak`, `step-ca-provisioner-postgres-auth` | `just up`'s bootstrap step only |
+  | `step-ca-provisioner-postgres-auth` (PR 3), `step-ca-provisioner-keycloak` (PR 5) | `just up`'s bootstrap step only |
   | `postgres-auth-superuser-password` | `postgres-auth`, setup only |
   | `keycloak-db.conf` (`db-password=…`) | Keycloak, `postgres-auth` setup |
   | `keycloak-bootstrap.conf` (first-start admin password) | Keycloak, first start only |
@@ -170,6 +200,7 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
   4. start both Compose files in profile `core`;
   5. wait until every service is healthy.
 - **`just down`:** stops the stack and empties the tmpfs folder; volumes stay.
+- **As built in PR 3:** `deploy/compose/stack/up.sh` and `down.sh` do these steps (step 2 is `ca prepare`; step 4 has one Compose file until the egress overlay joins). `just up` recreates every container (see Certificates, as built, item 10).
 - **Profiles:** everything of WP3.1 is in `core`. ADR-0003's `data` profile starts with the data Postgres in P4a; `postgres-auth` is identity infrastructure, needed for any sign-in, so it belongs to `core`.
 
 ## Order of work (pull requests)
