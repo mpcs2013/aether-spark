@@ -14,6 +14,8 @@ FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce
 # build fail until the pin is bumped: deliberate, the notice is the trigger for the bump.
 ARG SQUID_VERSION=6.14-0ubuntu0.24.04.5
 ARG OPENSSL_VERSION=3.0.13-0ubuntu3.16
+# apt itself, fixed for CVE-2026-109518; the base image still ships 2.8.3 (2026-11-06)
+ARG APT_VERSION=2.8.4ubuntu0.1
 
 COPY --from=ca /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
@@ -21,7 +23,8 @@ RUN set -eu; \
     sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources; \
     apt-get update -qq; \
     apt-get install -y -qq --no-install-recommends \
-        "squid-openssl=${SQUID_VERSION}" "squid-common=${SQUID_VERSION}" "openssl=${OPENSSL_VERSION}"; \
+        "squid-openssl=${SQUID_VERSION}" "squid-common=${SQUID_VERSION}" "openssl=${OPENSSL_VERSION}" \
+        "apt=${APT_VERSION}" "libapt-pkg6.0t64=${APT_VERSION}"; \
     rm -rf /var/lib/apt/lists/* /etc/squid/squid.conf; \
     squid -v | grep -q -- '--with-openssl'
 

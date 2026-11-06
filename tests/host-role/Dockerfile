@@ -14,11 +14,13 @@ ARG PYTHON3_APT_VERSION=2.7.7ubuntu5.3
 ARG SUDO_VERSION=1.9.15p5-3ubuntu5.24.04.4
 ARG KMOD_VERSION=31+20240202-2ubuntu7.2
 # The role switches apt to HTTPS; DGX OS has the CA bundle, the bare base image does not
-ARG CA_CERTIFICATES_VERSION=20260816ubuntu0.24.04.1
+ARG CA_CERTIFICATES_VERSION=20260816ubuntu0.24.04.2
 # ss, for the node-exporter assertion; DGX OS has it
 ARG IPROUTE2_VERSION=6.1.0-1ubuntu6.4
 # git, for the signed-tag checks of deploy/ansible/run.sh
 ARG GIT_VERSION=1:2.43.0-1ubuntu7.4
+# apt itself, fixed for CVE-2026-109518; the base image still ships 2.8.3 (2026-11-06)
+ARG APT_VERSION=2.8.4ubuntu0.1
 
 RUN set -eu; \
     apt-get update -qq; \
@@ -27,7 +29,8 @@ RUN set -eu; \
         "systemd-resolved=${SYSTEMD_VERSION}" "systemd-timesyncd=${SYSTEMD_VERSION}" \
         "openssh-server=${OPENSSH_VERSION}" "python3=${PYTHON3_VERSION}" \
         "python3-apt=${PYTHON3_APT_VERSION}" "sudo=${SUDO_VERSION}" "kmod=${KMOD_VERSION}" \
-        "ca-certificates=${CA_CERTIFICATES_VERSION}" "iproute2=${IPROUTE2_VERSION}" "git=${GIT_VERSION}"; \
+        "ca-certificates=${CA_CERTIFICATES_VERSION}" "iproute2=${IPROUTE2_VERSION}" "git=${GIT_VERSION}" \
+        "apt=${APT_VERSION}" "libapt-pkg6.0t64=${APT_VERSION}"; \
     rm -rf /var/lib/apt/lists/*; \
     useradd --create-home --shell /bin/bash --groups sudo spark-admin; \
     echo "spark-admin:$(head -c 18 /dev/urandom | base64)" | chpasswd

@@ -10,15 +10,6 @@
       "expires": "2026-11-30"
     },
     {
-      "id": "CVE-2026-59851",
-      "target": "curlimages/curl",
-      "package": "libssh2",
-      "reason": "Test client only (egress tests on throwaway CI runners and the desktop). The tests use curl for HTTP, HTTPS and ICMP, never SCP or SFTP, so libssh2 is not reached. Alpine has no fixed package yet; Dependabot moves the image when one ships.",
-      "issue": 31,
-      "approved": "2026-10-31",
-      "expires": "2026-11-30"
-    },
-    {
       "id": "CVE-2026-111497",
       "target": "dev-container",
       "package": "libbrotli1",

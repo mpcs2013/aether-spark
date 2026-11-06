@@ -119,8 +119,8 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
         if bool(net.get("internal", False)) != rule["internal"]:
             findings.append(f"{where}: internal must be {str(rule['internal']).lower()}")
 
-    # Host paths behind a named volume, a config or a secret are mounted like a bind mount
-    for kind, field in (("volumes", "device"), ("configs", "file"), ("secrets", "file")):
+    # Host paths behind a named volume or a config are mounted like a bind mount
+    for kind, field in (("volumes", "device"), ("configs", "file")):
         for key, item in (rendered.get(kind) or {}).items():
             item = item or {}
             holder = (item.get("driver_opts") or {}) if kind == "volumes" else item
@@ -128,6 +128,21 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             hit = host_path_hit(source, forbidden_paths)
             if hit:
                 findings.append(f"{kind} {key}: host path {source} reaches {hit}")
+    # A secret comes only from a file directly in the in-memory secrets folder (compose-base.md)
+    source_dirs = [re.compile(p) for p in policy["secret_source_dirs"]]
+    for key, item in (rendered.get("secrets") or {}).items():
+        item = item or {}
+        source = str(item.get("file") or "")
+        if not source:
+            findings.append(
+                f"secrets {key}: only a file secret is allowed, not environment or content"
+            )
+            continue
+        normal = posixpath.normpath(source)
+        if normal != source or not any(d.fullmatch(posixpath.dirname(normal)) for d in source_dirs):
+            findings.append(
+                f"secrets {key}: file {source} is not directly in the in-memory secrets folder"
+            )
 
     roles: set[str] = set(policy["roles"])
     label: str = policy["role_label"]
@@ -177,6 +192,15 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
         findings.extend(f"{where}: {key} is not allowed" for key in DNS_KEYS if service.get(key))
         if service.get("ports") and role not in policy["published_ports_roles"]:
             findings.append(f"{where}: published ports are not allowed for this role")
+        # Every published port names its address; never all interfaces (compose-base.md, Names)
+        for port in service.get("ports") or []:
+            host_ip = str(port.get("host_ip") or "") if isinstance(port, dict) else ""
+            if host_ip in ("", "0.0.0.0", "::", "[::]"):  # noqa: S104 - the values refused here
+                published = port.get("published") if isinstance(port, dict) else port
+                findings.append(
+                    f"{where}: published port {published} must name its address (host_ip),"
+                    " not all interfaces"
+                )
 
         for volume in service.get("volumes") or []:
             source = str(volume.get("source", ""))

@@ -27,6 +27,19 @@ step() { # [-s] description, command...; prints the output on failure, and with 
 l1() { dc --profile '*' config --format json | "${py[@]}" deploy/compose/lint.py compose -; }
 step -s "L1 rendered Compose" l1
 
+# The secrets manifest and the rendered Compose agree (ADR-0010): every secret is in the manifest,
+# read only by its consumers, and every manifest entry is used
+secrets_agree() {
+    local rendered
+    rendered="$(mktemp)" || return 1
+    dc --profile '*' config --format json > "$rendered" \
+        && "${py[@]}" deploy/secret-store/secret_store.py check "$rendered"
+    local rc=$?
+    rm -f "$rendered"
+    return "$rc"
+}
+step -s "secrets manifest matches the rendered Compose" secrets_agree
+
 # L2: each proxy's allowlist file equals the design note's table
 step -s "L2 allowlists" "${py[@]}" deploy/compose/lint.py allowlists
 

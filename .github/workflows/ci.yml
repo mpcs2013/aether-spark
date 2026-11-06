@@ -51,7 +51,7 @@ jobs:
           all=false; any '^\.github/workflows/' && all=true
           code=$all; [ -n "$code_files" ] && code=true
           # Python on Windows: the workstation jobs and the Python workspace
-          python=$all; any '^(src/python/|deploy/compose/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
+          python=$all; any '^(src/python/|deploy/compose/|deploy/images/|deploy/secret-store/|tests/python/|\.githooks/)|^(pyproject\.toml|uv\.lock|\.python-version|justfile)$' && python=true
           # Dev container: its definition and the toolchain pins it builds on
           devcontainer=$all; any '^\.devcontainer/|^(global\.json|\.python-version|justfile|Directory\.(Build|Packages)\.props|nuget\.config|pyproject\.toml|uv\.lock)$' && devcontainer=true
           # Egress proxies and their tests
@@ -97,6 +97,9 @@ jobs:
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
         with:
           just-version: 1.59.0
+
+      # age for the secrets round trip (ADR-0010); its test refuses to skip in CI on Linux
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age && age --version
 
       - run: just ci
 

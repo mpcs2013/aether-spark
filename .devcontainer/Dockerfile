@@ -16,8 +16,11 @@ RUN set -eu; \
     mkdir /src; \
     tar -xzf /tmp/gitleaks.tar.gz -C /src --strip-components=1; \
     cd /src; \
-    # v8.30.1 requires x/text v0.22.0 (GO-2026-5970, fixed in v0.39.0); checked against sum.golang.org
-    GOTOOLCHAIN=local go get golang.org/x/text@v0.39.0; \
+    # v8.30.1 pins modules with fixed advisories: x/text v0.22.0 (GO-2026-5970, fixed in v0.39.0),
+    # brotli (GO-2026-6888, fixed in v1.2.7), compress v1.17.11 (GO-2026-6865, fixed in v1.20.2);
+    # raised here, each checked against sum.golang.org
+    GOTOOLCHAIN=local go get golang.org/x/text@v0.39.0 github.com/andybalholm/brotli@v1.2.7 \
+        github.com/klauspost/compress@v1.20.2; \
     CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-mod=readonly go build -trimpath \
         -ldflags "-s -w -X=github.com/zricethezav/gitleaks/v8/version.Version=${GITLEAKS_VERSION}" \
         -o /gitleaks .; \
@@ -30,11 +33,16 @@ COPY --from=gitleaks-build /gitleaks /gitleaks
 FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b
 
 ARG TARGETARCH
+# apt itself, fixed for CVE-2026-109518; the base image still ships 2.8.3 (2026-11-06)
+ARG APT_VERSION=2.8.4ubuntu0.1
 ARG JUST_VERSION=1.59.0
 ARG JUST_SHA256_AMD64=409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e
 ARG JUST_SHA256_ARM64=23871b1702bfd550fb5f901778fd4290ecf2ee034a45a889fbe96d89b188086d
 
 RUN set -eu; \
+    apt-get update -qq; \
+    apt-get install -y -qq --no-install-recommends "apt=${APT_VERSION}" "libapt-pkg6.0t64=${APT_VERSION}"; \
+    rm -rf /var/lib/apt/lists/*; \
     case "${TARGETARCH}" in \
         amd64) triple=x86_64-unknown-linux-musl; sum="${JUST_SHA256_AMD64}" ;; \
         arm64) triple=aarch64-unknown-linux-musl; sum="${JUST_SHA256_ARM64}" ;; \

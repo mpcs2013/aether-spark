@@ -37,6 +37,8 @@
     { "roles": ["keycloak"], "with": ["ui-api", "grafana", "ntfy", "step-ca", "litellm", "llm-serving", "agent-host", "mcp-server", "verifier", "clickhouse", "ingester", "price-job", "pipeline", "otel-collector", "runtime-proxy", "ops-proxy", "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"] }
   ],
   "published_ports_roles": ["traefik"],
+  "_secret_source_dirs": "Folders a Compose secret may come from, as full-match regular expressions: the in-memory secrets folder on the Spark and under the WSL2 user's runtime folder on the desktop (docs/architecture/compose-base.md, Secrets). A secret file must sit directly in one of them.",
+  "secret_source_dirs": ["/run/aetherspark/secrets", "/run/user/[0-9]+/aetherspark/secrets"],
   "_cap_add": "The only capabilities a service may add back after cap_drop: [ALL] (file ownership, user switching, low ports).",
   "cap_add_allowed": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "SETGID", "SETUID", "NET_BIND_SERVICE"],
   "_host_paths": "Host paths no mount may reach: the Docker and containerd APIs, network namespaces, kernel interfaces. A mount of one of these, of a path below one, or of a parent directory (e.g. / or /var) is refused.",
