@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/compose deploy/images tests/python
+    {{ uv }} mypy src/python deploy/compose deploy/images deploy/secret-store tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -94,8 +94,10 @@ egress-lint:
 # Generate or check shared types from contracts/ (ADR-0002)
 contracts *args: (pending "WP2.2/2.3" "contracts")
 
-# Dev secrets store (ADR-0010)
-secrets *args: (pending "WP3.3" "secrets")
+# Secrets (ADR-0010, docs/runbooks/secrets.md): generate | unseal | clear | check RENDERED...
+# generate and unseal run in WSL2 (or on the Spark); the folder they write must be a tmpfs
+secrets *args:
+    {{ if os() == "windows" { "python" } else { "python3" } }} -I deploy/secret-store/secret_store.py {{ args }}
 
 # Stop all agent runs (ADR-0019)
 agents-off: (pending "WP5a.5" "agents-off")

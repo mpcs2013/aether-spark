@@ -103,16 +103,21 @@ Placement in WP3.1:
 ## Secrets (WP3.3, first)
 As ADR-0010 decides, made buildable:
 
-- **One in-memory folder per machine:** `/run/aetherspark/secrets/`, a tmpfs, mode 0700. `just up` decrypts each secret there (`age -d` to the file), and refuses to start if the folder is not a tmpfs with that mode. It is the only path under `/run` that the Compose lint accepts for a secret's source (`secret_source_dir` in `policy.json`, with an allowed and a refused fixture).
-- **Mounted only into its service.** Compose file secrets are bind mounts, and Compose ignores their `uid`, `gid` and `mode` outside Swarm. So the file's own owner and mode on the host decide who reads it, and `just up` sets them per service.
-- **Desktop proof first (PR 2, before any service uses it).** Docker Desktop runs containers in its own VM and reaches WSL2 files through a file-sharing layer, so "a tmpfs in WSL2" alone does not prove the container sees memory. The proof, scripted as `tests/secrets/desktop-proof.sh`, checks each step and fails closed:
-  1. **Memory-backed at the source:** the folder in WSL2 is a tmpfs (`findmnt -T` reports `tmpfs`), mode 0700.
-  2. **Memory-backed in the container:** the secret is read from that tmpfs and never copied to disk on the way: the mount type seen inside, and a random marker value found neither in Docker Desktop's VM disk nor in WSL2's own disk after a sync.
-  3. **Permissions:** inside the container the file is readable by the service's user and by no other user; a second container without the secret cannot see it.
-  4. **Not in metadata:** the marker appears in no `docker inspect`, no `docker compose config` output, no environment and no log.
-  5. **Cleanup:** after `just down` the folder is empty; after `wsl --shutdown` and a restart it is gone; a killed `just up` leaves nothing on disk either.
+- **One in-memory folder per machine** (as built in PR 2, 2026-11-06):
+  - **desktop:** `$XDG_RUNTIME_DIR/aetherspark/secrets/` in WSL2, that is `/run/user/<uid>/aetherspark/secrets/`: the WSL user's own tmpfs, so no `sudo` is needed;
+  - **Spark:** `/run/aetherspark/secrets/`, created by the host's service (WP6.4).
 
-  If a step fails, the design comes back with the alternative (a `tmpfs`-driver named volume filled over stdin) and the same proof, before any service depends on it. The Spark repeats steps 1 and 3 to 5 natively (WP6.4).
+  The folder is mode 0700 and each file 0400. `just secrets unseal` decrypts each secret there (`age -d`, the value over a pipe, never in an argument) and refuses a folder that is not a tmpfs (read from `/proc/self/mountinfo`). These two folders are the only sources the Compose lint accepts for a secret (`secret_source_dirs` in `policy.json`); a file below them, or a secret from the environment or inline content, is refused.
+- **Every service that reads a secret runs as the stack's user** (desktop: the WSL user, uid 1000; Spark: a dedicated user from WP6.4), set with `user:` in Compose. Compose file secrets are bind mounts whose `uid`, `gid` and `mode` Compose ignores outside Swarm, so the host file's owner and mode decide who reads it. Without `sudo` the desktop cannot give a file another owner, and with `cap_drop: ALL` even root in a container cannot read another user's 0400 file. Each file is mounted only into its own service, so services stay separated by mount, not by owner.
+- **The manifest is JSON** (`deploy/secrets.manifest.json`): read with Python's standard library only, also in WSL2 and on the Spark. A secret is either generated (random, at least 128 bits) or derived: a file such as `keycloak-db.conf` built at unseal from other secrets, so no value is stored twice. The manifest starts empty; the first entries come with step-ca (PR 3).
+- **Desktop proof: passed on 2026-11-06** (`tests/secret-store/desktop-proof.sh`, Docker Desktop 29.9.2, WSL2 kernel 6.6). Docker Desktop's WSL integration mounts the very same tmpfs into the container: `/proc/mounts` inside shows `tmpfs`, with the WSL user's uid. The proof's steps:
+  1. **Memory-backed at the source:** the folder is a tmpfs, mode 0700, the file 0400.
+  2. **Memory-backed in the container, never copied:** the container's mount is tmpfs and reads the value (compared by hash); the value is not in the container's writable layer (`docker export`) and in no file on WSL2's disk. Docker Desktop's own data disk is not reachable from WSL without a privileged container, which the proof does not use; the shared tmpfs mount is the evidence that no copy is made.
+  3. **Permissions:** the owner reads, another uid gets "Permission denied", a container without the secret does not see it.
+  4. **Not in metadata:** the value is in no `docker inspect`, environment, log or `docker compose config` output.
+  5. **Cleanup:** after cleanup the folder and the containers are gone (5a); after `wsl --shutdown` and a restart nothing of the run is left (5b).
+
+  A disk-backed folder fails it at step 1 (checked). It is re-run after Docker Desktop or WSL updates ([secrets.md](../runbooks/secrets.md)); the Spark repeats steps 1 and 3 to 5 natively (WP6.4).
 - **The secrets of WP3.1:**
 
   | Secret | Read by |
@@ -124,7 +129,7 @@ As ADR-0010 decides, made buildable:
   | `keycloak-bootstrap.conf` (first-start admin password) | Keycloak, first start only |
   | `forward-auth-client-secret`, `forward-auth-cookie-secret` | forward-auth |
 
-- **Dev store** on the desktop: `~/.aetherspark/secrets/dev/`, age-encrypted with the dev key. `just up` on a clean clone creates the dev key and the missing secrets itself (`just secrets generate`), so "`just up` from clean WSL2" (NFR-OPS-01, Gate G3) holds.
+- **Dev store** on the desktop: `~/.aetherspark/secrets/dev/`, age-encrypted with the dev key (`~/.aetherspark/keys/dev.key`, 0600). `just secrets generate` creates the dev key and the missing secrets on a clean clone, and `just up` will call it, so "`just up` from clean WSL2" (NFR-OPS-01, Gate G3) holds. `just secrets rotate <name>` replaces one value.
 
 ## `postgres-auth`
 - **Image:** the official Postgres 18 image, pinned by digest; no pgvector, since it holds only Keycloak's data.
@@ -170,7 +175,7 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
 ## Order of work (pull requests)
 1. **This design** and its document changes (below).
 2. **WP3.3 secrets:**
-   - the desktop proof (`tests/secrets/desktop-proof.sh`: memory-backed through WSL2 and Docker Desktop, permissions, cleanup), first;
+   - the desktop proof (`tests/secret-store/desktop-proof.sh`: memory-backed through WSL2 and Docker Desktop, permissions, cleanup), first;
    - the manifest, `just secrets generate`, the age dev store and the tmpfs folder;
    - the L1 rule for `secret_source_dir` and the published-address rule;
    - the CI manifest check;

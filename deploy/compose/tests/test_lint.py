@@ -68,7 +68,7 @@ def _valid() -> dict[str, Any]:
             "auth-front",
             "auth-edge",
             image="traefik:test",
-            ports=[{"target": 443, "published": "443"}],
+            ports=[{"target": 443, "published": "443", "host_ip": "127.0.0.1"}],
             cap_add=["NET_BIND_SERVICE"],
         ),
         "egress-runtime": _service(
@@ -122,6 +122,8 @@ def _valid() -> dict[str, Any]:
         "services": services,
         "networks": {n: _net(n) for n in used},
         "volumes": {"model-store": {"name": f"{PROJECT}_model-store"}},
+        # A secret from the in-memory folder: the WSL2 user's on the desktop (compose-base.md)
+        "secrets": {"db-password": {"file": "/run/user/1000/aetherspark/secrets/db-password"}},
     }
 
 
@@ -261,6 +263,51 @@ CASES: list[tuple[str, Mutation, str]] = [
     ),
     ("host path as a config", _top("configs", "c", {"file": "/run/docker.sock"}), "configs c"),
     ("host path as a secret", _top("secrets", "s", {"file": "/proc/self/environ"}), "secrets s"),
+    (
+        "secret from a /run folder other than the secrets folder",
+        _top("secrets", "s", {"file": "/run/other/s"}),
+        "not directly in the in-memory secrets folder",
+    ),
+    (
+        "secret from the project folder",
+        _top("secrets", "s", {"file": "/src/deploy/s"}),
+        "not directly in the in-memory secrets folder",
+    ),
+    (
+        "secret below the secrets folder",
+        _top("secrets", "s", {"file": "/run/aetherspark/secrets/sub/s"}),
+        "not directly in the in-memory secrets folder",
+    ),
+    (
+        "secret path that climbs out",
+        _top("secrets", "s", {"file": "/run/aetherspark/secrets/../s"}),
+        "not directly in the in-memory secrets folder",
+    ),
+    (
+        "secret from a user folder that is not a uid",
+        _top("secrets", "s", {"file": "/run/user/x/aetherspark/secrets/s"}),
+        "not directly in the in-memory secrets folder",
+    ),
+    (
+        "secret from the environment",
+        _top("secrets", "s", {"environment": "S"}),
+        "only a file secret",
+    ),
+    (
+        "published port without an address",
+        _svc("traefik", ports=[{"target": 443, "published": "443"}]),
+        "must name its address",
+    ),
+    (
+        "published port on all interfaces",
+        _svc("traefik", ports=[{"target": 443, "published": "443", "host_ip": "0.0.0.0"}]),  # noqa: S104
+        "must name its address",
+    ),
+    (
+        "published port on all IPv6 interfaces",
+        _svc("traefik", ports=[{"target": 443, "published": "443", "host_ip": "::"}]),
+        "must name its address",
+    ),
     (
         "network named after another one",
         _netset("edge", name="bridge"),
