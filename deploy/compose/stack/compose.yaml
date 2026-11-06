@@ -92,9 +92,10 @@ services:
       step-ca: { condition: service_healthy }
     # step-ca backdates each certificate by a minute, and the daemon renews when a third of that
     # lifetime is left, minus up to a twentieth as jitter: never below 28 %. Below 25 % the renewal is
-    # overdue; after a stop past that point the renewer is healthy only once it has renewed (C9a)
+    # overdue; after a stop past that point the renewer is healthy only once it has renewed (C9a).
+    # `--expires-in 75%` means "more than 75 % of the life has passed", so less than 25 % is left
     healthcheck:
-      test: ["CMD", "sh", "-c", "step certificate needs-renewal /tls/tls.crt --expires-in 25% >/dev/null 2>&1; [ $$? -eq 1 ]"]
+      test: ["CMD", "sh", "-c", "step certificate needs-renewal /tls/tls.crt --expires-in 75% >/dev/null 2>&1; [ $$? -eq 1 ]"]
       interval: 30s
       timeout: 5s
       start_period: 60s

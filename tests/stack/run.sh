@@ -238,7 +238,7 @@ on_pki 'rm -f /tls/postgres-auth/tls.crt' >/dev/null 2>&1
 dc run --rm cert-bootstrap >/dev/null 2>&1
 dc stop >/dev/null 2>&1
 sleep 135
-overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 25%'; }
+overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 75%'; }
 check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
