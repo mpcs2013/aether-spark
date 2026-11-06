@@ -74,7 +74,7 @@ It opens the sealed root key in memory, signs a new intermediate for one more ye
 | The desktop was off overnight | Nothing: `just up` renews before it reports healthy | Nothing |
 | The stack was down for more than a day | `just up` prints `cert-bootstrap: postgres-auth issued` | Nothing: expired certificates are replaced at `just up`; Traefik orders new ones at start |
 | The intermediate has expired | `just up` stops at `cert-bootstrap` ("does not verify"); `just ca status` shows negative days | `just ca renew-intermediate`, then `just up` |
-| A renewer is unhealthy | `docker compose ps` shows it unhealthy: its certificate has less than 30 % of its life left | `docker compose logs postgres-auth-renewer`; usually step-ca is down. `just up` again |
+| A renewer is unhealthy | `docker compose ps` shows it unhealthy: its certificate has less than 25 % of its life left | `docker compose logs postgres-auth-renewer`; usually step-ca is down. `just up` again |
 | The CA volume is damaged or the intermediate key or `step-ca-password` is lost | step-ca does not start | Desktop: re-init (below). Spark: restore the volume from the backup (WP3.4) |
 | The root key is lost or stolen, or the dev key is lost | — | Re-init (below), and remove the old root from every browser |
 

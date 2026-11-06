@@ -44,7 +44,7 @@ fail() {
 check() { # description, command...: PASS when the command succeeds
     local d=$1 out
     shift
-    if out=$("$@" 2>&1); then pass "$d"; else fail "$d" "$(printf '%s\n' "$out" | tail -5)"; fi
+    if out=$("$@" 2>&1); then pass "$d"; else fail "$d" "$(printf '%s\n' "$out" | tail -20)"; fi
 }
 refuse() { # description, command...: PASS when the command fails
     local d=$1 out
@@ -73,8 +73,15 @@ served_serial() {
         | openssl x509 -noout -serial
 }
 host_curl() { curl -sS --max-time 5 --resolve "$name:443:127.0.0.1" --cacert "$work/root.crt" "$@"; }
-renewer_healthy() {
-    [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q postgres-auth-renewer)")" = healthy ]
+renewer_healthy() { # on failure: Docker's last health results, the certificate's dates, the log
+    local id
+    id="$(dc ps -q postgres-auth-renewer)"
+    [ "$(docker inspect -f '{{.State.Health.Status}}' "$id")" = healthy ] && return 0
+    docker inspect -f '{{range .State.Health.Log}}{{.Start}} exit {{.ExitCode}}{{"\n"}}{{end}}' "$id" | tail -4
+    on_pki 'step certificate inspect /tls/postgres-auth/tls.crt --short' 2>&1 | tail -3
+    date -u +'now %Y-%m-%dT%H:%M:%SZ'
+    docker logs --tail 8 "$id" 2>&1
+    return 1
 }
 pg_valid() {
     on_pki "step certificate verify /tls/postgres-auth/tls.crt --roots /ca-certs/root_ca.crt --host $pg"
@@ -231,7 +238,7 @@ on_pki 'rm -f /tls/postgres-auth/tls.crt' >/dev/null 2>&1
 dc run --rm cert-bootstrap >/dev/null 2>&1
 dc stop >/dev/null 2>&1
 sleep 135
-overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 30%'; }
+overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 25%'; }
 check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
