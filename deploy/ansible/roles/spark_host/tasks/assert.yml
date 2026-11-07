@@ -139,9 +139,9 @@
     quiet: true
   when: spark_host_manage_network | bool
 
-# No link is the resolver's default route, so only home.arpa names reach the router. NetworkManager
-# can make the link with the default route a DNS default route; if this fails on the Spark, the
-# role needs a fix (spark-host.md, S3)
+# No link is the resolver's default route, so only home.arpa names reach the router.
+# NetworkManager 1.46 made the LAN link one at arrival (2026-11-07, S3), hence dns=none and the LAN
+# hook (network.yml); these checks prove the hook ran
 - name: Read the resolver's links
   ansible.builtin.command: resolvectl status --no-pager
   register: spark_host_assert_resolved
@@ -153,6 +153,15 @@
   ansible.builtin.assert:
     that: "'+DefaultRoute' not in spark_host_assert_resolved.stdout"
     fail_msg: a link is the resolver's default route, so names other than home.arpa would go to the router
+    quiet: true
+  when: spark_host_manage_network | bool
+
+- name: Assert the LAN link asks the router, for home.arpa only
+  ansible.builtin.assert:
+    that:
+      - "'~home.arpa' in spark_host_assert_resolved.stdout"
+      - "spark_host_router in spark_host_assert_resolved.stdout"
+    fail_msg: the LAN hook has not set the router and ~home.arpa on the LAN link (aetherspark-lan-dns)
     quiet: true
   when: spark_host_manage_network | bool
 
