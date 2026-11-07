@@ -1,5 +1,7 @@
 huggingface.co
+us.aws.cdn.hf.co
 nvcr.io
+layers.nvcr.io
 registry.ollama.ai
 registry-1.docker.io
 auth.docker.io

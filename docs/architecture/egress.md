@@ -93,8 +93,8 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | runtime | price provider API host, *to confirm* | prices (ADR Q4) |
 | runtime | price provider bulk-export storage host, *to confirm, only if used* | bulk prices |
 | ops | `huggingface.co` | model metadata and files |
-| ops | Hugging Face CDN / Xet hosts, *to confirm* | model file redirects |
-| ops | `nvcr.io`; NGC auth host, *to confirm* | NGC images and models |
+| ops | `us.aws.cdn.hf.co` | model file redirects: the weight files of a pinned revision redirect here (observed 2026-11-07 from the home network; plain HTTPS downloads, so Hugging Face's Xet hosts are not used) |
+| ops | `nvcr.io`, `layers.nvcr.io` | NGC images: index and token on `nvcr.io`, layers redirected to `layers.nvcr.io` (observed 2026-11-07) |
 | ops | `registry.ollama.ai`; its blob CDN, *to confirm* | dev models (Ollama) |
 | ops | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | Docker Hub images |
 | ops | `quay.io`; its CDN, *to confirm* | Keycloak image |
@@ -106,7 +106,7 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | ops | `pypi.org`, `files.pythonhosted.org` | Python packages |
 | ops | `ports.ubuntu.com` | Ubuntu arm64 packages and security updates (the Spark; `security.ubuntu.com` does not serve arm64) |
 | ops | `repo.download.nvidia.com`, `developer.download.nvidia.com`, `nvidia.github.io`, `download.docker.com` | DGX OS, CUDA, NVIDIA container toolkit and Docker packages (HTTPS; [spark-host.md](spark-host.md)) |
-| ops | Launchpad PPA host, *to confirm, only if a PPA stays* | Canonical's NVIDIA desktop PPAs (checked at arrival) |
+| ops | Launchpad PPA host: *none* | Canonical's NVIDIA desktop PPAs: removed at arrival (2026-11-07), they served only desktop and Wi-Fi packages |
 | ops | `cdn.fwupd.org`, `fwupd.org` | firmware metadata and downloads (fwupd, LVFS), owner sessions only |
 | ops | XBRL taxonomy package hosts, *to confirm* | offline taxonomy download |
 

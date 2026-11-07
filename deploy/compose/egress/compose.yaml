@@ -42,6 +42,34 @@ services:
       egress-ops: { ipv4_address: 172.30.20.2 }
       out-ops: {}
 
+  # One-shot model pull (ADR-0006 "Model files"): one model at its pinned revision through the ops
+  # proxy into /srv/models, every file checked against deploy/models/<name>.sha256. On the Spark,
+  # in an owner-started session:
+  #   docker compose -f deploy/compose/egress/compose.yaml --profile egress-ops --profile model-pull \
+  #     run --rm model-pull <name>
+  model-pull:
+    profiles: [model-pull]
+    image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+    labels: { aetherspark.role: pull-job }
+    # Root only to write into the root-owned model store; every capability dropped
+    user: "0:0"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 50
+    environment:
+      HTTPS_PROXY: http://172.30.20.2:3128
+    entrypoint: ["sh", "/model-pull.sh"]
+    volumes:
+      - ./model-pull.sh:/model-pull.sh:ro
+      - ../../models:/manifests:ro
+      - /srv/models:/models
+    networks: [egress-ops]
+    depends_on:
+      egress-ops: { condition: service_healthy }
+
 # Bridge names start with `as-` so the host rules (deploy/host/egress-rules.sh) can tell the
 # networks apart; `as-out-*` and `as-backup` are the only ones with a way out.
 networks:

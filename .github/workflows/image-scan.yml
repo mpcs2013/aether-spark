@@ -25,10 +25,20 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    # The vLLM image (docs/architecture/llm-trial.md) alone unpacks to roughly 25-30 GB
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Room for large images: the runner's preinstalled toolchains this job never uses (about 30 GB);
+      # a path that does not exist on one architecture is simply skipped
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af >/dev/null
+          df -h /
 
       - run: bash deploy/images/scan.sh ${{ matrix.arch }}
