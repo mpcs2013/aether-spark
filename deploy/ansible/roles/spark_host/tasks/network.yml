@@ -44,11 +44,17 @@
     mode: "0644"
   notify: Restart systemd-timesyncd
 
-- name: NetworkManager makes no connectivity checks and leaves radios and ConnectX ports alone
+# dns=none: NetworkManager 1.46 makes any link with name servers and the default route the
+# resolver's default route, with no setting to stop it, and repeats that at every DNS update. So it
+# hands the resolver nothing, and the LAN hook below gives the link exactly what flow H5 allows.
+- name: NetworkManager hands no DNS to the resolver, makes no connectivity checks, leaves radios and ConnectX ports alone
   ansible.builtin.copy:
     dest: /etc/NetworkManager/conf.d/90-aetherspark.conf
     content: |
-      # docs/architecture/spark-host.md, "Interfaces"; written by the host role
+      # docs/architecture/spark-host.md, "Interfaces" and flow H5; written by the host role
+      [main]
+      dns=none
+
       [connectivity]
       enabled=false
 
@@ -57,7 +63,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Reload NetworkManager
+  notify: Restart NetworkManager
 
 - name: IPv6 off on every interface
   ansible.posix.sysctl:
@@ -97,3 +103,71 @@
     - spark_host_lan_settings.stdout_lines != [spark_host_router, '~home.arpa', 'yes', 'disabled']
   changed_when: true
   notify: Reapply the LAN connection
+
+# The LAN hook: with dns=none above, this alone tells systemd-resolved about the LAN link. Run by
+# NetworkManager's dispatcher when the link comes up, and after systemd-resolved starts (it forgets
+# link settings on a restart). Without the link it does nothing; until it has run, names fail
+# closed (no server for anything).
+- name: The LAN hook gives the resolver the router, for home.arpa only, never the default route
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/aetherspark-lan-dns
+    content: |
+      #!/bin/sh
+      # docs/architecture/spark-host.md, flow H5; written by the host role. NetworkManager hands no
+      # DNS to systemd-resolved (dns=none), so this sets the LAN link: the router as its only
+      # server, the route-only domain ~home.arpa, never the resolver's default route.
+      set -eu
+      dev="$(nmcli -g GENERAL.DEVICES connection show {{ spark_host_lan_connection | quote }} 2>/dev/null || true)"
+      [ -n "$dev" ] || exit 0
+      resolvectl dns "$dev" {{ spark_host_router | quote }}
+      resolvectl domain "$dev" '~home.arpa'
+      resolvectl default-route "$dev" false
+      resolvectl llmnr "$dev" false
+      resolvectl mdns "$dev" false
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Apply the LAN hook
+
+- name: Folder for NetworkManager's dispatcher scripts
+  ansible.builtin.file:
+    path: /etc/NetworkManager/dispatcher.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: NetworkManager runs the LAN hook when a link comes up
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/dispatcher.d/90-aetherspark-lan-dns
+    content: |
+      #!/bin/sh
+      # Written by the host role: the LAN hook (/usr/local/sbin/aetherspark-lan-dns) after a link
+      # comes up or its address changes
+      case "$2" in
+        up|reapply|dhcp4-change) exec /usr/local/sbin/aetherspark-lan-dns ;;
+      esac
+      exit 0
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Folder for systemd-resolved's settings
+  ansible.builtin.file:
+    path: /etc/systemd/system/systemd-resolved.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The resolver runs the LAN hook after it starts
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/systemd-resolved.service.d/90-aetherspark-lan-dns.conf
+    content: |
+      # Written by the host role: a restarted resolver has forgotten the LAN link's settings
+      [Service]
+      ExecStartPost=-/usr/local/sbin/aetherspark-lan-dns
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd

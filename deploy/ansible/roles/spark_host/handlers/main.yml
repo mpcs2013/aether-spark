@@ -16,15 +16,22 @@
   changed_when: true
 
 # Its settings file is written everywhere; NetworkManager itself runs where the role manages the
-# network (not in the container test)
-- name: Reload NetworkManager
-  ansible.builtin.command: systemctl try-reload-or-restart NetworkManager.service  # noqa: command-instead-of-module
+# network (not in the container test). A restart, not a reload: a reload does not switch the DNS
+# mode (dns=none). NetworkManager keeps its connections up across a restart.
+- name: Restart NetworkManager
+  ansible.builtin.command: systemctl try-restart NetworkManager.service  # noqa: command-instead-of-module
   changed_when: true
   when: spark_host_manage_network | bool
 
 - name: Reapply the LAN connection
   ansible.builtin.command: nmcli connection up {{ spark_host_lan_connection | quote }}
   changed_when: true
+
+# After NetworkManager's restart and the LAN connection, so its settings are the last word
+- name: Apply the LAN hook
+  ansible.builtin.command: /usr/local/sbin/aetherspark-lan-dns
+  changed_when: true
+  when: spark_host_manage_network | bool
 
 # Ubuntu starts sshd through ssh.socket; with no connection yet there is nothing to reload
 - name: Reload sshd
