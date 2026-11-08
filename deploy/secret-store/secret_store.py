@@ -307,6 +307,10 @@ def check(manifest: list[Secret], rendered: list[dict[str, Any]]) -> list[str]:
                     findings.append(
                         f"{label}: service {name} reads {secret}, not one of its consumers"
                     )
+    # A generated secret may reach its service only inside a derived file
+    for s in manifest:
+        if s.derived and s.name in used:
+            used.update(REFERENCE.findall(s.derived))
     findings.extend(
         f"manifest: {name} is used by no Compose file" for name in sorted(set(known) - used)
     )

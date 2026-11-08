@@ -1,0 +1,46 @@
+# Keycloak's routes (docs/architecture/compose-base.md, "Keycloak exposure"). Traefik is the only way
+# to Keycloak, so these rules are what protects its admin console and admin API, which Keycloak
+# serves on the same port as sign-in. Paths are matched after Traefik has cleaned them (`..` and
+# doubled slashes resolved); encoded path characters are refused before routing (compose.yaml).
+http:
+  routers:
+    # Sign-in: the aetherspark realm's pages and protocol, its static files, discovery. Nothing else,
+    # so /admin/ and /realms/master/ find no route here.
+    keycloak-sign-in:
+      rule: >-
+        Host(`auth.aether.{{ env "AETHERSPARK_PLACE" }}`) &&
+        (PathPrefix(`/realms/aetherspark/`) || PathPrefix(`/resources/`) || PathPrefix(`/.well-known/`))
+      entryPoints: [websecure]
+      service: keycloak
+      tls:
+        certResolver: stepca
+
+    # Administration: the console, the admin API and the master realm (where administrators sign
+    # in), from the owner's address only (AETHERSPARK_ADMIN_SOURCE)
+    keycloak-admin:
+      rule: >-
+        Host(`auth-admin.aether.{{ env "AETHERSPARK_PLACE" }}`) &&
+        (PathPrefix(`/admin/`) || PathPrefix(`/realms/master/`) || PathPrefix(`/resources/`))
+      entryPoints: [websecure]
+      middlewares: [keycloak-admin-source]
+      service: keycloak
+      tls:
+        certResolver: stepca
+
+  middlewares:
+    keycloak-admin-source:
+      ipAllowList:
+        sourceRange: ['{{ env "AETHERSPARK_ADMIN_SOURCE" }}']
+
+  services:
+    keycloak:
+      loadBalancer:
+        serversTransport: keycloak
+        servers:
+          - url: 'https://keycloak.svc.aether.{{ env "AETHERSPARK_PLACE" }}:8443'
+
+  # Traefik checks Keycloak's certificate: AetherSpark's root only, and Keycloak's internal name
+  serversTransports:
+    keycloak:
+      serverName: 'keycloak.svc.aether.{{ env "AETHERSPARK_PLACE" }}'
+      rootCAs: [/ca-certs/root_ca.crt]

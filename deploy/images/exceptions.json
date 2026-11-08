@@ -197,6 +197,60 @@
       "issue": 31,
       "approved": "2026-11-08",
       "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-91403",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "Java's default trust store includes roots that signed weak eMudhra intermediates, so a Java client could be fooled when it connects out. Keycloak has no way out: only the internal networks auth-front (Traefik) and db-auth (postgres-auth), whose certificates come from AetherSpark's own CA, and its database client checks against that root only. Red Hat marks it won't fix; the Keycloak base moves only with Ostium's next notice (D-008, O-035 lists it).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "GHSA-xxph-c9ww-hj94",
+      "target": "keycloak",
+      "package": "guava",
+      "reason": "Uncontrolled memory allocation when guava's compact maps are deserialized. Keycloak reads requests as JSON and forms; Java serialization happens only between cluster nodes, and AetherSpark's Keycloak runs as one node with cache=local (no cluster port). Fixed in guava 33.7.2, not yet in a Keycloak release Ostium has noticed (O-035).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-119373",
+      "target": "keycloak",
+      "package": "sqlite-libs",
+      "reason": "The system SQLite library, used in the image only by the package manager's database (rpm never runs in the container). Keycloak is Java and never loads it; the flaw needs a crafted FTS5 table and query. No fixed package yet (O-035 lists it).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-119374",
+      "target": "keycloak",
+      "package": "sqlite-libs",
+      "reason": "The system SQLite library, used in the image only by the package manager's database (rpm never runs in the container). Keycloak is Java and never loads it; the flaw needs a crafted database file opened with FTS5 secure-delete. No fixed package yet (O-035 lists it).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-119379",
+      "target": "keycloak",
+      "package": "sqlite-libs",
+      "reason": "The system SQLite library, used in the image only by the package manager's database (rpm never runs in the container). Keycloak is Java and never loads it; the flaw needs a crafted changeset for SQLite's session extension. No fixed package yet (O-035 lists it).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-119586",
+      "target": "keycloak",
+      "package": "sqlite-libs",
+      "reason": "The SQLite command line's recovery command on a crafted database; the image has no use for it, rpm never runs in the container, and Keycloak (Java) never loads the system SQLite library. No fixed package yet (O-035 lists it).",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
     }
   ]
 }

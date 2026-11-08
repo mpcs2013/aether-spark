@@ -78,6 +78,33 @@ Placement in WP3.1:
 - **Secrets from a file, not the environment:** Keycloak has no `*_FILE` variables. It reads its database password and its first-start admin password from a configuration file in the in-memory secrets folder (`--config-file`; *to verify* on the pinned version), never from an environment variable or a wrapper that exports one.
 - **Realm as code:** `deploy/keycloak/aetherspark-realm.json`, imported at start (ADR-0009 change 2). Its guard cases come from Ostium's realm package once it is released (not yet).
 - **Image:** the Dockerfile's `FROM` names the baseline digest; the built image is the scan target on amd64 and arm64. At the pin, each High or Critical in it needs the owner's exception for at most 90 days, unless a later digest removes it (ADR-0005 amendment 3).
+- **As built in PR 5a (2026-11-08),** where it differs from or adds to the plan above:
+  1. **Image** `deploy/keycloak/Dockerfile`: `FROM` the index digest of Ostium's notice O-035 (26.8.1, build 26.8.1-2), then `kc.sh build` with Postgres, health checks on, metrics off (until WP3.2) and `cache=local`. AetherSpark's own scan found exactly the notice's six findings: 1 Critical in Java's default trust store (CVE-2026-91403), 1 High in guava, 4 High in the system SQLite library. The owner approved all six on 2026-11-08, until 2026-12-08 (issue #31). The reasons are in `deploy/images/exceptions.json`: Keycloak has no way out, clustering is off, and nothing in it loads SQLite.
+  2. **One configuration file for both passwords.** Keycloak reads a single `--config-file`, so the planned `keycloak-db.conf` and `keycloak-bootstrap.conf` became one derived secret, `keycloak.conf` (`db-password`, `bootstrap-admin-password`), built from `keycloak-db-password` and the new `keycloak-bootstrap-admin-password`. Every other setting is not secret and is set in the Compose file.
+  3. **Listeners:**
+     - HTTPS on 8443, bound to Keycloak's `auth-front` address (`172.30.61.3`) only, so even `postgres-auth`, which shares `db-auth`, cannot open it;
+     - the management interface (health) on `127.0.0.1:9000`, plain HTTP, inside the container only. The image has no `curl`, so the health check speaks HTTP through bash's `/dev/tcp`; Keycloak refuses a request without a `Host` line, and only the status code (200, else 503) counts;
+     - `cache=local` at build and at run time, so there is no cluster discovery and no cluster port (with it at build time only, Keycloak 26.8 still started JGroups on 7800 and 57800).
+  4. **`auth-front`** is `172.30.61.0/24`, with Traefik at `.2` and Keycloak at `.3`; `proxy-trusted-addresses` names Traefik's address only.
+  5. **The admin route's source.** `ingress` now has a fixed subnet, `172.30.30.0/24`.
+     - On Docker Desktop, the host's requests reach Traefik from that network's gateway, `172.30.30.1`, measured on 2026-11-08. So the allowlist's default, `172.30.30.1/32`, means "this machine", which on the desktop is the loopback-only route the plan describes.
+     - On the Spark, `AETHERSPARK_ADMIN_SOURCE` must name the owner's desktop (in `.local.ref/`), and Docker's userland proxy must be off so that Traefik sees real source addresses (WP6.4). `just up` refuses to start for `home.arpa` without the variable.
+  6. **Routes** `deploy/compose/stack/traefik/dynamic/keycloak.yml`, as planned; Traefik checks Keycloak's certificate against the root and the internal name. Measured refusals:
+     - `/admin/`, `/realms/master/`, `..`, `%2e%2e` and doubled-slash variants, health and metrics get Traefik's own 404 on the sign-in name;
+     - encoded slashes get Traefik's 400;
+     - a `..;/` path starts with an allowed prefix, so it reaches Keycloak, which refuses it (400, `invalidCharacter`). The test records which of the two refuses each variant.
+  7. **The realm file** carries the realm-wide settings: TLS required, no self-registration, brute-force detection, password policy, TOTP settings, events. Import keeps an existing realm (`IGNORE_EXISTING`), so a later change to the file reaches a new database only; how changes reach a running realm is decided with Ostium's realm checks (PR 5b).
+  8. **Moved to later pull requests:**
+     - **PR 5b:** the master-realm hardening, the break-glass runbook and the bootstrap-admin removal, a hands-on session with the owner, and the decision on Ostium's realm checks;
+     - **PR 6:** the back-channel entrypoint (with the answer to O-037 on the token issuer) and C10's protocol flows (authorization code with PKCE and MFA, refresh, userinfo, logout, client credentials, introspection), where the first client arrives.
+  9. **Tests** in `tests/stack/run.sh` (C3, C3b, C5, C9a, C10 for what exists):
+     - discovery, keys and the sign-in page through Traefik, with the right issuer;
+     - each refused path, with Traefik answering itself;
+     - the admin console from the allowed source; refused from another, also with a forged `X-Forwarded-For`;
+     - Keycloak's certificate, its listening ports, and that `postgres-auth` cannot open its port;
+     - its database client refusing a foreign root;
+     - no secret in its processes' environments, `inspect` or log;
+     - renewal with no failed request, and the renewed certificate served after Keycloak's own reload.
 
 ## Certificates (step-ca)
 - **`just ca init`, once per machine,** creates:
@@ -156,8 +183,8 @@ As ADR-0010 decides, made buildable:
   | `step-ca-provisioner-postgres-auth` (PR 3), `step-ca-provisioner-keycloak` (PR 5) | `just up`'s bootstrap step only |
   | `postgres-auth-superuser-password` | `postgres-auth`, setup only |
   | `keycloak-db-password` (PR 4) | `postgres-auth`, which sets the `keycloak` role's password from it at every start |
-  | `keycloak-db.conf` (`db-password=…`, derived from `keycloak-db-password`; PR 5) | Keycloak |
-  | `keycloak-bootstrap.conf` (first-start admin password) | Keycloak, first start only |
+  | `keycloak-bootstrap-admin-password` (PR 5a) | Keycloak, first start only, through `keycloak.conf` |
+  | `keycloak.conf` (derived: `db-password=…`, `bootstrap-admin-password=…`; PR 5a, replacing the planned `keycloak-db.conf` and `keycloak-bootstrap.conf`) | Keycloak |
   | `forward-auth-client-secret`, `forward-auth-cookie-secret` | forward-auth |
 
 - **Dev store** on the desktop: `~/.aetherspark/secrets/dev/`, age-encrypted with the dev key (`~/.aetherspark/keys/dev.key`, 0600). `just secrets generate` creates the dev key and the missing secrets on a clean clone, and `just up` will call it, so "`just up` from clean WSL2" (NFR-OPS-01, Gate G3) holds. `just secrets rotate <name>` replaces one value.

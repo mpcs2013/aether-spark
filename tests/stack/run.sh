@@ -13,8 +13,9 @@ export COMPOSE_PROJECT_NAME=as-stack-test
 export AETHERSPARK_UID="${AETHERSPARK_UID:-$(id -u)}" AETHERSPARK_GID="${AETHERSPARK_GID:-$(id -g)}"
 export AETHERSPARK_PLACE=localhost
 export AETHERSPARK_CA_LEAF_LIFETIME=3m AETHERSPARK_TRAEFIK_CERT_HOURS=1
-# postgres-auth re-reads its certificate files every 20 s instead of every hour
-export AETHERSPARK_PG_RELOAD_SECONDS=20
+# postgres-auth re-reads its certificate files every 20 s instead of every hour, Keycloak every 35 s
+# (its minimum is above 30 s)
+export AETHERSPARK_PG_RELOAD_SECONDS=20 AETHERSPARK_KC_RELOAD_PERIOD=35s
 work="$(mktemp -d)"
 cd "$work" || exit 1
 export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/key/dev.key"
@@ -119,34 +120,42 @@ pg_is() { # expected output, then pgc's arguments
     got="$(pgc "$@")" || return 1
     [ "$got" = "$want" ] || { echo "got: $got"; return 1; }
 }
-# The certificate postgres-auth serves is the one in its volume (after the renewer's last renewal).
-# Postgres' image has no openssl command, so Python asks for TLS the way a Postgres client does
-# (SSLRequest), in the Python image the egress tests pin, on db-auth, as the stack user.
-cat >"$work/pg/served.py" <<'EOF'
+# The certificate a service serves is the one in its volume (after the renewer's last renewal).
+# Postgres' and Keycloak's images have no openssl command, so Python connects (for Postgres with its
+# SSLRequest first), in the Python image the egress tests pin, as the stack user. With a CA file it
+# also verifies the chain and the name. Arguments: host, port, postgres (yes/no), CA file or "-".
+cat >"$work/pg/tls.py" <<'EOF'
 import hashlib, socket, ssl, struct, sys
-host = sys.argv[1]
+host, port, postgres, cafile = sys.argv[1], int(sys.argv[2]), sys.argv[3] == "yes", sys.argv[4]
 with open("/tls/tls.crt", encoding="ascii") as f:
     pem = f.read().split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----\n"
 in_file = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
-raw = socket.create_connection((host, 5432), timeout=5)
-raw.sendall(struct.pack("!ii", 8, 80877103))  # SSLRequest
-if raw.recv(1) != b"S":
-    sys.exit("no TLS offered")
-context = ssl.create_default_context()
-context.check_hostname = False
-context.verify_mode = ssl.CERT_NONE  # only the fingerprint is compared; libpq checks verify above
+raw = socket.create_connection((host, port), timeout=5)
+if postgres:
+    raw.sendall(struct.pack("!ii", 8, 80877103))  # SSLRequest
+    if raw.recv(1) != b"S":
+        sys.exit("no TLS offered")
+if cafile == "-":
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE  # only the fingerprint is compared
+else:
+    context = ssl.create_default_context(cafile=cafile)  # chain to this root and the host's name
 with context.wrap_socket(raw, server_hostname=host) as tls:
     served = hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
 if served != in_file:
     sys.exit(f"file {in_file[:16]}, served {served[:16]}")
 EOF
 py_image="$(sed -n 's/^ *image: *\(python:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.layer3.yaml" | head -1)"
-pg_serves_current() {
-    docker run --rm --network "${COMPOSE_PROJECT_NAME}_db-auth" --read-only --cap-drop ALL \
+tls_py() { # network, certificate volume, tls.py's arguments
+    local net=$1 vol=$2
+    shift 2
+    docker run --rm --network "${COMPOSE_PROJECT_NAME}_$net" --read-only --cap-drop ALL \
         --user "$AETHERSPARK_UID:$AETHERSPARK_GID" \
-        -v "${COMPOSE_PROJECT_NAME}_postgres-auth-tls:/tls:ro" -v "$work/pg:/test:ro" \
-        "$py_image" python3 -I /test/served.py "$pg"
+        -v "${COMPOSE_PROJECT_NAME}_$vol:/tls:ro" -v "$work/pg:/test:ro" \
+        "$py_image" python3 -I /test/tls.py "$@"
 }
+pg_serves_current() { tls_py db-auth postgres-auth-tls "$pg" 5432 yes -; }
 pg_reloaded() { # within two reload periods
     for _ in $(seq 1 9); do pg_serves_current >/dev/null 2>&1 && return 0; sleep 5; done
     pg_serves_current
@@ -227,8 +236,10 @@ refuse "curl refuses Traefik by address" curl -sS --max-time 5 --cacert "$work/r
 refuse "an unknown name gets no TLS handshake (strict SNI)" curl -sS --max-time 5 \
     --resolve "nope.aether.localhost:443:127.0.0.1" --cacert "$work/root.crt" https://nope.aether.localhost/
 foreign_traefik() { # Traefik's ACME client trusts the CA's root only
-    on_pki "$foreign_root && cat f.crt" >"$work/foreign.crt" || return 1
+    on_pki "$foreign_root && cat f.crt" >"$work/foreign.crt" 2>/dev/null || return 1
     chmod 0644 "$work/foreign.crt"
+    # A second Traefik cannot run beside the real one: it takes the same fixed address on auth-front
+    dc stop traefik >/dev/null 2>&1
     dc run -d --rm --no-deps --name "$COMPOSE_PROJECT_NAME-foreign" \
         -v "$work/foreign.crt:/foreign/root.crt:ro" \
         -e TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_CACERTIFICATES=/foreign/root.crt \
@@ -245,6 +256,8 @@ foreign_traefik() { # Traefik's ACME client trusts the CA's root only
     return "$found"
 }
 check "Traefik's ACME client refuses step-ca under a foreign root" foreign_traefik
+dc up -d --no-deps --wait traefik >/dev/null 2>&1
+check "the stack's Traefik is back" traefik_ready
 
 echo "--- postgres-auth: TLS only, Keycloak's role only (C3, C3b), no secret in its metadata (C5)"
 on_pki "$foreign_root && cat f.crt" >"$work/pg/foreign.crt" 2>/dev/null && chmod 0644 "$work/pg/foreign.crt"
@@ -290,7 +303,137 @@ pg_secrets_hidden() { # in no process environment of the container, not in inspe
     done
 }
 check "no secret value in postgres-auth's process environments, inspect output or log (C5)" pg_secrets_hidden
-check "postgres-auth serves the certificate in its volume" pg_serves_current
+# Within a reload period: with 3-minute certificates the renewer may have just replaced the files
+check "postgres-auth serves the certificate in its volume" pg_reloaded
+
+echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
+auth=auth.aether.localhost
+admin=auth-admin.aether.localhost
+kc=keycloak.svc.aether.localhost
+via() { # name, path, curl options...: prints the status code; the body goes to $work/kc.body
+    local h=$1 p=$2
+    shift 2
+    curl -sS --max-time 10 --path-as-is --resolve "$h:443:127.0.0.1" --cacert "$work/root.crt" \
+        -o "$work/kc.body" -w '%{http_code}' "$@" "https://$h$p"
+}
+answers() { # code, name, path, curl options...
+    local want=$1 got
+    shift
+    got="$(via "$@")" || return 1
+    [ "$got" = "$want" ] || { echo "status $got"; head -c 200 "$work/kc.body"; return 1; }
+}
+traefik_refuses() { # name, path: Traefik answers itself, so Keycloak never sees the request
+    local got
+    got="$(via "$@")" || return 1
+    case $got in
+        404) grep -qx '404 page not found' "$work/kc.body" || { echo "404, not Traefik's"; return 1; } ;;
+        400) [ ! -s "$work/kc.body" ] || { echo "400 with a body, not Traefik's"; return 1; } ;;
+        *) echo "status $got"; return 1 ;;
+    esac
+}
+issuer_ok() {
+    answers 200 "$auth" /realms/aetherspark/.well-known/openid-configuration || return 1
+    python3 -I -c 'import json, sys; d = json.load(open(sys.argv[1])); sys.exit(d["issuer"] != sys.argv[2])' \
+        "$work/kc.body" "https://$auth/realms/aetherspark"
+}
+check "discovery through Traefik names the issuer https://$auth/realms/aetherspark" issuer_ok
+check "the realm's keys (JWKS) through Traefik" answers 200 "$auth" /realms/aetherspark/protocol/openid-connect/certs
+check "the sign-in page through Traefik" answers 200 "$auth" \
+    "/realms/aetherspark/protocol/openid-connect/auth?client_id=account-console&response_type=code&scope=openid&code_challenge=$(printf 'x%.0s' $(seq 1 43))&code_challenge_method=S256&redirect_uri=https://$auth/realms/aetherspark/account/" -L
+for p in /admin/ /admin/master/console/ /admin/realms/aetherspark /realms/master/ \
+    /realms/master/protocol/openid-connect/token /realms/aetherspark/../master/ '//admin/' \
+    '/realms/aetherspark/%2e%2e/%2e%2e/admin/' '/realms/aetherspark/..%2fmaster/' '/%61dmin/' \
+    /health/ready /metrics /; do
+    check "Traefik refuses $p on $auth" traefik_refuses "$auth" "$p"
+done
+semicolon() { # passes Traefik's path rule, so Keycloak's own check must refuse it
+    answers 400 "$auth" '/realms/aetherspark/..;/..;/admin/' && grep -q invalidCharacter "$work/kc.body"
+}
+check "a ..;/ path is refused by Keycloak's invalid-character check, never an admin page" semicolon
+check "Traefik refuses the sign-in realm on $admin" traefik_refuses "$admin" /realms/aetherspark/
+check "the admin console on $admin from the allowed source" answers 200 "$admin" /admin/master/console/
+kc_tls() { tls_py auth-front keycloak-tls "$kc" 8443 no "$@"; }
+check "Keycloak presents $kc, chained to the root (Traefik's view)" kc_tls /test/root.crt
+refuse "a client trusting a foreign root refuses Keycloak" kc_tls /test/foreign.crt
+kc_listens() { # nothing listens but 8443 on its auth-front address, and loopback (health on 9000,
+    # Java's own helpers, Docker's resolver); so no cluster port. The image has no awk: bash reads the
+    # kernel's socket tables (state 0A = listening), Python judges them here
+    docker exec "$(dc ps -q keycloak)" bash -c '
+        cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | while read -r _ local _ state _; do
+            if [ "$state" = 0A ]; then echo "$local"; fi
+        done' | python3 -I "$work/pg/listeners.py"
+}
+cat >"$work/pg/listeners.py" <<'EOF'
+import sys
+
+want = {"8443 on auth-front", "9000 on loopback"}
+seen = set()
+for line in sys.stdin.read().split():
+    address, port = line.split(":")
+    ipv4 = address[-8:]  # an IPv4 or IPv4-mapped address, in the kernel's byte order
+    if address[:-8].strip("0") not in ("", "FFFF"):
+        sys.exit(f"an IPv6 listener: {line}")
+    if ipv4 == "033D1EAC" and port == "20FB":  # 172.30.61.3:8443
+        seen.add("8443 on auth-front")
+    elif ipv4.endswith("7F"):  # 127.x.x.x
+        if port == "2328":
+            seen.add("9000 on loopback")
+    else:
+        sys.exit(f"listening outside loopback: {line} (the any-address is 00000000)")
+if seen != want:
+    sys.exit(f"missing: {sorted(want - seen)}")
+EOF
+check "Keycloak listens only on 8443 (its auth-front address) and on loopback: no cluster port" kc_listens
+kc_from_db_auth() { # postgres-auth shares db-auth with Keycloak, but Keycloak does not listen there
+    local ip
+    ip="$(docker inspect -f '{{(index .NetworkSettings.Networks "'"${COMPOSE_PROJECT_NAME}"'_db-auth").IPAddress}}' "$(dc ps -q keycloak)")"
+    docker exec "$(dc ps -q postgres-auth)" timeout 5 bash -c "exec 3<>/dev/tcp/$ip/8443"
+}
+refuse "postgres-auth (db-auth) cannot open Keycloak's port" kc_from_db_auth
+kc_secrets_hidden() {
+    local id s
+    id="$(dc ps -q keycloak)"
+    docker exec "$id" bash -c '
+        for v in $(sed -n "s/^[a-z-]*=//p" /run/secrets/keycloak.conf); do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -- "$v"; then echo "a value in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in keycloak-db-password keycloak-bootstrap-admin-password; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+}
+check "no secret value in Keycloak's process environments, inspect output or log (C5)" kc_secrets_hidden
+kc_db_foreign_root() { # Keycloak with a foreign root for its database refuses to start
+    dc stop keycloak >/dev/null 2>&1
+    local out rc
+    out="$(timeout 240 docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${overlay[@]}" run --rm --no-deps \
+        -v "$work/pg/foreign.crt:/test/foreign.crt:ro" \
+        -e "KC_DB_URL=jdbc:postgresql://$pg:5432/keycloak?sslmode=verify-full&sslrootcert=/test/foreign.crt" \
+        keycloak 2>&1)"
+    rc=$?
+    dc up -d --wait keycloak >/dev/null 2>&1
+    [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && printf '%s' "$out" | grep -qiE 'PKIX|certificat|SSL' \
+        || { echo "exit $rc"; printf '%s\n' "$out" | grep -iE 'error|exception' | tail -3; return 1; }
+}
+check "Keycloak's database client (JDBC, verify-full) refuses postgres-auth under a foreign root" kc_db_foreign_root
+check "... and Keycloak is healthy again with the real root" answers 200 "$auth" /realms/aetherspark/.well-known/openid-configuration
+admin_source() { # Traefik with another allowed source: the desktop is refused, a forged header too
+    AETHERSPARK_ADMIN_SOURCE=192.0.2.1/32 dc up -d --no-deps --force-recreate traefik >/dev/null 2>&1 || return 1
+    local code=""
+    for _ in $(seq 1 45); do
+        code="$(via "$admin" /admin/master/console/ 2>/dev/null)"
+        [ "$code" = 403 ] && break
+        sleep 2
+    done
+    [ "$code" = 403 ] || { echo "status $code"; return 1; }
+    code="$(via "$admin" /admin/master/console/ -H 'X-Forwarded-For: 192.0.2.1' -H 'X-Real-Ip: 192.0.2.1')"
+    [ "$code" = 403 ] || { echo "forged header: status $code"; return 1; }
+}
+check "the admin route refuses a source outside its allowlist, also with a forged X-Forwarded-For" admin_source
+dc up -d --no-deps --force-recreate --wait traefik >/dev/null 2>&1
+check "Traefik is back with the stack's allowlist" traefik_ready
 
 echo "--- C11: name constraints, per client (a test CA made with the real templates)"
 c11="$work/c11"
@@ -341,17 +484,32 @@ refuse "curl refuses a server for evil.example" c11_curl evil.example
 echo "--- C9a: normal renewal (3-minute certificates)"
 pg_first="$(pg_serial)"
 tr_first="$(served_serial)"
-errors=0 pg_errors=0
-for _ in $(seq 1 30); do # 150 s: postgres-auth's renewer renews before 120 s, Traefik every minute
+kc_serial() {
+    on_pki 'step certificate inspect /tls/keycloak/tls.crt --format json' \
+        | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["serial_number"])'
+}
+kc_first="$(kc_serial)"
+errors=0 pg_errors=0 kc_errors=0
+for _ in $(seq 1 30); do # 150 s: the renewers renew before 120 s, Traefik every minute
     host_curl "https://$name/" >/dev/null 2>&1 || errors=$((errors + 1))
     pgc keycloak keycloak "$pg_tls" "select 1" >/dev/null 2>&1 || pg_errors=$((pg_errors + 1))
+    [ "$(via "$auth" /realms/aetherspark/.well-known/openid-configuration 2>/dev/null)" = 200 ] \
+        || kc_errors=$((kc_errors + 1))
     sleep 3
 done
 check "no failed connection to Traefik while its certificate was renewed" [ "$errors" -eq 0 ]
 check "no failed connection to postgres-auth while its certificate was renewed" [ "$pg_errors" -eq 0 ]
+check "no failed request to Keycloak through Traefik while its certificate was renewed" [ "$kc_errors" -eq 0 ]
 pg_renewed() { [ "$pg_first" != "$(pg_serial)" ]; }
 check "postgres-auth's renewer renewed its certificate (new serial)" pg_renewed
 check "postgres-auth serves the renewed certificate after its reload" pg_reloaded
+kc_renewed() { [ "$kc_first" != "$(kc_serial)" ]; }
+check "Keycloak's renewer renewed its certificate (new serial)" kc_renewed
+kc_reloaded() { # within two reload periods
+    for _ in $(seq 1 16); do kc_tls - >/dev/null 2>&1 && return 0; sleep 5; done
+    kc_tls -
+}
+check "Keycloak serves the renewed certificate after its reload" kc_reloaded
 tr_renewed() { [ "$tr_first" != "$(served_serial)" ]; }
 check "Traefik renewed its certificate (new serial)" tr_renewed
 check "the renewer is healthy" renewer_healthy
@@ -381,6 +539,8 @@ rebootstrapped() { up && grep -q 'cert-bootstrap: postgres-auth issued' "$work/u
 check "just up re-bootstraps the expired certificate and reaches healthy" rebootstrapped
 check "the new certificate verifies" pg_valid
 check "keycloak signs in with its rotated password" pg_is keycloak keycloak keycloak "$pg_tls" "select current_user"
+check "... and Keycloak itself, through its regenerated configuration file" answers 200 "$auth" \
+    /realms/aetherspark/.well-known/openid-configuration
 # A short-lived intermediate, as if the 60-day warning had been missed
 AETHERSPARK_CA_INTERMEDIATE_LIFETIME=1m ca renew-intermediate >/dev/null
 sleep 70

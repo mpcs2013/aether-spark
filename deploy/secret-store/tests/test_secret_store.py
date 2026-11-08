@@ -164,6 +164,16 @@ def test_check_finds_each_disagreement(tmp_path: Path) -> None:
     ]
 
 
+def test_a_secret_used_only_inside_a_mounted_derived_file_counts_as_used(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path, GEN, DERIVED)
+    assert store.check(manifest, [_project(**{"keycloak-db.conf": "keycloak-db.conf"})]) == []
+    # ... but not when the derived file itself is mounted nowhere
+    assert store.check(manifest, [_project()]) == [
+        "manifest: db-password is used by no Compose file",
+        "manifest: keycloak-db.conf is used by no Compose file",
+    ]
+
+
 def test_the_repositorys_manifest_loads() -> None:
     """The real manifest follows the rules; tests/egress/lint.sh compares it with the rendered
     Compose files."""
