@@ -256,7 +256,12 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
      - read from Keycloak's database, not through Keycloak: brute-force detection, the realm's address, the bound flow and its four steps, no client with direct grants, events on;
      - break-glass creates an administrator with Keycloak stopped, Keycloak returns healthy, and that account's first sign-in demands a security key too.
 
-     What a test cannot do is touch a real key: the owner's first sign-in is the proof that registration and use work in the browsers.
+     What a test cannot do is touch a real key: the owner's first sign-in is the proof that registration and use work in the browsers. It ran on 2026-11-08 on the desktop:
+     - Firefox, with the root in its own store and in Windows' store;
+     - YubiKey 1 registered, sign-in with the password, the key's PIN (Windows asks, since the key has one) and a touch;
+     - `bootstrap-admin` deleted.
+
+     One lesson from it: `just` echoed the recipe's command line, which printed the administrator's name. The Keycloak recipes no longer echo, and the tool's messages no longer name the user.
   6. **On the Spark** (WP6.4): the admin route admits only `AETHERSPARK_ADMIN_SOURCE`, so `setup` runs where that route admits it. How, an SSH tunnel from the owner's desktop or a source address for the Spark itself, is decided with the Spark's deployment unit.
 - **A lost CA password or root:** a re-init runbook (new CA, new root distributed, old root removed).
 - **The intermediate's expiry:** the alert above and its runbook.

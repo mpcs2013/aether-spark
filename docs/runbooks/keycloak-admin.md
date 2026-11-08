@@ -18,22 +18,26 @@ How the owner becomes Keycloak's administrator on the desktop, and the way back 
 ## First time: become the administrator (desktop, about 30 minutes)
 **Before:** the stack is up (`just up`), YubiKey 1 is at hand, and you know the username you want (it stays local: write it in your password manager, not in the repository).
 
-1. **Trust the CA's root in your browser** (once per CA): [certificates.md](certificates.md), "Trust the root in your browsers". Without it, the browser warns at the admin page.
+1. **Trust the CA's root in your browser** (once per CA): [certificates.md](certificates.md), "Trust the root in your browsers". Without it, the browser warns at the admin page. Firefox keeps its own store, so do that section's Firefox step too. To check: `https://auth.aether.localhost/realms/aetherspark/.well-known/openid-configuration` shows plain JSON with no warning.
 2. **Harden the realm and create your account.** In PowerShell, in the repository (`<username>` is your chosen name):
 
    ```powershell
    just keycloak setup <username>
    ```
 
-   It asks twice for a **temporary password** (at least 14 characters; nothing is shown as you type). You use it only once, in step 3. It ends with `master realm hardened … administrator <username> created`. It works only once: afterwards it can no longer sign in, and says so.
+   It asks twice for a **temporary password** (at least 14 characters; nothing is shown as you type). You use it only once, in step 3. It ends with `master realm hardened … your administrator is created`. It works only once: afterwards it can no longer sign in, and says so.
+
+   Neither the command nor `just` repeats your username in its output. Still, before you paste any output elsewhere, check that it does not show the name.
 3. **Sign in, set your password, register the key.** Open `https://auth-admin.aether.localhost/admin/master/console/`:
    1. sign in with `<username>` and the temporary password;
    2. **Update password:** choose your real password (14+ characters), and save it in your password manager;
-   3. **Passkey Registration:** click **Register**, then touch YubiKey 1 when it blinks. Give it a label such as "YubiKey 1".
+   3. **Passkey Registration:** click **Register**. The browser hands over to a **Windows Security** window. If your key has a security-key PIN, Windows asks for it; then touch YubiKey 1 when it blinks. Give it a label such as "YubiKey 1".
 
    The console opens.
 4. **Delete the temporary administrator.** In the console: **Users** → `bootstrap-admin` → **Delete**. Keycloak marks it as temporary until then.
-5. **Check:** sign out (top right), sign in again: password, then the YubiKey touch.
+5. **Check:** sign out (top right), sign in again: username, password, then Windows Security asks for the key's PIN (if it has one) and a touch of the YubiKey. Keep the PIN: then someone would need your password, the key itself and the key's PIN.
+
+Run on the desktop on 2026-11-08 (Firefox, YubiKey 1 with its PIN): all five steps as written.
 
 **YubiKey 2**, when it is at home: sign in, open your own account page (your name, top right), and under its signing-in or security section add a second security key; touch YubiKey 2 and label it "YubiKey 2". The exact menu names are confirmed and written in here at that session. With two keys registered, losing one does not lock you out.
 
@@ -62,6 +66,7 @@ Keycloak shows the break-glass user as temporary. It is the only account that ca
 | The admin page says "Forbidden" | the request does not come from the allowed source | On the desktop it must come from this machine. On the Spark: `AETHERSPARK_ADMIN_SOURCE` (WP6.4) |
 | The browser refuses the security key | the page is not trusted (certificate warning) | Trust the root first (step 1) |
 | Too many wrong passwords | sign-in fails even with the right password | Wait 15 minutes; brute-force detection lets you in again |
+| A red ❗ next to the email in the user list | the administrator has no email address | Nothing: administrators need none, and the stack sends no email |
 
 ## Concepts
 - **Realm:** Keycloak's word for a set of users, apps and rules. `master` holds the administrators; `aetherspark` holds the people who use AetherSpark. They never mix.

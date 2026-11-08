@@ -278,7 +278,7 @@ def check_realm(admin: Admin) -> list[str]:
 def create_admin(admin: Admin, username: str, password: str) -> None:
     users = f"/admin/realms/{REALM}/users"
     if admin.need("GET", f"{users}?exact=true&username={urllib.parse.quote(username)}"):
-        raise Refused(f"the user {username} exists already")
+        raise Refused("a user with that name exists already")
     admin.need(
         "POST",
         users,
@@ -299,12 +299,14 @@ def check_admin(admin: Admin, username: str) -> list[str]:
     users = f"/admin/realms/{REALM}/users"
     found = admin.need("GET", f"{users}?exact=true&username={urllib.parse.quote(username)}")
     if len(found) != 1:
-        return [f"user {username}: not found"]
+        return ["the new administrator: not found"]
     user = found[0]
     roles = {r["name"] for r in admin.need("GET", f"{users}/{user['id']}/role-mappings/realm")}
-    findings = [] if "admin" in roles else [f"user {username}: no admin role"]
+    findings = [] if "admin" in roles else ["the new administrator: no admin role"]
     if not {"UPDATE_PASSWORD", "webauthn-register"} <= set(user.get("requiredActions", [])):
-        findings.append(f"user {username}: the first login must set a password and register a key")
+        findings.append(
+            "the new administrator: the first login must set a password and register a key"
+        )
     return findings
 
 
@@ -393,9 +395,10 @@ def main(argv: list[str] | None = None) -> int:
     if findings:
         print("\n".join(f"keycloak: check failed: {f}" for f in findings), file=sys.stderr)
         return 1
+    # The administrator's name is not repeated: output gets pasted into chats and tickets
     print(
-        f"keycloak: master realm hardened (password + security key, brute-force detection, events, "
-        f"no password-only sign-in); administrator {args.username} created."
+        "keycloak: master realm hardened (password + security key, brute-force detection, events, "
+        "no password-only sign-in); your administrator is created."
     )
     print(
         "keycloak: next, in the browser: sign in as that user, set the password, register the key, "

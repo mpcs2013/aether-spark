@@ -52,15 +52,16 @@ down:
 ca *args:
     python3 -I deploy/ca/ca.py {{ args }}
 
-# Keycloak's administrators (docs/runbooks/keycloak-admin.md): setup USERNAME (once per stack)
+# Keycloak's administrators (docs/runbooks/keycloak-admin.md): setup USERNAME (once per stack).
+# These recipes do not echo their command line: it would print the administrator's name
 [unix]
 keycloak *args:
-    python3 -I deploy/keycloak/admin.py {{ args }}
+    @python3 -I deploy/keycloak/admin.py {{ args }}
 
 # Keycloak break-glass: a new temporary administrator when none can sign in (keycloak-admin.md)
 [unix]
 keycloak-break-glass username:
-    bash deploy/keycloak/break-glass.sh {{ username }}
+    @bash deploy/keycloak/break-glass.sh {{ username }}
 
 # The stack end to end: tests C3, C3b, C5, C9a, C9b, C10 so far, C11 (tests/stack/run.sh; ~20 minutes)
 [unix]
@@ -120,12 +121,12 @@ ca *args:
 # Keycloak's administrators, in WSL2 (docs/runbooks/keycloak-admin.md): setup USERNAME
 [windows]
 keycloak *args:
-    {{ wsl }} keycloak {{ args }}
+    @{{ wsl }} keycloak {{ args }}
 
 # Keycloak break-glass, in WSL2 (keycloak-admin.md)
 [windows]
 keycloak-break-glass username:
-    {{ wsl }} keycloak-break-glass {{ username }}
+    @{{ wsl }} keycloak-break-glass {{ username }}
 
 # The stack end to end, in WSL2 (tests/stack/run.sh; ~20 minutes)
 [windows]
