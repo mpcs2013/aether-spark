@@ -14,11 +14,17 @@ every question, and forgets it when it ends. Nothing is written to disk.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import time
 import urllib.request
 from dataclasses import dataclass
+
+# Importing readline gives input() line editing: arrows, Home/End, and earlier questions with the
+# up arrow (in memory only). Linux always has it; without it, the chat still works unedited.
+with contextlib.suppress(ImportError):
+    import readline  # noqa: F401
 
 URL = "http://127.0.0.1:8000/v1/chat/completions"
 HELP = "/new starts a new conversation, /think switches visible reasoning, /exit leaves"
