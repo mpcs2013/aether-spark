@@ -5,6 +5,12 @@
 # repository). Paths are absolute: on WSL2's /mnt/c the working folder can briefly vanish.
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/../../.." && pwd -P)"
+# Keycloak's admin route admits one source. Its default is the ingress gateway, which is "this
+# machine" on the desktop; on the Spark it must name the owner's desktop (compose-base.md, PR 5a)
+if [ "${AETHERSPARK_PLACE:-localhost}" != localhost ] && [ -z "${AETHERSPARK_ADMIN_SOURCE:-}" ]; then
+    echo "up: set AETHERSPARK_ADMIN_SOURCE to the owner's desktop address (.local.ref/) first" >&2
+    exit 2
+fi
 export AETHERSPARK_UID="${AETHERSPARK_UID:-$(id -u)}" AETHERSPARK_GID="${AETHERSPARK_GID:-$(id -g)}"
 extra=()
 for arg in "$@"; do
@@ -13,8 +19,8 @@ done
 dc() { docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${extra[@]}" "$@"; }
 
 # The local images: step (step-ca and the step CLI, built from source; the first build takes
-# minutes) and postgres-auth's
-dc build step-ca postgres-auth
+# minutes), postgres-auth's and Keycloak's
+dc build step-ca postgres-auth keycloak
 python3 -I "$repo/deploy/secret-store/secret_store.py" generate
 python3 -I "$repo/deploy/secret-store/secret_store.py" unseal
 python3 -I "$repo/deploy/ca/ca.py" prepare

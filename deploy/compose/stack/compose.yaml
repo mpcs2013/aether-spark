@@ -67,19 +67,20 @@ services:
       STEPPATH: /tmp/.step
       CA_URL: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000"
       PLACE: "${AETHERSPARK_PLACE:-localhost}"
-      SERVICES: postgres-auth
-    secrets: [step-ca-provisioner-postgres-auth]
+      SERVICES: postgres-auth keycloak
+    secrets: [step-ca-provisioner-postgres-auth, step-ca-provisioner-keycloak]
     volumes:
       - ./cert-bootstrap.sh:/bootstrap.sh:ro
       - *ca-certs
       - postgres-auth-tls:/tls/postgres-auth
+      - keycloak-tls:/tls/keycloak
     networks: [pki]
     depends_on:
       step-ca: { condition: service_healthy }
 
   # Renews postgres-auth's certificate at two thirds of its lifetime, authenticated by the current
   # certificate (mTLS), with no password; postgres-auth reads the files from the shared volume
-  postgres-auth-renewer:
+  postgres-auth-renewer: &renewer
     <<: *step
     labels: { aetherspark.role: cert-renewer }
     entrypoint: ["step"]
@@ -100,6 +101,13 @@ services:
       timeout: 5s
       start_period: 60s
       start_interval: 1s
+
+  # The same for Keycloak's certificate; Keycloak re-reads the files itself (hourly)
+  keycloak-renewer:
+    <<: *renewer
+    volumes:
+      - *ca-certs
+      - keycloak-tls:/tls
 
   # Keycloak's own database server (decision 5): the official image (Alpine, zlib fixed; its FROM line
   # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
@@ -136,6 +144,65 @@ services:
       timeout: 5s
       start_period: 60s
       start_interval: 1s
+
+  # Keycloak (compose-base.md, "Keycloak exposure"): built from Ostium's notice (deploy/keycloak),
+  # production start, reached only by Traefik on auth-front; its database over verified TLS on
+  # db-auth. Its two passwords come from one configuration file in the in-memory secrets folder
+  # (Keycloak has no *_FILE variables); everything else here is not secret.
+  keycloak:
+    <<: *hardening
+    build: ../../keycloak
+    image: aetherspark/keycloak:local
+    labels: { aetherspark.role: keycloak }
+    command: ["--config-file=/run/secrets/keycloak.conf", "start", "--optimized", "--import-realm"]
+    environment:
+      KC_HOSTNAME: "https://auth.aether.${AETHERSPARK_PLACE:-localhost}"
+      KC_HOSTNAME_ADMIN: "https://auth-admin.aether.${AETHERSPARK_PLACE:-localhost}"
+      # HTTPS only, on its auth-front address only: not even postgres-auth on db-auth reaches it
+      KC_HTTP_ENABLED: "false"
+      KC_HTTP_HOST: 172.30.61.3
+      KC_HTTPS_PORT: "8443"
+      KC_HTTPS_PROTOCOLS: TLSv1.3,TLSv1.2
+      KC_HTTPS_CERTIFICATE_FILE: /tls/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /tls/tls.key
+      KC_HTTPS_CERTIFICATES_RELOAD_PERIOD: "${AETHERSPARK_KC_RELOAD_PERIOD:-1h}"
+      # Health on the container's own loopback only, plain HTTP, never routed
+      KC_HTTP_MANAGEMENT_SCHEME: http
+      KC_HTTP_MANAGEMENT_HOST: 127.0.0.1
+      # Forwarded headers count only from Traefik's pinned auth-front address
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: 172.30.61.2
+      KC_DB_URL: "jdbc:postgresql://postgres-auth.svc.aether.${AETHERSPARK_PLACE:-localhost}:5432/keycloak?sslmode=verify-full&sslrootcert=/ca-certs/root_ca.crt"
+      KC_DB_USERNAME: keycloak
+      KC_BOOTSTRAP_ADMIN_USERNAME: bootstrap-admin
+      # One node: no cluster discovery and no cluster ports (the build sets it too)
+      KC_CACHE: local
+    secrets: [keycloak.conf]
+    tmpfs:
+      - /tmp
+      - "/opt/keycloak/data:uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+    mem_limit: 1g
+    pids_limit: 400
+    volumes:
+      - ../../keycloak/aetherspark-realm.json:/opt/keycloak/data/import/aetherspark-realm.json:ro
+      - keycloak-tls:/tls:ro
+      - *ca-certs
+    networks:
+      auth-front:
+        ipv4_address: 172.30.61.3
+        aliases: ["keycloak.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+      db-auth: {}
+    depends_on:
+      postgres-auth: { condition: service_healthy }
+      keycloak-renewer: { condition: service_healthy }
+    healthcheck:
+      # The image has no curl: bash's /dev/tcp (Keycloak refuses a request without a Host line).
+      # Ready answers 200; not ready 503 (a single check's "UP" in the body would not prove it)
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q '^HTTP/1.1 200 '"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      start_interval: 2s
 
   traefik:
     <<: *hardening
@@ -179,6 +246,8 @@ services:
       TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_STORAGE: /acme/acme.json
       TRAEFIK_CERTIFICATESRESOLVERS_STEPCA_ACME_TLSCHALLENGE: "true"
       AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
+      # The only source the Keycloak admin route admits (keycloak.yml); see compose-base.md
+      AETHERSPARK_ADMIN_SOURCE: "${AETHERSPARK_ADMIN_SOURCE:-172.30.30.1/32}"
     volumes:
       # Traefik reads the folder recursively; the tests add their route under dynamic/test/
       - ./traefik/dynamic:/etc/traefik/dynamic/stack:ro
@@ -187,6 +256,9 @@ services:
       - { target: 443, published: "443", host_ip: "${AETHERSPARK_PUBLISH_ADDRESS:-127.0.0.1}", protocol: tcp }
     networks:
       ingress: {}
+      # Keycloak's only caller; Keycloak trusts forwarded headers from this address only
+      auth-front:
+        ipv4_address: 172.30.61.2
       # Its public names, so step-ca's TLS-ALPN challenge reaches it (and nothing else claims them)
       pki:
         aliases:
@@ -213,17 +285,30 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/postgres-auth-superuser-password"
   keycloak-db-password:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/keycloak-db-password"
+  step-ca-provisioner-keycloak:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-keycloak"
+  keycloak.conf:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/keycloak.conf"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:
   step-ca: {}
   postgres-auth-tls: {}
   postgres-auth-data: {}
+  keycloak-tls: {}
 
 networks:
+  # A fixed subnet, so that the source address Traefik sees from the host is known (its gateway)
   ingress:
     enable_ipv6: false
     driver_opts: { com.docker.network.bridge.name: as-ingress }
+    ipam: { config: [{ subnet: 172.30.30.0/24, gateway: 172.30.30.1 }] }
+  # Traefik and Keycloak only (compose-base.md, "Network membership"), both at fixed addresses
+  auth-front:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-auth-front }
+    ipam: { config: [{ subnet: 172.30.61.0/24, gateway: 172.30.61.1, ip_range: 172.30.61.128/25 }] }
   pki:
     internal: true
     enable_ipv6: false

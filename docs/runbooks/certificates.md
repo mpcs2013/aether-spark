@@ -13,6 +13,7 @@ How AetherSpark's own certificate authority (CA) is made, watched, renewed and t
 | Intermediate key | volume, `secrets/intermediate_ca_key` | Encrypted with the secret `step-ca-password` |
 | step-ca's configuration | volume, `config/ca.json` | Written by `deploy/ca/ca.py`: name rules, provisioners. No password in it |
 | postgres-auth's certificate and key | volume `aetherspark_postgres-auth-tls` | Written by the bootstrap step, then by its renewer; postgres-auth reads them read-only and re-reads them every hour |
+| Keycloak's certificate and key | volume `aetherspark_keycloak-tls` | The same, with `keycloak-renewer`; Keycloak re-reads them every hour itself |
 | Traefik's certificates | Traefik's memory (tmpfs) | Ordered from step-ca at every start, renewed by Traefik |
 
 The root key exists unencrypted only for a moment: in a throw-away container's in-memory folder and in the tool's memory, on its way into `age`. It never touches a disk unencrypted.
@@ -26,7 +27,7 @@ In PowerShell or in WSL2: from PowerShell, these `just` commands run in WSL2 by 
 | `just down` | Stops the stack and empties the in-memory secrets folder. Volumes, so the CA, stay |
 | `just ca status` | The intermediate's remaining days and the root's fingerprint; exit 1 below 60 days |
 | `just ca root` | Prints the root certificate (for the trust steps below) |
-| `just stack-test` | Tests C3, C3b, C5 (postgres-auth), C9a, C9b and C11 in a throw-away copy of the stack (about 13 minutes; needs port 443, so `just down` first) |
+| `just stack-test` | Tests C3, C3b, C5 (postgres-auth, Keycloak), C9a, C9b, C10 (what exists so far) and C11 in a throw-away copy of the stack (about 20 minutes; needs port 443, so `just down` first) |
 
 `just up` prints `ca status` at the end. Below 60 days it says so: renew the intermediate (below).
 
@@ -76,7 +77,7 @@ It opens the sealed root key in memory, signs a new intermediate for one more ye
 | The desktop was off overnight | Nothing: `just up` renews before it reports healthy | Nothing |
 | The stack was down for more than a day | `just up` prints `cert-bootstrap: postgres-auth issued` | Nothing: expired certificates are replaced at `just up`; Traefik orders new ones at start |
 | The intermediate has expired | `just up` stops at `cert-bootstrap` ("does not verify"); `just ca status` shows negative days | `just ca renew-intermediate`, then `just up` |
-| A renewer is unhealthy | `docker compose ps` shows it unhealthy: its certificate has less than 25 % of its life left | `docker compose logs postgres-auth-renewer`; usually step-ca is down. `just up` again |
+| A renewer is unhealthy | `docker compose ps` shows it unhealthy: its certificate has less than 25 % of its life left | `docker compose logs postgres-auth-renewer` (or `keycloak-renewer`); usually step-ca is down. `just up` again |
 | postgres-auth serves an old certificate | Keycloak's connection fails with an expired certificate although the renewer is healthy | postgres-auth re-reads its files every hour; `docker compose logs postgres-auth` shows `configuration reloaded`, and any error loading the files. `just up` restarts it |
 | The CA volume is damaged or the intermediate key or `step-ca-password` is lost | step-ca does not start | Desktop: re-init (below). Spark: restore the volume from the backup (WP3.4) |
 | The root key is lost or stolen, or the dev key is lost | — | Re-init (below), and remove the old root from every browser |
@@ -86,7 +87,7 @@ Development values are throw-away (secrets.md), so a new CA is cheap. In WSL2:
 
 ```bash
 just down
-docker volume rm aetherspark_step-ca aetherspark_postgres-auth-tls
+docker volume rm aetherspark_step-ca aetherspark_postgres-auth-tls aetherspark_keycloak-tls
 mv ~/.aetherspark/secrets/dev/step-ca-root-key.age ~/.aetherspark/secrets/dev/step-ca-root-key.age.old
 just up
 ```

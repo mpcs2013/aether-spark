@@ -107,13 +107,15 @@ def test_provisioners_follow_the_manifest() -> None:
 
     manifest = secret_store.load_manifest()
     services = ca.jwk_services(manifest)
-    assert services == ["postgres-auth"]
+    assert services == ["postgres-auth", "keycloak"]
     compose = COMPOSE.read_text(encoding="utf-8")
     # The bootstrap step serves exactly these, each with its own volume and secret
     assert re.search(r"^\s+SERVICES: (.+)$", compose, re.M)[1].split() == services  # type: ignore[index]
+    provisioner_secrets = ", ".join(f"step-ca-provisioner-{s}" for s in services)
+    assert f"secrets: [{provisioner_secrets}]" in compose
     for service in services:
         assert f"  {service}-tls: {{}}" in compose
-        assert f"secrets: [step-ca-provisioner-{service}]" in compose
+        assert f"- {service}-tls:/tls/{service}" in compose
 
 
 def test_the_step_image_is_built_here_from_pinned_inputs() -> None:

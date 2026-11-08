@@ -4,10 +4,11 @@
     { "name": "egress-proxy", "context": "deploy/compose/egress" },
     { "name": "step-ca", "context": "deploy/compose/stack/step-ca" },
     { "name": "postgres-auth", "context": "deploy/compose/stack/postgres-auth" },
+    { "name": "keycloak", "context": "deploy/keycloak" },
     { "name": "egress-lab", "context": "tests/egress/lab" },
     { "name": "host-role-test", "context": "tests/host-role" }
   ],
-  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local"],
+  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local", "aetherspark/keycloak:local"],
   "exclude": {
     "deploy/images/grype.Dockerfile": "the scanner's own pin, read by scan.sh; nothing builds it"
   }
