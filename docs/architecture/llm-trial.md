@@ -24,7 +24,17 @@
 If the Spark is sent to other hosts on the day, the ops proxy refuses them and the pull stops; a new host is added only after it is seen in the proxy's log and recorded here.
 
 ## Image scan
-The vLLM image is a pulled Compose image, so CI's scan covers it on both architectures (ADR-0005 amendment 3): every High or Critical finding needs the owner's exception for at most 90 days, unless a later digest removes it. *(Findings and the owner's decisions: see the pull request.)*
+The vLLM image is a pulled Compose image, so CI's scan covers it on both architectures (ADR-0005 amendment 3): every High or Critical finding needs the owner's exception for at most 90 days, unless a later digest removes it.
+
+**Result (CI, 2026-11-07, both architectures alike): 12 findings, all High, none Critical.** The owner approved exceptions on 2026-11-08, until 2026-12-08 (issue #31):
+
+| Findings | Why acceptable for the trial |
+|---|---|
+| ffmpeg: CVE-2026-52296, -52297, -70628, -70632, -96611 (fixed in ffmpeg 9), CVE-2026-107696 (no fix) | Audio and video decoding for multimodal requests; the trial's model is text-only and only the owner sends requests |
+| vLLM: GHSA-6757-hggm-hp2w, GHSA-h3rc-j82p-2c3h (fixed in vLLM 0.32.0; NVIDIA's latest image, 26.10, ships 0.31) | Both need multimodal or image requests (a shared-memory multimodal cache the trial does not enable; image decoding) |
+| apt, apt-utils, libapt-pkg: CVE-2026-109518; libbrotli1: CVE-2026-111497 | The same advisories as the other Ubuntu images; apt never runs in the server, nothing decompresses untrusted Brotli data |
+
+The same CI run showed a new Critical in Alpine's zlib (CVE-2026-4738, 2026-11-08) in every Alpine-based image, unrelated to the trial: step-ca (built here) takes the fixed zlib 1.4-r0; Traefik and the curl and Python images get exceptions until their makers rebuild, also until 2026-12-08.
 
 ## Before and after the run
 - **The home infrastructure is told first** (A-012: "AetherSpark says here before its first heavy jobs run"): the shelf is warmer than planned (Lares' 28 °C pause rule) and the UPS arrives on 2026-11-09. The Spark holds no data, so a power cut costs only the run.

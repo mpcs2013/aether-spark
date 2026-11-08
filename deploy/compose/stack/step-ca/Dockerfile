@@ -41,8 +41,11 @@ RUN set -eu; \
     /out/step-ca version; /out/step version
 
 FROM alpine:3.24.4@sha256:93b41ef40b1677fce8fcc64ff4af09daddfacf5040afde618bc46c1e2d1cc7d4
-# The services run as the stack user (`user:` in Compose); this user owns nothing they need
-RUN adduser -D -u 1000 step
+# zlib fixed for CVE-2026-4738 (Critical, 2026-11-08); Alpine 3.24.4 still ships 1.3.2. Drop this
+# line once the base digest carries 1.4 or later. The services run as the stack user (`user:` in
+# Compose); the user created here owns nothing they need.
+ARG ZLIB_VERSION=1.4-r0
+RUN apk add --no-cache "zlib=${ZLIB_VERSION}" && adduser -D -u 1000 step
 COPY --from=build /out/step-ca /out/step /usr/local/bin/
 USER step
 ENV STEPPATH=/home/step

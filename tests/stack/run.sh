@@ -125,8 +125,15 @@ check "only the CA's certificates, its configuration and the encrypted intermedi
 echo "--- C3: every listener presents a certificate from AetherSpark's CA with its own name"
 check "step-ca presents step-ca.svc.aether.localhost, chained to the root" on_pki \
     'step certificate inspect "$CA_URL" --roots /ca-certs/root_ca.crt --format json | grep -q "\"step-ca.svc.aether.localhost\""'
-traefik_ok() { [ "$(host_curl "https://$name/")" = OK ]; }
-check "Traefik serves $name with a certificate from the CA (curl checks name and chain)" traefik_ok
+traefik_ok() { [ "$(host_curl "https://$name/" 2>/dev/null)" = OK ]; }
+# Traefik is healthy before its ACME order completes; give the order up to 90 s (amd64 CI once lost
+# this race, 2026-11-07)
+traefik_ready() {
+    for _ in $(seq 1 45); do traefik_ok && return 0; sleep 2; done
+    host_curl "https://$name/"   # the last error, for the report
+    return 1
+}
+check "Traefik serves $name with a certificate from the CA (curl checks name and chain)" traefik_ready
 issuer_ok() {
     echo | openssl s_client -connect 127.0.0.1:443 -servername "$name" 2>/dev/null \
         | openssl x509 -noout -issuer | grep -q 'AetherSpark Intermediate CA (localhost)'

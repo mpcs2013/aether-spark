@@ -62,6 +62,141 @@
       "issue": 31,
       "approved": "2026-11-06",
       "expires": "2026-12-06"
+    },
+    {
+      "id": "CVE-2026-107696",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-52296",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-52297",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-70628",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-70632",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-96611",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "GHSA-6757-hggm-hp2w",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "vllm",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. Both need multimodal or image requests (shared-memory multimodal cache, which the trial does not enable; image decoding); the trial serves a text-only model and only the owner sends requests. Fixed in vLLM 0.32.0; NVIDIA's latest image (26.10) ships 0.31.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "GHSA-h3rc-j82p-2c3h",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "vllm",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. Both need multimodal or image requests (shared-memory multimodal cache, which the trial does not enable; image decoding); the trial serves a text-only model and only the owner sends requests. Fixed in vLLM 0.32.0; NVIDIA's latest image (26.10) ships 0.31.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-109518",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "apt",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. apt is never run in the serving container; fixed in Ubuntu (2.8.4ubuntu0.1), not yet in NVIDIA's image. Same advisory as the other Ubuntu images.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-109518",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "apt-utils",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. apt is never run in the serving container; fixed in Ubuntu (2.8.4ubuntu0.1), not yet in NVIDIA's image. Same advisory as the other Ubuntu images.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-109518",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "libapt-pkg6.0t64",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. apt is never run in the serving container; fixed in Ubuntu (2.8.4ubuntu0.1), not yet in NVIDIA's image. Same advisory as the other Ubuntu images.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-111497",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "libbrotli1",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. Nothing in the trial decompresses untrusted Brotli data; fixed in Ubuntu, not yet in NVIDIA's image. Same advisory as the dev container.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-4738",
+      "target": "traefik",
+      "package": "zlib",
+      "reason": "Published 2026-11-08; Alpine ships zlib 1.4-r0, but Traefik's image (v3.7.17) is not rebuilt yet. Traefik is a Go program and does not use the system zlib. Dependabot moves the pin when a rebuilt image ships.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-4738",
+      "target": "curlimages/curl",
+      "package": "zlib",
+      "reason": "Published 2026-11-08; Alpine ships zlib 1.4-r0, but the curl image is not rebuilt yet. curl uses zlib only to decompress, which neither the egress tests nor the model pull job ask for (no --compressed). Dependabot moves the pin when a rebuilt image ships.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-4738",
+      "target": "python",
+      "package": "zlib",
+      "reason": "Published 2026-11-08; Alpine ships zlib 1.4-r0, but the Python image is not rebuilt yet. Egress tests' UDP test client only (socket, struct and sys), on throwaway CI runners and the desktop. Dependabot moves the pin when a rebuilt image ships.",
+      "issue": 31,
+      "approved": "2026-11-08",
+      "expires": "2026-12-08"
     }
   ]
 }
