@@ -1,0 +1,58 @@
+# LLM serving, first light (docs/architecture/llm-trial.md): an early slice of WP5b.1 on the Spark.
+# One engine (vLLM, the default candidate of ADR-0006), one shortlist model, served on an internal
+# network only: no port, no way out, the model read-only from /srv/models (pulled before by the
+# egress compose's model-pull job). Used from an SSH session with `docker compose exec`. Replaced
+# by the real serving (LiteLLM in front, ADR-0006) when WP5b.1 lands.
+name: aetherspark-llm-trial
+
+services:
+  vllm:
+    image: nvcr.io/nvidia/vllm:26.10-py3@sha256:0a0de9362545e3e062750bec4ad4f722422a04a81182b5258a7deda4325e9313
+    labels: { aetherspark.role: llm-serving }
+    command:
+      - vllm
+      - serve
+      - /models/Qwen/Qwen3-30B-A3B-FP8/d206ba732169f29bb77fbf80fc2c4b81d4d30782
+      - --served-model-name=interactive
+      - --host=0.0.0.0
+      - --port=8000
+      # Half of the unified memory: the model (~31 GB) and its KV cache, inside the 70 GB budget
+      - --gpu-memory-utilization=0.5
+      - --max-model-len=32768
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 16gb
+    # Caches the engine writes at start (compiled kernels); gone with the container
+    tmpfs:
+      - /tmp
+      - /root/.cache
+    environment:
+      VLLM_NO_USAGE_STATS: "1"
+      DO_NOT_TRACK: "1"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - /srv/models:/models:ro
+      # ask.py: one question, the answer as it streams, and its speed
+      - ./ask.py:/trial/ask.py:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - { driver: nvidia, count: all, capabilities: [gpu] }
+    networks: [llm]
+    # Loading 31 GB of weights and compiling takes minutes
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15m
+      start_interval: 10s
+
+networks:
+  # The matrix's llm network: internal, no route out (layer 1)
+  llm:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-llm }
+    ipam: { config: [{ subnet: 172.30.70.0/24, gateway: 172.30.70.1 }] }

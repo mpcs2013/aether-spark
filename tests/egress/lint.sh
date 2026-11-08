@@ -34,6 +34,9 @@ stack() {
 }
 l1_stack() { stack --profile '*' config --format json | "${py[@]}" deploy/compose/lint.py compose -; }
 step -s "L1 rendered Compose, stack" l1_stack
+# LLM serving's first light on the Spark (docs/architecture/llm-trial.md)
+l1_llm() { docker compose -f deploy/compose/llm-trial/compose.yaml config --format json | "${py[@]}" deploy/compose/lint.py compose -; }
+step -s "L1 rendered Compose, LLM trial" l1_llm
 
 # The secrets manifest and the rendered Compose agree (ADR-0010): every secret is in the manifest,
 # read only by its consumers, and every manifest entry is used
