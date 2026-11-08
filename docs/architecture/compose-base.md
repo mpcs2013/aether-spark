@@ -168,9 +168,11 @@ As ADR-0010 decides, made buildable:
 - **Access:** a reviewed `pg_hba.conf` (`-c hba_file=`): `hostssl keycloak keycloak <db-auth subnet> scram-sha-256`, the superuser on the local socket only, `reject` for everything else; `password_encryption=scram-sha-256`, `ssl_min_protocol_version=TLSv1.2`. Keycloak connects with `sslmode=verify-full` and step-ca's root as `sslrootcert`.
 - **Memory:** about 512 MB, from the desktop's headroom and the Spark's 8 GB platform budget.
 - **As built in PR 4 (2026-11-08),** where it differs from or adds to the plan above:
-  1. **Image:** `postgres:18.6-trixie`, pinned by its index digest (amd64 and arm64). Dependabot proposes new digests and minor releases, never a new major version: that needs the data folder upgraded, a deliberate change with its own runbook.
+  1. **Image:** built here (`deploy/compose/stack/postgres-auth/Dockerfile`), `FROM postgres:18.6-alpine3.24` pinned by its index digest (amd64 and arm64), with only zlib raised to the release that fixes CVE-2026-4738, as for step-ca. It has no High or Critical finding.
+     - The Debian variant was tried first. CI's scan of 2026-11-08 found 30 advisories in it, on both architectures: 29 High and 1 Critical (libxml2), most marked "won't fix" by Debian. The Alpine variant had only zlib's.
+     - Dependabot proposes new digests and minor releases of the base, never a new major version. A major version needs the data folder upgraded, a deliberate change with its own runbook.
   2. **Its own start script, not the image's entrypoint** (`deploy/compose/stack/postgres-auth/run.sh`). The image's entrypoint reads the superuser password from `POSTGRES_PASSWORD_FILE` into the variable `POSTGRES_PASSWORD` at every start, and that variable stays in the server's process environment, which C5 forbids. The script:
-     - runs `initdb` itself on the first start, with the password file (`--pwfile`). initdb insists on a passwd entry for its user; `nss_wrapper`, shipped in the image for that purpose, provides one for that call only;
+     - runs `initdb` itself on the first start, with the password file (`--pwfile`) and Postgres' own builtin `C.UTF-8` locale, which is the same whatever C library the image has. initdb insists on a passwd entry for its user; `nss_wrapper`, shipped in the image for that purpose, provides one for that call only;
      - starts the server with every setting on its command line (TLS files from the renewer's volume, `pg_hba.conf` from the repository, `password_encryption=scram-sha-256`, TLS 1.2 or newer, connections logged);
      - at every start, as the superuser over the container's own socket, creates the `keycloak` role and database if missing and sets the role's password from `keycloak-db-password`, so a rotation applies at the next start. That session logs no statement, not even a failing one. psql reads the value with `cat` into a variable, so it is in no argument; the superuser's password goes through a password file in the container's in-memory `/tmp`, deleted right after;
      - is healthy only once the role and database are in place, so Keycloak (PR 5) never meets a half-set-up server;
@@ -182,7 +184,7 @@ As ADR-0010 decides, made buildable:
      - C3: the `keycloak` role signs in over TLS 1.2 or newer, verified against the CA's root and the name, and owns its database; a plain connection, a wrong password, the superuser over the network and another database are refused;
      - C3b: refused under a foreign root, and by address;
      - C5: no secret value in any process environment of the container, in `docker inspect` or in its log;
-     - C9a: no failed connection while the certificate is renewed, and the server presents the renewed certificate after its reload;
+     - C9a: no failed connection while the certificate is renewed, and the server presents the renewed certificate after its reload (compared by fingerprint with a few lines of Python, since the Alpine image has no `openssl` command);
      - the data survives a restart, and a rotated `keycloak-db-password` signs in after the next `just up`.
 
      Keycloak's own JDBC client is checked in PR 5.

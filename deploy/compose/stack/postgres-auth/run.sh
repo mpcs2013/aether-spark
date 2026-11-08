@@ -5,7 +5,8 @@
 # in the server's environment, and no secret may sit in a process environment (test C5).
 #
 #   1. first start only: initdb with the superuser password from its secret file (nss_wrapper
-#      gives the stack user the passwd entry initdb insists on, for that one call);
+#      gives the stack user the passwd entry initdb insists on, for that one call), with Postgres'
+#      own builtin C.UTF-8 locale, the same whatever C library the image has;
 #   2. the server, with TLS from the renewer's volume and the reviewed pg_hba.conf;
 #   3. every start: the keycloak role (its password from its secret file, so a rotation applies
 #      at the next start) and the keycloak database;
@@ -24,12 +25,17 @@ log() { echo "postgres-auth: $*"; }
 if [ ! -s "$data/PG_VERSION" ]; then
     mkdir -p "$data"
     chmod 0700 "$data"
-    wrapper="$(ls /usr/lib/*/libnss_wrapper.so | head -1)"
+    wrapper=""
+    for candidate in /usr/lib/libnss_wrapper.so /usr/lib/*/libnss_wrapper.so; do
+        if [ -f "$candidate" ]; then wrapper=$candidate; break; fi
+    done
+    [ -n "$wrapper" ] || { log "libnss_wrapper.so not found: initdb needs it"; exit 1; }
     printf 'postgres:x:%s:%s:postgres:%s:/bin/false\n' "$(id -u)" "$(id -g)" "$data" >/tmp/passwd
     printf 'postgres:x:%s:\n' "$(id -g)" >/tmp/group
     LD_PRELOAD="$wrapper" NSS_WRAPPER_PASSWD=/tmp/passwd NSS_WRAPPER_GROUP=/tmp/group \
         initdb -D "$data" --username=postgres --pwfile="$secrets/postgres-auth-superuser-password" \
-        --auth=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8 >/dev/null
+        --auth=scram-sha-256 --encoding=UTF8 --locale=C \
+        --locale-provider=builtin --builtin-locale=C.UTF-8 >/dev/null
     rm -f /tmp/passwd /tmp/group
     log "data folder initialised"
 fi

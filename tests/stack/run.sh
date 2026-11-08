@@ -119,12 +119,33 @@ pg_is() { # expected output, then pgc's arguments
     got="$(pgc "$@")" || return 1
     [ "$got" = "$want" ] || { echo "got: $got"; return 1; }
 }
-# The certificate postgres-auth serves is the one in its volume (after the renewer's last renewal)
+# The certificate postgres-auth serves is the one in its volume (after the renewer's last renewal).
+# Postgres' image has no openssl command, so Python asks for TLS the way a Postgres client does
+# (SSLRequest), in the Python image the egress tests pin, on db-auth, as the stack user.
+cat >"$work/pg/served.py" <<'EOF'
+import hashlib, socket, ssl, struct, sys
+host = sys.argv[1]
+with open("/tls/tls.crt", encoding="ascii") as f:
+    pem = f.read().split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----\n"
+in_file = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+raw = socket.create_connection((host, 5432), timeout=5)
+raw.sendall(struct.pack("!ii", 8, 80877103))  # SSLRequest
+if raw.recv(1) != b"S":
+    sys.exit("no TLS offered")
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE  # only the fingerprint is compared; libpq checks verify above
+with context.wrap_socket(raw, server_hostname=host) as tls:
+    served = hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
+if served != in_file:
+    sys.exit(f"file {in_file[:16]}, served {served[:16]}")
+EOF
+py_image="$(sed -n 's/^ *image: *\(python:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.layer3.yaml" | head -1)"
 pg_serves_current() {
-    on_db -c "a=\$(openssl x509 -in /tls/tls.crt -noout -fingerprint -sha256)
-        b=\$(echo | openssl s_client -starttls postgres -connect $pg:5432 -servername $pg 2>/dev/null \
-            | openssl x509 -noout -fingerprint -sha256)
-        [ -n \"\$b\" ] && [ \"\$a\" = \"\$b\" ] || { echo \"file \$a, served \$b\"; exit 1; }"
+    docker run --rm --network "${COMPOSE_PROJECT_NAME}_db-auth" --read-only --cap-drop ALL \
+        --user "$AETHERSPARK_UID:$AETHERSPARK_GID" \
+        -v "${COMPOSE_PROJECT_NAME}_postgres-auth-tls:/tls:ro" -v "$work/pg:/test:ro" \
+        "$py_image" python3 -I /test/served.py "$pg"
 }
 pg_reloaded() { # within two reload periods
     for _ in $(seq 1 9); do pg_serves_current >/dev/null 2>&1 && return 0; sleep 5; done
@@ -144,6 +165,7 @@ if ! up; then
 fi
 pass "just up reaches healthy (CA initialised, postgres-auth bootstrapped and started, Traefik ordered)"
 ca root >"$work/root.crt"
+[ -n "$py_image" ] || { fail "the egress tests' Python image is found (tests/egress/compose.layer3.yaml)"; exit 1; }
 cp "$work/root.crt" "$work/pg/root.crt"
 chmod 0644 "$work/pg/"*
 if [ -s "$work/root.crt" ]; then pass "ca root prints the root certificate"; else fail "ca root prints the root certificate"; exit 1; fi

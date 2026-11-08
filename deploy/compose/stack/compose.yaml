@@ -101,12 +101,13 @@ services:
       start_period: 60s
       start_interval: 1s
 
-  # Keycloak's own database server (decision 5): the official image with this repository's start
-  # script (postgres-auth/run.sh says why not the image's), TLS from the renewer's volume, the
-  # reviewed pg_hba.conf, on db-auth only
+  # Keycloak's own database server (decision 5): the official image (Alpine, zlib fixed; its FROM line
+  # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
+  # TLS from the renewer's volume, the reviewed pg_hba.conf, on db-auth only
   postgres-auth:
     <<: *hardening
-    image: postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    build: ./postgres-auth
+    image: aetherspark/postgres-auth:local
     labels: { aetherspark.role: postgres }
     entrypoint: ["bash", "/postgres-auth/run.sh"]
     environment:
