@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# step-ca and Traefik end to end (docs/architecture/compose-base.md, tests C3, C3b, C9a, C9b, C11).
-# Needs Docker, age, python3, curl and openssl; runs in WSL2 and in CI (about 12 minutes).
+# step-ca, Traefik and postgres-auth end to end (docs/architecture/compose-base.md, tests C3, C3b,
+# C5 for postgres-auth, C9a, C9b, C11).
+# Needs Docker, age, python3, curl and openssl; runs in WSL2 and in CI (about 13 minutes).
 # Everything is throw-away: its own Compose project, store, dev key and in-memory folder, and
 # 3-minute certificates so that renewal and expiry happen within the run. Prints PASS/FAIL lines;
 # never prints a secret. AS_STACK_KEEP=1 keeps the project after the run for a look. It works in its
@@ -12,6 +13,8 @@ export COMPOSE_PROJECT_NAME=as-stack-test
 export AETHERSPARK_UID="${AETHERSPARK_UID:-$(id -u)}" AETHERSPARK_GID="${AETHERSPARK_GID:-$(id -g)}"
 export AETHERSPARK_PLACE=localhost
 export AETHERSPARK_CA_LEAF_LIFETIME=3m AETHERSPARK_TRAEFIK_CERT_HOURS=1
+# postgres-auth re-reads its certificate files every 20 s instead of every hour
+export AETHERSPARK_PG_RELOAD_SECONDS=20
 work="$(mktemp -d)"
 cd "$work" || exit 1
 export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/key/dev.key"
@@ -87,6 +90,68 @@ pg_valid() {
     on_pki "step certificate verify /tls/postgres-auth/tls.crt --roots /ca-certs/root_ca.crt --host $pg"
 }
 
+# A database client on db-auth: psql in postgres-auth's own image and service definition (its
+# secrets, its certificate volume), with $work/pg at /test. Arguments: user, password source
+# (keycloak, superuser or wrong), connection settings, SQL. The password goes through a password
+# file in the container's in-memory /tmp, never through an argument.
+mkdir -p "$work/pg"
+cat >"$work/pg/client.sh" <<'EOF'
+set -euo pipefail
+user=$1 source=$2 conninfo=$3 sql=$4
+{
+    printf '*:*:*:%s:' "$user"
+    case $source in
+        keycloak) cat /run/secrets/keycloak-db-password ;;
+        superuser) cat /run/secrets/postgres-auth-superuser-password ;;
+        *) printf 'not-the-password' ;;
+    esac
+    printf '\n'
+} >/tmp/pgpass
+chmod 0600 /tmp/pgpass
+PGPASSFILE=/tmp/pgpass psql "user=$user connect_timeout=5 $conninfo" -X -q -t -A -v ON_ERROR_STOP=1 -c "$sql"
+EOF
+on_db() { dc run --rm --no-deps -T --entrypoint bash -v "$work/pg:/test:ro" postgres-auth "$@"; }
+pgc() { on_db /test/client.sh "$@"; }
+pg_tls="host=$pg dbname=keycloak sslmode=verify-full sslrootcert=/test/root.crt"
+pg_is() { # expected output, then pgc's arguments
+    local want=$1 got
+    shift
+    got="$(pgc "$@")" || return 1
+    [ "$got" = "$want" ] || { echo "got: $got"; return 1; }
+}
+# The certificate postgres-auth serves is the one in its volume (after the renewer's last renewal).
+# Postgres' image has no openssl command, so Python asks for TLS the way a Postgres client does
+# (SSLRequest), in the Python image the egress tests pin, on db-auth, as the stack user.
+cat >"$work/pg/served.py" <<'EOF'
+import hashlib, socket, ssl, struct, sys
+host = sys.argv[1]
+with open("/tls/tls.crt", encoding="ascii") as f:
+    pem = f.read().split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----\n"
+in_file = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+raw = socket.create_connection((host, 5432), timeout=5)
+raw.sendall(struct.pack("!ii", 8, 80877103))  # SSLRequest
+if raw.recv(1) != b"S":
+    sys.exit("no TLS offered")
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE  # only the fingerprint is compared; libpq checks verify above
+with context.wrap_socket(raw, server_hostname=host) as tls:
+    served = hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
+if served != in_file:
+    sys.exit(f"file {in_file[:16]}, served {served[:16]}")
+EOF
+py_image="$(sed -n 's/^ *image: *\(python:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.layer3.yaml" | head -1)"
+pg_serves_current() {
+    docker run --rm --network "${COMPOSE_PROJECT_NAME}_db-auth" --read-only --cap-drop ALL \
+        --user "$AETHERSPARK_UID:$AETHERSPARK_GID" \
+        -v "${COMPOSE_PROJECT_NAME}_postgres-auth-tls:/tls:ro" -v "$work/pg:/test:ro" \
+        "$py_image" python3 -I /test/served.py "$pg"
+}
+pg_reloaded() { # within two reload periods
+    for _ in $(seq 1 9); do pg_serves_current >/dev/null 2>&1 && return 0; sleep 5; done
+    pg_serves_current
+}
+
 if [ -n "$(docker ps -q --filter label=com.docker.compose.project=aetherspark)" ]; then
     echo "FAIL  the stack (project aetherspark) is running: it holds port 443 and the as- bridges;"
     echo "      run just down first"
@@ -98,8 +163,11 @@ if ! up; then
     fail "just up reaches healthy" "$(dc logs --tail 15 2>&1 | tail -40)"
     exit 1
 fi
-pass "just up reaches healthy (CA initialised, postgres-auth bootstrapped, Traefik ordered)"
+pass "just up reaches healthy (CA initialised, postgres-auth bootstrapped and started, Traefik ordered)"
 ca root >"$work/root.crt"
+[ -n "$py_image" ] || { fail "the egress tests' Python image is found (tests/egress/compose.layer3.yaml)"; exit 1; }
+cp "$work/root.crt" "$work/pg/root.crt"
+chmod 0644 "$work/pg/"*
 if [ -s "$work/root.crt" ]; then pass "ca root prints the root certificate"; else fail "ca root prints the root certificate"; exit 1; fi
 
 echo "--- the CA's volume: no password, no root key, the intermediate key encrypted"
@@ -178,6 +246,52 @@ foreign_traefik() { # Traefik's ACME client trusts the CA's root only
 }
 check "Traefik's ACME client refuses step-ca under a foreign root" foreign_traefik
 
+echo "--- postgres-auth: TLS only, Keycloak's role only (C3, C3b), no secret in its metadata (C5)"
+on_pki "$foreign_root && cat f.crt" >"$work/pg/foreign.crt" 2>/dev/null && chmod 0644 "$work/pg/foreign.crt"
+# Without a foreign root the "foreign root" refusal below would pass on nothing
+grep -q 'BEGIN CERTIFICATE' "$work/pg/foreign.crt" || { fail "a foreign root for the database client"; exit 1; }
+check "keycloak signs in over TLS checked with the CA's root and the name (verify-full)" \
+    pg_is keycloak keycloak keycloak "$pg_tls" "select current_user"
+check "the connection is encrypted, TLS 1.2 or newer" pg_is t keycloak keycloak "$pg_tls" \
+    "select ssl and version in ('TLSv1.2', 'TLSv1.3') from pg_stat_ssl where pid = pg_backend_pid()"
+check "keycloak owns its database (creates a table)" pgc keycloak keycloak "$pg_tls" \
+    "create table stack_test_probe (id int)"
+refuse "a plain connection is refused (hostssl only)" \
+    pgc keycloak keycloak "host=$pg dbname=keycloak sslmode=disable" "select 1"
+refuse "a wrong password is refused" pgc keycloak wrong "$pg_tls" "select 1"
+refuse "the superuser cannot sign in over the network, even with its password" \
+    pgc postgres superuser "host=$pg dbname=postgres sslmode=verify-full sslrootcert=/test/root.crt" "select 1"
+refuse "keycloak cannot open another database" \
+    pgc keycloak keycloak "host=$pg dbname=postgres sslmode=verify-full sslrootcert=/test/root.crt" "select 1"
+refuse "libpq (verify-full) refuses postgres-auth under a foreign root" \
+    pgc keycloak keycloak "host=$pg dbname=keycloak sslmode=verify-full sslrootcert=/test/foreign.crt" "select 1"
+pg_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$(dc ps -q postgres-auth)" | awk '{print $1}')"
+refuse "libpq (verify-full) refuses postgres-auth by address (not its name)" \
+    pgc keycloak keycloak "host=$pg_ip dbname=keycloak sslmode=verify-full sslrootcert=/test/root.crt" "select 1"
+hba_matches() { # pg_hba.conf's keycloak line admits exactly the db-auth network's subnet
+    local net hba
+    net="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${COMPOSE_PROJECT_NAME}_db-auth")"
+    hba="$(awk '$1 == "hostssl" && $2 == "keycloak" {print $4}' "$repo/deploy/compose/stack/postgres-auth/pg_hba.conf")"
+    [ -n "$net" ] && [ "$net" = "$hba" ] || { echo "db-auth $net, pg_hba.conf $hba"; return 1; }
+}
+check "pg_hba.conf admits the db-auth network's subnet, nothing wider" hba_matches
+pg_secrets_hidden() { # in no process environment of the container, not in inspect, not in its log
+    local id s
+    id="$(dc ps -q postgres-auth)"
+    docker exec "$id" bash -c '
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in postgres-auth-superuser-password keycloak-db-password; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+}
+check "no secret value in postgres-auth's process environments, inspect output or log (C5)" pg_secrets_hidden
+check "postgres-auth serves the certificate in its volume" pg_serves_current
+
 echo "--- C11: name constraints, per client (a test CA made with the real templates)"
 c11="$work/c11"
 mkdir -p "$c11" && chmod 0777 "$c11"
@@ -227,14 +341,17 @@ refuse "curl refuses a server for evil.example" c11_curl evil.example
 echo "--- C9a: normal renewal (3-minute certificates)"
 pg_first="$(pg_serial)"
 tr_first="$(served_serial)"
-errors=0
+errors=0 pg_errors=0
 for _ in $(seq 1 30); do # 150 s: postgres-auth's renewer renews before 120 s, Traefik every minute
     host_curl "https://$name/" >/dev/null 2>&1 || errors=$((errors + 1))
-    sleep 5
+    pgc keycloak keycloak "$pg_tls" "select 1" >/dev/null 2>&1 || pg_errors=$((pg_errors + 1))
+    sleep 3
 done
 check "no failed connection to Traefik while its certificate was renewed" [ "$errors" -eq 0 ]
+check "no failed connection to postgres-auth while its certificate was renewed" [ "$pg_errors" -eq 0 ]
 pg_renewed() { [ "$pg_first" != "$(pg_serial)" ]; }
 check "postgres-auth's renewer renewed its certificate (new serial)" pg_renewed
+check "postgres-auth serves the renewed certificate after its reload" pg_reloaded
 tr_renewed() { [ "$tr_first" != "$(served_serial)" ]; }
 check "Traefik renewed its certificate (new serial)" tr_renewed
 check "the renewer is healthy" renewer_healthy
@@ -251,14 +368,19 @@ check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
 check "just up after the stop reaches healthy" up
 check "the renewer renewed before it reported healthy" pg_renewed
+check "keycloak's data survived the restart (the probe table is there)" pg_is 1 keycloak keycloak \
+    "$pg_tls" "select count(*) from pg_tables where tablename = 'stack_test_probe'"
 
 echo "--- C9b: recovery after expiry"
 dc stop >/dev/null 2>&1
 sleep 190
 refuse "after the stop the old certificate no longer verifies (expired)" pg_valid
+# A rotated database password applies at the next start (postgres-auth sets it every start)
+python3 -I "$repo/deploy/secret-store/secret_store.py" rotate keycloak-db-password >/dev/null
 rebootstrapped() { up && grep -q 'cert-bootstrap: postgres-auth issued' "$work/up.log"; }
 check "just up re-bootstraps the expired certificate and reaches healthy" rebootstrapped
 check "the new certificate verifies" pg_valid
+check "keycloak signs in with its rotated password" pg_is keycloak keycloak keycloak "$pg_tls" "select current_user"
 # A short-lived intermediate, as if the 60-day warning had been missed
 AETHERSPARK_CA_INTERMEDIATE_LIFETIME=1m ca renew-intermediate >/dev/null
 sleep 70

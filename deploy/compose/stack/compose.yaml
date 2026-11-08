@@ -78,7 +78,7 @@ services:
       step-ca: { condition: service_healthy }
 
   # Renews postgres-auth's certificate at two thirds of its lifetime, authenticated by the current
-  # certificate (mTLS), with no password. postgres-auth itself joins in PR 4.
+  # certificate (mTLS), with no password; postgres-auth reads the files from the shared volume
   postgres-auth-renewer:
     <<: *step
     labels: { aetherspark.role: cert-renewer }
@@ -96,6 +96,42 @@ services:
     # `--expires-in 75%` means "more than 75 % of the life has passed", so less than 25 % is left
     healthcheck:
       test: ["CMD", "sh", "-c", "step certificate needs-renewal /tls/tls.crt --expires-in 75% >/dev/null 2>&1; [ $$? -eq 1 ]"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 1s
+
+  # Keycloak's own database server (decision 5): the official image (Alpine, zlib fixed; its FROM line
+  # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
+  # TLS from the renewer's volume, the reviewed pg_hba.conf, on db-auth only
+  postgres-auth:
+    <<: *hardening
+    build: ./postgres-auth
+    image: aetherspark/postgres-auth:local
+    labels: { aetherspark.role: postgres }
+    entrypoint: ["bash", "/postgres-auth/run.sh"]
+    environment:
+      AETHERSPARK_PG_RELOAD_SECONDS: "${AETHERSPARK_PG_RELOAD_SECONDS:-3600}"
+    secrets: [postgres-auth-superuser-password, keycloak-db-password]
+    tmpfs:
+      - /tmp
+      - "/var/run/postgresql:uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+    shm_size: 128m
+    mem_limit: 512m
+    pids_limit: 200
+    volumes:
+      - ./postgres-auth:/postgres-auth:ro
+      # nocopy: Docker copies nothing into it, so the folder stays the stack user's (`ca volumes`)
+      - { type: volume, source: postgres-auth-data, target: /var/lib/postgresql, volume: { nocopy: true } }
+      - postgres-auth-tls:/tls:ro
+    networks:
+      db-auth:
+        aliases: ["postgres-auth.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+    depends_on:
+      postgres-auth-renewer: { condition: service_healthy }
+    # Healthy once the keycloak role and database are in place, not merely once the server answers
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /tmp/ready && pg_isready -q -h /var/run/postgresql -d postgres -U postgres"]
       interval: 30s
       timeout: 5s
       start_period: 60s
@@ -173,11 +209,16 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-password"
   step-ca-provisioner-postgres-auth:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-postgres-auth"
+  postgres-auth-superuser-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/postgres-auth-superuser-password"
+  keycloak-db-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/keycloak-db-password"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:
   step-ca: {}
   postgres-auth-tls: {}
+  postgres-auth-data: {}
 
 networks:
   ingress:
@@ -188,3 +229,9 @@ networks:
     enable_ipv6: false
     driver_opts: { com.docker.network.bridge.name: as-pki }
     ipam: { config: [{ subnet: 172.30.50.0/24, gateway: 172.30.50.1 }] }
+  # Keycloak (PR 5) and its database only; the subnet is the one postgres-auth/pg_hba.conf admits
+  db-auth:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-db-auth }
+    ipam: { config: [{ subnet: 172.30.60.0/24, gateway: 172.30.60.1 }] }

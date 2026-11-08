@@ -12,8 +12,9 @@ for arg in "$@"; do
 done
 dc() { docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${extra[@]}" "$@"; }
 
-# The step image (step-ca and the step CLI, built from source; the first build takes minutes)
-dc build step-ca
+# The local images: step (step-ca and the step CLI, built from source; the first build takes
+# minutes) and postgres-auth's
+dc build step-ca postgres-auth
 python3 -I "$repo/deploy/secret-store/secret_store.py" generate
 python3 -I "$repo/deploy/secret-store/secret_store.py" unseal
 python3 -I "$repo/deploy/ca/ca.py" prepare

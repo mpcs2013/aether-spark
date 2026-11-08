@@ -63,8 +63,8 @@ jobs:
           host_role=$all; any '^(deploy/ansible/|deploy/host/|tests/host-role/)|^(pyproject\.toml|uv\.lock)$' && host_role=true
           # Image scan: anything that changes what an image contains, or the scan itself. The
           # contexts are deploy/images/targets.json's (a test keeps them in step).
-          images=$all; any '(^|/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$|(^|/)(docker-)?compose[^/]*\.ya?ml$|^(\.devcontainer/|deploy/compose/egress/|deploy/compose/stack/step-ca/|deploy/images/|tests/egress/lab/|tests/host-role/)' && images=true
-          # step-ca and Traefik end to end: the stack, the CA and secrets tools, and their test
+          images=$all; any '(^|/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$|(^|/)(docker-)?compose[^/]*\.ya?ml$|^(\.devcontainer/|deploy/compose/egress/|deploy/compose/stack/step-ca/|deploy/compose/stack/postgres-auth/|deploy/images/|tests/egress/lab/|tests/host-role/)' && images=true
+          # The stack end to end (step-ca, Traefik, postgres-auth): the stack, the CA and secrets tools, and their test
           stack=$all; any '^(deploy/ca/|deploy/compose/stack/|deploy/secret-store/|deploy/secrets\.manifest\.json$|tests/stack/)' && stack=true
           printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\nhost_role=%s\nimages=%s\nstack=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" "$host_role" "$images" "$stack" | tee -a "$GITHUB_OUTPUT"
 
@@ -191,7 +191,7 @@ jobs:
       # with them, then the layer-3 tests
       - run: sudo bash tests/egress/layer3.sh
 
-  # step-ca and Traefik end to end (compose-base.md, tests C3, C3b, C9a, C9b, C11) on both
+  # step-ca, Traefik and postgres-auth end to end (compose-base.md, tests C3, C3b, C5, C9a, C9b, C11) on both
   # architectures (arm64 = the Spark): 3-minute certificates, so renewal and expiry happen in the run
   stack:
     name: stack-test (${{ matrix.arch }})

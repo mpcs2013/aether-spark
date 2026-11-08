@@ -44,6 +44,8 @@ import secret_store  # noqa: E402
 # deploy/compose/stack/step-ca/Dockerfile); `just up` builds it before this tool runs
 IMAGE = "aetherspark/step-ca:local"
 VOLUME = "step-ca"  # step-ca's Compose volume, mounted at /ca
+# Other volumes a service running as the stack user writes into (a new volume is root's)
+DATA_VOLUMES = ("postgres-auth-data",)
 PLACES = ("localhost", "home.arpa")
 PROVISIONER_PREFIX = "step-ca-provisioner-"
 ROOT_KEY = "step-ca-root-key.age"  # in the store, next to the sealed secrets
@@ -504,7 +506,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         manifest = secret_store.load_manifest()
         if args.command in ("volumes", "prepare"):
-            volumes = [VOLUME] + [f"{s}-tls" for s in jwk_services(manifest)]
+            volumes = [VOLUME, *(f"{s}-tls" for s in jwk_services(manifest)), *DATA_VOLUMES]
             own_volumes(volumes)
             print(f"ca: {len(volumes)} volumes owned by the stack user ({', '.join(volumes)})")
         if args.command == "prepare":

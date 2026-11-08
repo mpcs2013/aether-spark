@@ -52,7 +52,7 @@ down:
 ca *args:
     python3 -I deploy/ca/ca.py {{ args }}
 
-# step-ca and Traefik end to end: tests C3, C3b, C9a, C9b, C11 (tests/stack/run.sh; ~10 minutes)
+# step-ca, Traefik and postgres-auth end to end: tests C3, C3b, C5, C9a, C9b, C11 (tests/stack/run.sh; ~13 minutes)
 [unix]
 stack-test:
     bash tests/stack/run.sh
@@ -87,6 +87,30 @@ egress-lint:
     sudo bash tests/egress/lint.sh
 
 # On Windows through Git Bash, not the WSL `bash` shim, so the tests use Docker Desktop
+
+# The stack's recipes run in WSL2 from PowerShell too: its in-memory secrets folder, age and the dev
+# key live there. `--cd` starts in this repository (plain `wsl` would start in the current folder).
+wsl := "wsl -d " + env_var_or_default("AETHERSPARK_WSL_DISTRO", "Ubuntu-24.04") + " --cd '" + justfile_directory() + "' -- just"
+
+# Bring the stack up, in WSL2 (compose-base.md)
+[windows]
+up:
+    {{ wsl }} up
+
+# Stop the stack and empty the in-memory secrets folder, in WSL2; volumes stay
+[windows]
+down:
+    {{ wsl }} down
+
+# The CA, in WSL2 (docs/runbooks/certificates.md): status | root | renew-intermediate | init | configure
+[windows]
+ca *args:
+    {{ wsl }} ca {{ args }}
+
+# step-ca, Traefik and postgres-auth end to end, in WSL2 (tests/stack/run.sh; ~13 minutes)
+[windows]
+stack-test:
+    {{ wsl }} stack-test
 
 # Egress tests, layers 1 and 2 (tests/egress/run.sh; needs Docker and internet access)
 [windows]
