@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/ca deploy/compose deploy/images deploy/secret-store tests/python
+    {{ uv }} mypy src/python deploy/ca deploy/compose deploy/images deploy/keycloak deploy/secret-store tests/python
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -52,7 +52,17 @@ down:
 ca *args:
     python3 -I deploy/ca/ca.py {{ args }}
 
-# step-ca, Traefik and postgres-auth end to end: tests C3, C3b, C5, C9a, C9b, C11 (tests/stack/run.sh; ~13 minutes)
+# Keycloak's administrators (docs/runbooks/keycloak-admin.md): setup USERNAME (once per stack)
+[unix]
+keycloak *args:
+    python3 -I deploy/keycloak/admin.py {{ args }}
+
+# Keycloak break-glass: a new temporary administrator when none can sign in (keycloak-admin.md)
+[unix]
+keycloak-break-glass username:
+    bash deploy/keycloak/break-glass.sh {{ username }}
+
+# The stack end to end: tests C3, C3b, C5, C9a, C9b, C10 so far, C11 (tests/stack/run.sh; ~20 minutes)
 [unix]
 stack-test:
     bash tests/stack/run.sh
@@ -107,7 +117,17 @@ down:
 ca *args:
     {{ wsl }} ca {{ args }}
 
-# step-ca, Traefik and postgres-auth end to end, in WSL2 (tests/stack/run.sh; ~13 minutes)
+# Keycloak's administrators, in WSL2 (docs/runbooks/keycloak-admin.md): setup USERNAME
+[windows]
+keycloak *args:
+    {{ wsl }} keycloak {{ args }}
+
+# Keycloak break-glass, in WSL2 (keycloak-admin.md)
+[windows]
+keycloak-break-glass username:
+    {{ wsl }} keycloak-break-glass {{ username }}
+
+# The stack end to end, in WSL2 (tests/stack/run.sh; ~20 minutes)
 [windows]
 stack-test:
     {{ wsl }} stack-test
