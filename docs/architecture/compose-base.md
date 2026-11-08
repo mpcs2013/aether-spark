@@ -126,7 +126,7 @@ Placement in WP3.1:
      The check is `step certificate needs-renewal --expires-in 75%`: the percentage is the part of the life that **has passed**, not the part left (verified on a half-way certificate). The first version used `30%` read the other way round, which would have marked every renewer unhealthy from hour 7 to hour 16 of each day. The desktop runs missed it; CI on arm64 caught it.
   7. **Volumes owned by the stack user:** `ca volumes` creates them with Compose's labels and gives their top folder to the stack user (a new volume belongs to root). It does this in a one-off container with only `CHOWN` and `FOWNER`.
   8. **Lint:** `role_images` may bind a repository (`traefik`), which then must be pinned by digest, so Dependabot's version bumps need no policy change. Local builds stay bound exactly.
-  9. **Tests** C3, C3b, C9a, C9b and C11 for step-ca, Traefik and `postgres-auth`'s certificate: `tests/stack/run.sh` (`just stack-test`), CI job `stack-test` on amd64 and arm64. `postgres-auth` itself, and its part of C3 and C3b, come with PR 4.
+  9. **Tests** C3, C3b, C9a, C9b and C11 for step-ca, Traefik and `postgres-auth`'s certificate: `tests/stack/run.sh` (`just stack-test`), CI job `stack-test` on amd64 and arm64. `postgres-auth` itself, and its part of C3 and C3b, came with PR 4 (see `postgres-auth`, as built in PR 4).
      Desktop runs (2026-11-06), with the upstream image and again with the image built here: all 37 checks pass, among them the CA volume check promised above (no password value and no root key in it; the intermediate key encrypted).
   10. **`just up` always recreates the containers** (`--force-recreate`). Found by C9a on Docker Desktop: a stopped container keeps the secret file it was created with, and `unseal` writes new files, so a restarted step-ca failed to mount `/run/secrets/step-ca-password`. The same happens after a WSL restart, which empties the in-memory folder. Recreating is cheap, and every service then reads the secrets just unsealed.
 
@@ -155,7 +155,8 @@ As ADR-0010 decides, made buildable:
   | `step-ca-password` | step-ca |
   | `step-ca-provisioner-postgres-auth` (PR 3), `step-ca-provisioner-keycloak` (PR 5) | `just up`'s bootstrap step only |
   | `postgres-auth-superuser-password` | `postgres-auth`, setup only |
-  | `keycloak-db.conf` (`db-password=…`) | Keycloak, `postgres-auth` setup |
+  | `keycloak-db-password` (PR 4) | `postgres-auth`, which sets the `keycloak` role's password from it at every start |
+  | `keycloak-db.conf` (`db-password=…`, derived from `keycloak-db-password`; PR 5) | Keycloak |
   | `keycloak-bootstrap.conf` (first-start admin password) | Keycloak, first start only |
   | `forward-auth-client-secret`, `forward-auth-cookie-secret` | forward-auth |
 
@@ -166,6 +167,25 @@ As ADR-0010 decides, made buildable:
 - **Data volume** at `/var/lib/postgresql` (Postgres 18 images keep their data in `/var/lib/postgresql/18/docker`).
 - **Access:** a reviewed `pg_hba.conf` (`-c hba_file=`): `hostssl keycloak keycloak <db-auth subnet> scram-sha-256`, the superuser on the local socket only, `reject` for everything else; `password_encryption=scram-sha-256`, `ssl_min_protocol_version=TLSv1.2`. Keycloak connects with `sslmode=verify-full` and step-ca's root as `sslrootcert`.
 - **Memory:** about 512 MB, from the desktop's headroom and the Spark's 8 GB platform budget.
+- **As built in PR 4 (2026-11-08),** where it differs from or adds to the plan above:
+  1. **Image:** `postgres:18.6-trixie`, pinned by its index digest (amd64 and arm64). Dependabot proposes new digests and minor releases, never a new major version: that needs the data folder upgraded, a deliberate change with its own runbook.
+  2. **Its own start script, not the image's entrypoint** (`deploy/compose/stack/postgres-auth/run.sh`). The image's entrypoint reads the superuser password from `POSTGRES_PASSWORD_FILE` into the variable `POSTGRES_PASSWORD` at every start, and that variable stays in the server's process environment, which C5 forbids. The script:
+     - runs `initdb` itself on the first start, with the password file (`--pwfile`). initdb insists on a passwd entry for its user; `nss_wrapper`, shipped in the image for that purpose, provides one for that call only;
+     - starts the server with every setting on its command line (TLS files from the renewer's volume, `pg_hba.conf` from the repository, `password_encryption=scram-sha-256`, TLS 1.2 or newer, connections logged);
+     - at every start, as the superuser over the container's own socket, creates the `keycloak` role and database if missing and sets the role's password from `keycloak-db-password`, so a rotation applies at the next start. That session logs no statement, not even a failing one. psql reads the value with `cat` into a variable, so it is in no argument; the superuser's password goes through a password file in the container's in-memory `/tmp`, deleted right after;
+     - is healthy only once the role and database are in place, so Keycloak (PR 5) never meets a half-set-up server;
+     - reloads the configuration every hour (`AETHERSPARK_PG_RELOAD_SECONDS`; 20 seconds in the tests), so Postgres re-reads the renewed certificate files.
+  3. **The secrets:** `keycloak-db-password` is a generated secret of its own, mounted into `postgres-auth`. PR 5 derives Keycloak's `keycloak-db.conf` from it, so the value is stored once (table above).
+  4. **`pg_hba.conf`** (`deploy/compose/stack/postgres-auth/pg_hba.conf`): `hostssl keycloak keycloak` from `db-auth`'s subnet, `172.30.60.0/24`. The superuser may connect only over the local socket, to the `postgres` database. Every other line is `reject`, plain connections included. The test checks that the file's subnet equals the network's.
+  5. **The data volume** `postgres-auth-data` is given to the stack user by `ca volumes`, like the certificate volumes, and mounted with `nocopy`. Otherwise Docker would copy the image's folder into it, owner included, on first use.
+  6. **Tests** in `tests/stack/run.sh`, as a stand-in for Keycloak until PR 5 (libpq's `verify-full` from a client on `db-auth`):
+     - C3: the `keycloak` role signs in over TLS 1.2 or newer, verified against the CA's root and the name, and owns its database; a plain connection, a wrong password, the superuser over the network and another database are refused;
+     - C3b: refused under a foreign root, and by address;
+     - C5: no secret value in any process environment of the container, in `docker inspect` or in its log;
+     - C9a: no failed connection while the certificate is renewed, and the server presents the renewed certificate after its reload;
+     - the data survives a restart, and a rotated `keycloak-db-password` signs in after the next `just up`.
+
+     Keycloak's own JDBC client is checked in PR 5.
 
 ## Gate G3's test relying party
 A pinned forward-auth container (an OIDC proxy) and a minimal "whoami" page. Traefik routes `whoami.aether.<place>` through forward-auth. Forward-auth signs the browser in at Keycloak (client `forward-auth`, confidential, MFA by the realm) and checks the token against Keycloak over the internal CA. The page shows the signed-in user's name. This proves the chain AetherSpark's own UIs will use, end to end.
@@ -201,6 +221,7 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
   5. wait until every service is healthy.
 - **`just down`:** stops the stack and empties the tmpfs folder; volumes stay.
 - **As built in PR 3:** `deploy/compose/stack/up.sh` and `down.sh` do these steps (step 2 is `ca prepare`; step 4 has one Compose file until the egress overlay joins). `just up` recreates every container (see Certificates, as built, item 10).
+- **From PowerShell (PR 4):** `just up`, `just down`, `just ca …` and `just stack-test` run in WSL2 by themselves: on Windows each recipe calls `wsl -d Ubuntu-24.04 --cd <repository> -- just …`. The distribution can be changed with `AETHERSPARK_WSL_DISTRO`. The secrets folder, `age` and the dev key live in WSL2, so the work always runs there.
 - **Profiles:** everything of WP3.1 is in `core`. ADR-0003's `data` profile starts with the data Postgres in P4a; `postgres-auth` is identity infrastructure, needed for any sign-in, so it belongs to `core`.
 
 ## Order of work (pull requests)
