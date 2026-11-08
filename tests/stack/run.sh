@@ -22,6 +22,8 @@ export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/ke
 export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NAME/secrets"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
 name=whoami.aether.localhost
+auth=auth.aether.localhost
+admin=auth-admin.aether.localhost
 pg=postgres-auth.svc.aether.localhost
 fails=0
 
@@ -211,6 +213,21 @@ traefik_ready() {
     return 1
 }
 check "Traefik serves $name with a certificate from the CA (curl checks name and chain)" traefik_ready
+# After a restart Traefik orders each name's certificate anew, one after the other: wait for all of
+# them, not only the test page's (amd64 CI once met the admin name still without one, 2026-11-08)
+all_names_ready() {
+    local h
+    for h in "$name" "$auth" "$admin"; do
+        for _ in $(seq 1 45); do
+            curl -sS -o /dev/null --max-time 5 --resolve "$h:443:127.0.0.1" --cacert "$work/root.crt" \
+                "https://$h/" 2>/dev/null && continue 2
+            sleep 2
+        done
+        echo "$h has no certificate yet"
+        return 1
+    done
+}
+check "Traefik serves all its names ($name, $auth, $admin)" all_names_ready
 issuer_ok() {
     echo | openssl s_client -connect 127.0.0.1:443 -servername "$name" 2>/dev/null \
         | openssl x509 -noout -issuer | grep -q 'AetherSpark Intermediate CA (localhost)'
@@ -257,7 +274,7 @@ foreign_traefik() { # Traefik's ACME client trusts the CA's root only
 }
 check "Traefik's ACME client refuses step-ca under a foreign root" foreign_traefik
 dc up -d --no-deps --wait traefik >/dev/null 2>&1
-check "the stack's Traefik is back" traefik_ready
+check "the stack's Traefik is back, with all its names" all_names_ready
 
 echo "--- postgres-auth: TLS only, Keycloak's role only (C3, C3b), no secret in its metadata (C5)"
 on_pki "$foreign_root && cat f.crt" >"$work/pg/foreign.crt" 2>/dev/null && chmod 0644 "$work/pg/foreign.crt"
@@ -307,8 +324,6 @@ check "no secret value in postgres-auth's process environments, inspect output o
 check "postgres-auth serves the certificate in its volume" pg_reloaded
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
-auth=auth.aether.localhost
-admin=auth-admin.aether.localhost
 kc=keycloak.svc.aether.localhost
 via() { # name, path, curl options...: prints the status code; the body goes to $work/kc.body
     local h=$1 p=$2
@@ -353,8 +368,17 @@ check "a ..;/ path is refused by Keycloak's invalid-character check, never an ad
 check "Traefik refuses the sign-in realm on $admin" traefik_refuses "$admin" /realms/aetherspark/
 check "the admin console on $admin from the allowed source" answers 200 "$admin" /admin/master/console/
 kc_tls() { tls_py auth-front keycloak-tls "$kc" 8443 no "$@"; }
-check "Keycloak presents $kc, chained to the root (Traefik's view)" kc_tls /test/root.crt
-refuse "a client trusting a foreign root refuses Keycloak" kc_tls /test/foreign.crt
+kc_presents() { # within two reload periods: with 3-minute certificates a renewal may have just happened
+    for _ in $(seq 1 16); do kc_tls /test/root.crt >/dev/null 2>&1 && return 0; sleep 5; done
+    kc_tls /test/root.crt
+}
+check "Keycloak presents $kc, chained to the root (Traefik's view)" kc_presents
+kc_foreign() { # refused for the right reason: the chain, not a renewal race
+    local out
+    if out="$(kc_tls /test/foreign.crt 2>&1)"; then echo "accepted"; return 1; fi
+    printf '%s' "$out" | grep -q CERTIFICATE_VERIFY_FAILED || { printf '%s\n' "$out" | tail -2; return 1; }
+}
+check "a client trusting a foreign root refuses Keycloak (certificate verify failed)" kc_foreign
 kc_listens() { # nothing listens but 8443 on its auth-front address, and loopback (health on 9000,
     # Java's own helpers, Docker's resolver); so no cluster port. The image has no awk: bash reads the
     # kernel's socket tables (state 0A = listening), Python judges them here
@@ -433,7 +457,84 @@ admin_source() { # Traefik with another allowed source: the desktop is refused, 
 }
 check "the admin route refuses a source outside its allowlist, also with a forged X-Forwarded-For" admin_source
 dc up -d --no-deps --force-recreate --wait traefik >/dev/null 2>&1
-check "Traefik is back with the stack's allowlist" traefik_ready
+check "Traefik is back with the stack's allowlist, with all its names" all_names_ready
+
+echo "--- Keycloak's administrators: password and security key, no password-only sign-in (C10, PR 5b)"
+( umask 077; python3 -I -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' >"$work/admin-pw" )
+kc_admin() { python3 -I "$repo/deploy/keycloak/admin.py" setup "$@"; }
+check "setup hardens the master realm and creates an administrator" \
+    kc_admin stack-test-admin --password-file "$work/admin-pw"
+refuse "setup refuses a second run (it can no longer sign in with a password)" \
+    kc_admin other-admin --password-file "$work/admin-pw"
+direct_grant_refused() { # even with the first-start administrator's real password
+    local code
+    code="$(via "$admin" /realms/master/protocol/openid-connect/token \
+        --data-urlencode grant_type=password --data-urlencode client_id=admin-cli \
+        --data-urlencode username=bootstrap-admin \
+        --data-urlencode "password@$AETHERSPARK_SECRETS_DIR/keycloak-bootstrap-admin-password")"
+    # OAuth answers unauthorized_client with 400 (RFC 6749, 5.2)
+    [ "$code" = 400 ] && grep -q '"unauthorized_client"' "$work/kc.body" \
+        || { echo "status $code: $(head -c 120 "$work/kc.body")"; return 1; }
+}
+check "a password-only sign-in to the master realm is refused (unauthorized_client)" direct_grant_refused
+first_login() { # user, password file, what must follow the password: new-password or key
+    local user=$1 pw=$2 want=$3 jar="$work/login.jar" page="$work/login.html" form verifier challenge
+    rm -f "$jar"
+    lc() { curl -sS -L --max-time 15 --resolve "$admin:443:127.0.0.1" --cacert "$work/root.crt" \
+        -b "$jar" -c "$jar" -o "$page" "$@"; }
+    form_action() { sed -n 's/.*<form[^>]*action="\([^"]*\)".*/\1/p' "$page" | head -1 | sed 's/&amp;/\&/g'; }
+    verifier="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(48))')"
+    challenge="$(python3 -I -c 'import base64, hashlib, sys
+print(base64.urlsafe_b64encode(hashlib.sha256(sys.argv[1].encode()).digest()).rstrip(b"=").decode())' "$verifier")"
+    lc "https://$admin/realms/master/protocol/openid-connect/auth?client_id=security-admin-console&response_type=code&scope=openid&code_challenge=$challenge&code_challenge_method=S256&redirect_uri=https%3A%2F%2F$admin%2Fadmin%2Fmaster%2Fconsole%2F" || return 1
+    form="$(form_action)"
+    case $form in
+        "https://$admin/realms/master/"*) ;;
+        *) echo "the login form posts to ${form%%\?*}, not the admin name"; return 1 ;;
+    esac
+    lc "$form" --data-urlencode "username=$user" --data-urlencode "password@$pw" --data-urlencode credentialId= || return 1
+    if [ "$want" = new-password ]; then
+        grep -q 'password-new' "$page" || { echo "no new-password page"; return 1; }
+        local fresh
+        fresh="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
+        lc "$(form_action)" --data-urlencode "password-new=$fresh" --data-urlencode "password-confirm=$fresh" || return 1
+    fi
+    grep -q 'id="kc-page-title">[[:space:]]*Passkey Registration' "$page" && grep -q registerWebAuthn "$page" \
+        || { echo "no security-key registration: $(grep -o 'id="kc-page-title">[^<]*' "$page")"; return 1; }
+}
+check "the first sign-in posts to the admin name, asks a new password, then a security key" \
+    first_login stack-test-admin "$work/admin-pw" new-password
+kc_db() { # what the master realm holds, read from Keycloak's database (not through Keycloak)
+    pg_is "$1" keycloak keycloak "$pg_tls" "$2"
+}
+master="(select id from realm where name = 'master')"
+check "database: brute-force detection on" kc_db true \
+    "select value from realm_attribute where realm_id = $master and name = 'bruteForceProtected'"
+check "database: the realm's address is the admin name" kc_db "https://$admin" \
+    "select value from realm_attribute where realm_id = $master and name = 'frontendUrl'"
+check "database: the master realm signs in with the flow browser-security-key" kc_db browser-security-key \
+    "select f.alias from realm r join authentication_flow f on f.id = r.browser_flow where r.name = 'master'"
+# Requirement codes: 0 required, 2 alternative
+check "database: that flow is the cookie, or the form: password, then the security key, both required" kc_db \
+    "auth-cookie:2 subflow:2 auth-username-password-form:0 webauthn-authenticator:0" \
+    "select string_agg(coalesce(e.authenticator, 'subflow') || ':' || e.requirement, ' ' order by f.alias, e.priority)
+       from authentication_execution e join authentication_flow f on f.id = e.flow_id
+      where f.realm_id = $master and f.alias in ('browser-security-key', 'browser-security-key forms')"
+check "database: no master client allows a password-only sign-in" kc_db 0 \
+    "select count(*) from client where realm_id = $master and direct_access_grants_enabled"
+check "database: login and admin events recorded" kc_db t \
+    "select events_enabled and admin_events_enabled from realm where name = 'master'"
+# Break-glass, as the runbook does it, with a throw-away password handed over by variable name
+breakglass() {
+    local pw
+    pw="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    ( umask 077; printf '%s' "$pw" >"$work/breakglass-pw" )
+    BREAK_GLASS_PW="$pw" AETHERSPARK_BREAK_GLASS_PASSWORD_ENV=BREAK_GLASS_PW \
+        bash "$repo/deploy/keycloak/break-glass.sh" breakglass-test "${overlay[@]}" >"$work/breakglass.log" 2>&1 \
+        || { tail -5 "$work/breakglass.log"; return 1; }
+}
+check "break-glass creates a temporary administrator with Keycloak stopped, and Keycloak returns" breakglass
+check "... whose first sign-in also demands a security key" first_login breakglass-test "$work/breakglass-pw" key
 
 echo "--- C11: name constraints, per client (a test CA made with the real templates)"
 c11="$work/c11"

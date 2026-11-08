@@ -95,7 +95,7 @@ Placement in WP3.1:
      - a `..;/` path starts with an allowed prefix, so it reaches Keycloak, which refuses it (400, `invalidCharacter`). The test records which of the two refuses each variant.
   7. **The realm file** carries the realm-wide settings: TLS required, no self-registration, brute-force detection, password policy, TOTP settings, events. Import keeps an existing realm (`IGNORE_EXISTING`), so a later change to the file reaches a new database only; how changes reach a running realm is decided with Ostium's realm checks (PR 5b).
   8. **Moved to later pull requests:**
-     - **PR 5b:** the master-realm hardening, the break-glass runbook and the bootstrap-admin removal, a hands-on session with the owner, and the decision on Ostium's realm checks;
+     - **PR 5b:** the master-realm hardening, the break-glass runbook and the bootstrap-admin removal, a hands-on session with the owner, and the decision on Ostium's realm checks (done: see "Recovery and lock-out", as built in PR 5b, which also corrects item 6: the administrators' sign-in needed the master realm's own address);
      - **PR 6:** the back-channel entrypoint (with the answer to O-037 on the token issuer) and C10's protocol flows (authorization code with PKCE and MFA, refresh, userinfo, logout, client credentials, introspection), where the first client arrives.
   9. **Tests** in `tests/stack/run.sh` (C3, C3b, C5, C9a, C10 for what exists):
      - discovery, keys and the sign-in page through Traefik, with the right issuer;
@@ -237,6 +237,27 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
   3. only then delete the first-start admin.
 
   The way back is `kc.sh bootstrap-admin` against the stack's database, in `docs/runbooks/keycloak-break-glass.md` (ADR-0009 change 3).
+- **As built in PR 5b (2026-11-08),** with the owner's decisions of 2026-11-08: the administrators' second factor is a **security key** (WebAuthn: YubiKey 1, YubiKey 2 when at home), and Ostium's realm checks are adopted in PR 6.
+  1. **A finding about PR 5a.** Keycloak's `hostname-admin` moves the admin console only. The `master` realm's sign-in pages still posted to the sign-in name, where Traefik refuses `/realms/master/` by design, so no administrator could sign in through the browser. The fix sets the master realm's own address (its Frontend URL attribute) to `https://auth-admin.aether.<place>`. The whole administrators' sign-in now lives on the admin name, behind its allowlist, and the sign-in name stays closed to it.
+  2. **`deploy/keycloak/admin.py setup USERNAME`** (`just keycloak setup`; standard library) does the hardening in one run. It signs in as the first-start administrator, whose password it reads from the in-memory secrets folder, and talks only to Traefik's admin route, checking the certificate against AetherSpark's root. It:
+     - sets the realm's address to the admin name, then signs in again (tokens carry the realm's address as issuer);
+     - adds the login flow `browser-security-key`: the session cookie, or the password form followed by the WebAuthn authenticator, both required. An administrator without a key must register one before getting in;
+     - sets brute-force detection (5 failures, waits up to 15 minutes, no permanent lock), login and admin events (30 days), TLS everywhere, a password policy (14+ characters, history 3);
+     - creates the owner's administrator with the `admin` role, a temporary password (asked twice, never printed) and the required actions to set a password and register a key;
+     - checks all of it through the admin API, and **last** turns off direct grants for every client of the realm, so neither the tool nor a stolen password can sign in without the browser and the key. A second run is refused.
+
+     Keycloak's own `kcadm.sh` was not used: without a terminal it takes a password only in an argument or an environment variable, which the secrets rules forbid.
+  3. **Deleting `bootstrap-admin`** stays a manual step in the console, after the owner's first sign-in with the key, in the order planned above.
+  4. **Break-glass** (`deploy/keycloak/break-glass.sh`, `just keycloak-break-glass NAME`) stops Keycloak, runs `bootstrap-admin user` in a one-off container where the owner types the password at the prompt, and starts Keycloak again whatever happens (measured: 13 seconds for the command). The new account must register a security key at its first sign-in, like every administrator. The runbook is `docs/runbooks/keycloak-admin.md`; the planned `keycloak-break-glass.md` became that runbook's second part.
+  5. **Tests** (`tests/stack/run.sh`):
+     - setup succeeds and a second run is refused;
+     - a password-only sign-in with the first-start administrator's real password gets `unauthorized_client`;
+     - a first sign-in through the admin name, as a browser does it, posts to the admin name, demands a new password, then a security-key registration;
+     - read from Keycloak's database, not through Keycloak: brute-force detection, the realm's address, the bound flow and its four steps, no client with direct grants, events on;
+     - break-glass creates an administrator with Keycloak stopped, Keycloak returns healthy, and that account's first sign-in demands a security key too.
+
+     What a test cannot do is touch a real key: the owner's first sign-in is the proof that registration and use work in the browsers.
+  6. **On the Spark** (WP6.4): the admin route admits only `AETHERSPARK_ADMIN_SOURCE`, so `setup` runs where that route admits it. How, an SSH tunnel from the owner's desktop or a source address for the Spark itself, is decided with the Spark's deployment unit.
 - **A lost CA password or root:** a re-init runbook (new CA, new root distributed, old root removed).
 - **The intermediate's expiry:** the alert above and its runbook.
 - **Observe, then allow:** each new service's first run follows the egress design's rule: it is observed first, then its flows are allowed.
