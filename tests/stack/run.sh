@@ -22,6 +22,8 @@ export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/ke
 export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NAME/secrets"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
 name=whoami.aether.localhost
+auth=auth.aether.localhost
+admin=auth-admin.aether.localhost
 pg=postgres-auth.svc.aether.localhost
 fails=0
 
@@ -211,6 +213,21 @@ traefik_ready() {
     return 1
 }
 check "Traefik serves $name with a certificate from the CA (curl checks name and chain)" traefik_ready
+# After a restart Traefik orders each name's certificate anew, one after the other: wait for all of
+# them, not only the test page's (amd64 CI once met the admin name still without one, 2026-11-08)
+all_names_ready() {
+    local h
+    for h in "$name" "$auth" "$admin"; do
+        for _ in $(seq 1 45); do
+            curl -sS -o /dev/null --max-time 5 --resolve "$h:443:127.0.0.1" --cacert "$work/root.crt" \
+                "https://$h/" 2>/dev/null && continue 2
+            sleep 2
+        done
+        echo "$h has no certificate yet"
+        return 1
+    done
+}
+check "Traefik serves all its names ($name, $auth, $admin)" all_names_ready
 issuer_ok() {
     echo | openssl s_client -connect 127.0.0.1:443 -servername "$name" 2>/dev/null \
         | openssl x509 -noout -issuer | grep -q 'AetherSpark Intermediate CA (localhost)'
@@ -257,7 +274,7 @@ foreign_traefik() { # Traefik's ACME client trusts the CA's root only
 }
 check "Traefik's ACME client refuses step-ca under a foreign root" foreign_traefik
 dc up -d --no-deps --wait traefik >/dev/null 2>&1
-check "the stack's Traefik is back" traefik_ready
+check "the stack's Traefik is back, with all its names" all_names_ready
 
 echo "--- postgres-auth: TLS only, Keycloak's role only (C3, C3b), no secret in its metadata (C5)"
 on_pki "$foreign_root && cat f.crt" >"$work/pg/foreign.crt" 2>/dev/null && chmod 0644 "$work/pg/foreign.crt"
@@ -307,8 +324,6 @@ check "no secret value in postgres-auth's process environments, inspect output o
 check "postgres-auth serves the certificate in its volume" pg_reloaded
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
-auth=auth.aether.localhost
-admin=auth-admin.aether.localhost
 kc=keycloak.svc.aether.localhost
 via() { # name, path, curl options...: prints the status code; the body goes to $work/kc.body
     local h=$1 p=$2
@@ -442,7 +457,7 @@ admin_source() { # Traefik with another allowed source: the desktop is refused, 
 }
 check "the admin route refuses a source outside its allowlist, also with a forged X-Forwarded-For" admin_source
 dc up -d --no-deps --force-recreate --wait traefik >/dev/null 2>&1
-check "Traefik is back with the stack's allowlist" traefik_ready
+check "Traefik is back with the stack's allowlist, with all its names" all_names_ready
 
 echo "--- Keycloak's administrators: password and security key, no password-only sign-in (C10, PR 5b)"
 ( umask 077; python3 -I -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' >"$work/admin-pw" )

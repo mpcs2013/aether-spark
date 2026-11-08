@@ -378,7 +378,16 @@ def main(argv: list[str] | None = None) -> int:
     except Refused as error:
         print(f"keycloak: refused: {error}", file=sys.stderr)
         return 1
-    except (OSError, ssl.SSLError) as error:
+    except ssl.SSLError as error:
+        hint = (
+            "; Traefik may still be ordering the admin name's certificate after a start: "
+            "wait a minute and run it again"
+            if "UNRECOGNIZED_NAME" in str(error)
+            else ""
+        )
+        print(f"keycloak: {type(error).__name__}: {error}{hint}", file=sys.stderr)
+        return 2
+    except OSError as error:
         print(f"keycloak: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
     if findings:
