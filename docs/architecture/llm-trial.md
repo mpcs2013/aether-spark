@@ -1,6 +1,6 @@
 # LLM serving, first light on the Spark
 
-*Status: proposed 2026-11-07 for a first run on 2026-11-08 (owner's decision: AetherSpark's own serving first, as a trial before WP3.1 PR 4; personal use later through the same serving, decided separately).*
+*Status: **run on 2026-11-08, both speed targets met** (see Results). Owner's decision 2026-11-07: AetherSpark's own serving first, as a trial before WP3.1 PR 4; personal use later through the same serving, decided separately.*
 
 **In plain words.** The Spark runs a language model for the first time, the way AetherSpark will run models for good: the model's files come in through the ops proxy and are checked byte for byte; the model server runs in a container that has no way out and no door in; and we measure whether the Spark is as fast as the plan assumes. Nothing else of the stack is needed yet: no LiteLLM gateway, no Keycloak, no browser page. It is the first slice of WP5b.1 (the engine and model benchmark), done early.
 
@@ -40,6 +40,26 @@ The same CI run showed a new Critical in Alpine's zlib (CVE-2026-4738, 2026-11-0
 - **The home infrastructure is told first** (A-012: "AetherSpark says here before its first heavy jobs run"): the shelf is warmer than planned (Lares' 28 °C pause rule) and the UPS arrives on 2026-11-09. The Spark holds no data, so a power cut costs only the run.
 - **Afterwards:** the server is stopped (`docker compose down`), the ops proxy too; the model stays in `/srv/models` for WP5b.1. The numbers go into this note.
 - **Removal:** this Compose file goes when WP5b.1 brings the real serving behind LiteLLM.
+
+## Results (2026-11-08)
+On the Spark at release `v0.1.5`, with the default settings above:
+
+| | Measured | Target |
+|---|---|---|
+| Model download | 17 of 17 files verified against their pinned SHA-256 (32.5 GB) | — |
+| Engine image | 39 GB unpacked (11.2 GB compressed), pulled by digest through the ops proxy | — |
+| Start to healthy | 182 s (loading the weights and preparing the GPU) | — |
+| Time to first token, 8,000-token prompt (NFR-PERF-02) | **1.43 s** mean (1.45 s median, 1.46 s P99) | at most 2 s ✅ |
+| Writing speed, one request at a time (NFR-PERF-01) | **42.7 tokens/s** (23.4 ms per token, P99 23.5 ms) | at least 40 ✅ |
+| A short question (`ask.py`) | 49.9 tokens/s, first token after 0.19 s | — |
+| Requests | 5 of 5 successful (`vllm bench serve`, random dataset, 8,000 in / 256 out, concurrency 1) | — |
+| GPU under load | at most 54 °C and 69 W; idle about 12 W | — |
+
+**Reading them.** Both targets hold on the first run with default settings; the writing speed has the smaller margin (42.7 against 40) and is the number to watch in WP5b.1, which compares SGLang, other models and two resident models. A long prompt slows writing a little (42.7 against 49.9 tokens/s for a short question), as expected. The numbers sit at the lower end of the plan's estimate for this kind of model (40–90 tokens/s, [c4.md](c4.md)).
+
+**Found on the way.** Docker Hub served the curl image from `production.cloudfront.docker.com`, a second CDN host the ops proxy refused; it was added after review (#76, release `v0.1.5`), as the egress design's "observe, then allow" foresees.
+
+**Talking to it.** `ask.py` keeps a conversation while it runs (the model itself remembers nothing; the chat sends the whole conversation with each question and forgets it at the end). A chat web page is not part of AetherSpark's plan: the owner's decision of 2026-11-08 is that another project may build one, using AetherSpark's model through its gateway once that exists; the interface between them is agreed through the exchange.
 
 ## Concepts
 - **LLM serving:** a program (here vLLM) loads a model's weights into the GPU's memory once and then answers requests, many at a time, in the OpenAI-compatible format other software already speaks.

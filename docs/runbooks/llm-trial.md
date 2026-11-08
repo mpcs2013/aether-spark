@@ -61,12 +61,22 @@ sudo docker compose -f deploy/compose/llm-trial/compose.yaml up -d --wait
 
 Loading 31 GB of weights and preparing the GPU takes several minutes; `--wait` returns when the server answers its health check (at most 15 minutes). To watch: `sudo docker compose -f deploy/compose/llm-trial/compose.yaml logs -f vllm`.
 
-## 5. The first answer
+## 5. Talk to it
+A chat that keeps the conversation while it runs:
+
+```bash
+sudo docker compose -f deploy/compose/llm-trial/compose.yaml exec vllm python3 /trial/ask.py
+```
+
+Type a question after `you>`; the answer streams in, with its speed below it. Inside the chat: `/new` starts a new conversation, `/think` switches the model's visible reasoning on or off, `/exit` (or `Ctrl+D`) leaves; `Ctrl+C` stops an answer that runs too long. The conversation is kept only while the chat runs, never on disk.
+
+One question with its speed, for a quick check:
+
 ```bash
 sudo docker compose -f deploy/compose/llm-trial/compose.yaml exec vllm python3 /trial/ask.py "In three sentences: what does a mixture-of-experts model do?"
 ```
 
-The answer streams in, followed by its speed. `--think` lets the model reason first (longer, shows its reasoning).
+`--think` lets the model reason first (longer, shows its reasoning).
 
 ## 6. The measurement (NFR-PERF-01 and -02)
 vLLM's own benchmark, one request at a time: an 8,000-token prompt and 256 tokens of answer, five times:

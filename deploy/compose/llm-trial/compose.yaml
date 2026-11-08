@@ -33,8 +33,9 @@ services:
       TRANSFORMERS_OFFLINE: "1"
     volumes:
       - /srv/models:/models:ro
-      # ask.py: one question, the answer as it streams, and its speed
-      - ./ask.py:/trial/ask.py:ro
+      # ask.py: a chat, or one question with its speed. The folder, not the file: a new release
+      # tag then reaches the running container without a restart
+      - .:/trial:ro
     deploy:
       resources:
         reservations:
