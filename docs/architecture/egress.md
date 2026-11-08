@@ -96,7 +96,7 @@ L2 compares each proxy's file with this table. Rows marked *to confirm* are redi
 | ops | `us.aws.cdn.hf.co` | model file redirects: the weight files of a pinned revision redirect here (observed 2026-11-07 from the home network; plain HTTPS downloads, so Hugging Face's Xet hosts are not used) |
 | ops | `nvcr.io`, `layers.nvcr.io` | NGC images: index and token on `nvcr.io`, layers redirected to `layers.nvcr.io` (observed 2026-11-07) |
 | ops | `registry.ollama.ai`; its blob CDN, *to confirm* | dev models (Ollama) |
-| ops | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | Docker Hub images |
+| ops | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`, `production.cloudfront.docker.com` | Docker Hub images: blobs come from either CDN (`cloudfront` observed on the Spark on 2026-11-08) |
 | ops | `quay.io`; its CDN, *to confirm* | Keycloak image |
 | ops | `mcr.microsoft.com`; its data host, *to confirm* | .NET images |
 | ops | `ghcr.io`, `pkg-containers.githubusercontent.com` | GitHub container images |
