@@ -34,6 +34,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from http.client import HTTPResponse, HTTPSConnection
 from pathlib import Path
 from typing import Any
@@ -79,10 +80,14 @@ class Browser:
             _Https(context), urllib.request.HTTPCookieProcessor(self.jar), _NoRedirect()
         )
 
-    def send(self, url: str, form: dict[str, str] | None = None) -> tuple[int, str, str]:
+    stop = REDIRECT  # follow() stops at a redirect here ("": follows to the end)
+
+    def send(
+        self, url: str, form: dict[str, str] | None = None, headers: dict[str, str] | None = None
+    ) -> tuple[int, str, str]:
         """One request, no redirect followed: status, Location, body."""
         data = urllib.parse.urlencode(form).encode() if form is not None else None
-        request = urllib.request.Request(url, data=data)  # noqa: S310 - fixed https base
+        request = urllib.request.Request(url, data=data, headers=headers or {})  # noqa: S310 - fixed https base
         try:
             with self.opener.open(request, timeout=15) as response:
                 return (
@@ -94,13 +99,13 @@ class Browser:
             return error.code, error.headers.get("Location", ""), error.read().decode()
 
     def follow(self, url: str, form: dict[str, str] | None = None) -> tuple[str, str]:
-        """Follows redirects within Keycloak; stops at the client's redirect: (page, final URL)."""
+        """Follows redirects; stops at `stop` if set: (page, final URL)."""
         status, location, body = self.send(url, form)
         for _ in range(10):
             if status not in (301, 302, 303, 307):
                 return body, url
             url = urllib.parse.urljoin(url, location)
-            if url.startswith(REDIRECT):
+            if self.stop and url.startswith(self.stop):
                 return "", url
             status, location, body = self.send(url)
         raise Failed("too many redirects")
@@ -184,46 +189,10 @@ def sign_in(state: Path, username: str, cafile: str) -> None:
         }
     )
     page, _ = browser.follow(f"{OIDC}/auth?{query}")
-    action = form_action(page)
-    if not action.startswith(f"https://{HOST}/realms/{REALM}/"):
-        raise Failed(f"the login form posts to {action.split('?')[0]}, not the sign-in name")
-    step("authorization request with PKCE; the login form is on the sign-in name")
-    password = (state / "password").read_text().strip()
-    page, url = browser.follow(action, {"username": username, "password": password})
-    second = False
-    for _ in range(4):
-        if url.startswith(REDIRECT):
-            break
-        if 'name="password-new"' in page:
-            new = secrets.token_urlsafe(24)
-            page, url = browser.follow(
-                form_action(page), {"password-new": new, "password-confirm": new}
-            )
-            (state / "password").write_text(new)
-            step("a new password, as Keycloak asked")
-        elif 'name="totpSecret"' in page:
-            secret = hidden(page, "totpSecret")
-            (state / "totp").write_text(secret)
-            code = fresh_code(secret, state / "totp-window")
-            page, url = browser.follow(
-                form_action(page), {"totp": code, "totpSecret": secret, "userLabel": "test"}
-            )
-            second = True
-            step("an app code set up, as Keycloak asked")
-        elif 'name="otp"' in page:
-            if not (state / "totp").exists():
-                raise Failed("Keycloak asks for an app code, but none was set up")
-            code = fresh_code((state / "totp").read_text().strip(), state / "totp-window")
-            page, url = browser.follow(form_action(page), {"otp": code})
-            second = True
-            step("the app code, as Keycloak asked")
-        else:
-            (state / "unexpected.html").write_text(page)  # for a look; holds no secret
-            raise Failed(f"unexpected page: {title(page)}")
+    step("authorization request with PKCE")
+    page, url = keycloak_steps(browser, state, username, page, lambda u: u.startswith(REDIRECT))
     if not url.startswith(REDIRECT):
         raise Failed(f"no redirect back with a code (last page: {title(page)})")
-    if not second:
-        raise Failed("signed in without a second factor")
     code = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("code", [""])[0]
     tokens = token(
         browser,
@@ -278,10 +247,95 @@ def sign_in(state: Path, username: str, cafile: str) -> None:
     raise Failed("the refresh token still works after logout")
 
 
+def keycloak_steps(
+    browser: Browser, state: Path, username: str, page: str, done: Callable[[str], bool]
+) -> tuple[str, str]:
+    """From Keycloak's login form to wherever `done` says the sign-in has arrived: the password,
+    then what Keycloak asks for. Fails without a second factor (a fresh browser remembers none)."""
+    action = form_action(page)
+    if not action.startswith(f"https://{HOST}/realms/{REALM}/"):
+        raise Failed(f"the login form posts to {action.split('?')[0]}, not the sign-in name")
+    step("the login form is on the sign-in name")
+    password = (state / "password").read_text().strip()
+    page, url = browser.follow(action, {"username": username, "password": password})
+    second = False
+    for _ in range(4):
+        if done(url):
+            break
+        if 'name="password-new"' in page:
+            new = secrets.token_urlsafe(24)
+            page, url = browser.follow(
+                form_action(page), {"password-new": new, "password-confirm": new}
+            )
+            (state / "password").write_text(new)
+            step("a new password, as Keycloak asked")
+        elif 'name="totpSecret"' in page:
+            secret = hidden(page, "totpSecret")
+            (state / "totp").write_text(secret)
+            code = fresh_code(secret, state / "totp-window")
+            page, url = browser.follow(
+                form_action(page), {"totp": code, "totpSecret": secret, "userLabel": "test"}
+            )
+            second = True
+            step("an app code set up, as Keycloak asked")
+        elif 'name="otp"' in page:
+            if not (state / "totp").exists():
+                raise Failed("Keycloak asks for an app code, but none was set up")
+            code = fresh_code((state / "totp").read_text().strip(), state / "totp-window")
+            page, url = browser.follow(form_action(page), {"otp": code})
+            second = True
+            step("the app code, as Keycloak asked")
+        else:
+            (state / "unexpected.html").write_text(page)  # for a look; holds no secret
+            raise Failed(f"unexpected page: {title(page)}")
+    if not done(url):
+        raise Failed(f"the sign-in did not arrive (last page: {title(page)})")
+    if not second:
+        raise Failed("signed in without a second factor")
+    return page, url
+
+
+def page_sign_in(state: Path, username: str, cafile: str, page_url: str) -> None:
+    """Gate G3's chain (C8): the page sends a browser without a session to Keycloak through
+    forward-auth, and after the sign-in shows the user forward-auth put into the request."""
+    browser = Browser(cafile)
+    browser.stop = ""  # follow every redirect: page, sign-in, callback, page
+    status, location, _ = browser.send(page_url)
+    if status != 302 or not location.startswith(f"{OIDC}/auth?"):
+        raise Failed(f"without a session the page answers {status} to {location.split('?')[0]!r}")
+    step("without a session: a redirect to Keycloak's sign-in (code flow)")
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)
+    if query.get("code_challenge_method") != ["S256"] or query.get("client_id") != ["forward-auth"]:
+        raise Failed(f"the sign-in request is not forward-auth's with PKCE: {sorted(query)}")
+    step("... as client forward-auth, with PKCE (S256)")
+    page, _ = browser.follow(page_url)
+    host = urllib.parse.urlparse(page_url).netloc
+    page, _ = keycloak_steps(
+        browser, state, username, page, lambda u: urllib.parse.urlparse(u).netloc == host
+    )
+    shown = f"X-Auth-Request-Preferred-Username: {username}"
+    if shown not in page:
+        raise Failed("the page does not show the signed-in user")
+    step("back on the page, which shows the signed-in user")
+    _, _, forged = browser.send(page_url, headers={"X-Auth-Request-Preferred-Username": "intruder"})
+    if "intruder" in forged or shown not in forged:
+        raise Failed("a header sent by the browser reached the page as the user")
+    step("a user header forged by the browser does not reach the page")
+    browser.send(f"https://{host}/oauth2/sign_out")
+    status, location, _ = browser.send(page_url)
+    if status != 302 or not location.startswith(f"{OIDC}/auth?"):
+        raise Failed(f"after signing out the page answers {status}")
+    step("after signing out of the page, it sends the browser to sign-in again")
+
+
 def main() -> int:
     state, username, cafile = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+    page = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "--page" else ""
     try:
-        sign_in(state, username, cafile)
+        if page:
+            page_sign_in(state, username, cafile, page)
+        else:
+            sign_in(state, username, cafile)
     except (Failed, OSError, KeyError, ValueError) as error:
         print(f"  FAILED: {error}")
         return 1

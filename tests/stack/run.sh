@@ -16,6 +16,8 @@ export AETHERSPARK_CA_LEAF_LIFETIME=3m AETHERSPARK_TRAEFIK_CERT_HOURS=1
 # postgres-auth re-reads its certificate files every 20 s instead of every hour, Keycloak every 35 s
 # (its minimum is above 30 s)
 export AETHERSPARK_PG_RELOAD_SECONDS=20 AETHERSPARK_KC_RELOAD_PERIOD=35s
+# forward-auth and the test page restart on a new certificate (cert-watch.sh): checked every 20 s
+export AETHERSPARK_CERT_WATCH_SECONDS=20
 work="$(mktemp -d)"
 cd "$work" || exit 1
 export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/key/dev.key"
@@ -211,12 +213,12 @@ check "only the CA's certificates, its configuration and the encrypted intermedi
 echo "--- C3: every listener presents a certificate from AetherSpark's CA with its own name"
 check "step-ca presents step-ca.svc.aether.localhost, chained to the root" on_pki \
     'step certificate inspect "$CA_URL" --roots /ca-certs/root_ca.crt --format json | grep -q "\"step-ca.svc.aether.localhost\""'
-traefik_ok() { [ "$(host_curl "https://$name/" 2>/dev/null)" = OK ]; }
+traefik_ok() { [ "$(host_curl "https://$name/stack-test/" 2>/dev/null)" = OK ]; }
 # Traefik is healthy before its ACME order completes; give the order up to 90 s (amd64 CI once lost
 # this race, 2026-11-07)
 traefik_ready() {
     for _ in $(seq 1 45); do traefik_ok && return 0; sleep 2; done
-    host_curl "https://$name/"   # the last error, for the report
+    host_curl "https://$name/stack-test/"   # the last error, for the report
     return 1
 }
 check "Traefik serves $name with a certificate from the CA (curl checks name and chain)" traefik_ready
@@ -605,6 +607,106 @@ check "database: users may not delete their own second factor; no profile questi
 check "database: every new user must set up an app code (default action)" kc_db t \
     "select default_action from required_action_provider where realm_id = $aether and alias = 'CONFIGURE_TOTP'"
 
+echo "--- Gate G3: the test page behind forward-auth (C8), the back channel (C10), PR 6b"
+page_flow() {
+    python3 -I "$repo/tests/stack/oidc_flow.py" "$work/user" stack-test-user "$work/root.crt" --page "https://$name/"
+}
+check "the page: sign-in through forward-auth (PKCE, app code), the user shown, a forged header ignored, sign-out" page_flow
+fa_secrets_hidden() {
+    local id s
+    id="$(dc ps -q forward-auth)"
+    docker exec "$id" sh -c '
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in forward-auth-client-secret forward-auth-cookie-secret; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+    if docker logs "$id" 2>&1 | grep -q 'code='; then echo "an authorization code in the log"; return 1; fi
+}
+check "no secret in forward-auth's process environments, inspect output or log; no authorization code in its log (C5)" fa_secrets_hidden
+# The back channel, as a service on auth-edge sees it; a test client with a service account first
+cat >"$work/service_client.py" <<'EOF'
+import secrets, sys
+sys.path.insert(0, sys.argv[1] + "/deploy/keycloak")
+import admin as kc
+a = kc.admin_route()
+kc.sign_in_config(a)
+secret = secrets.token_urlsafe(32)
+# Its tokens name it as their audience: Keycloak 26 lets a client introspect only tokens issued for
+# it ("not in the token audience" otherwise, measured 2026-11-09), as an API checks its own tokens
+status, _ = a.call("POST", "/admin/realms/aetherspark/clients", {
+    "clientId": "stack-test-service", "enabled": True, "publicClient": False,
+    "serviceAccountsEnabled": True, "standardFlowEnabled": False, "directAccessGrantsEnabled": False,
+    "fullScopeAllowed": False, "secret": secret,
+    "protocolMappers": [{"name": "audience", "protocol": "openid-connect",
+                         "protocolMapper": "oidc-audience-mapper",
+                         "config": {"included.client.audience": "stack-test-service",
+                                    "access.token.claim": "true", "id.token.claim": "false",
+                                    "introspection.token.claim": "true"}}]})
+if status != 201:
+    sys.exit(f"test client: HTTP {status}")
+with open(sys.argv[2], "w") as f:
+    f.write(secret)
+EOF
+( umask 077; python3 -I "$work/service_client.py" "$repo" "$work/pg/service-secret" ) \
+    && chmod 0644 "$work/pg/service-secret"
+cat >"$work/pg/backchannel.py" <<'EOF'
+import json, socket, ssl, sys, urllib.parse
+from http.client import HTTPSConnection
+NAME = "auth-backchannel.aether.localhost"
+mode, address = sys.argv[1], sys.argv[2]  # address: the name (auth-edge) or Traefik's edge address
+ctx = ssl.create_default_context(cafile="/test/root.crt")
+class C(HTTPSConnection):
+    def connect(self):
+        self.sock = ctx.wrap_socket(socket.create_connection((address, 9443), timeout=10), server_hostname=NAME)
+def call(path, form=None):
+    c = C(NAME, 9443, context=ctx)
+    body = urllib.parse.urlencode(form).encode() if form else None
+    headers = {"Host": f"{NAME}:9443"}
+    if form:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    c.request("POST" if form else "GET", path, body=body, headers=headers)
+    r = c.getresponse()
+    return r.status, r.read().decode()
+base = "/realms/aetherspark/protocol/openid-connect"
+if mode == "refused":
+    status, _ = call("/realms/aetherspark/.well-known/openid-configuration")
+    sys.exit(0 if status == 403 else f"from outside auth-edge: HTTP {status}, not 403")
+status, body = call("/realms/aetherspark/.well-known/openid-configuration")
+if status != 200 or json.loads(body)["issuer"] != "https://auth.aether.localhost/realms/aetherspark":
+    sys.exit(f"discovery: HTTP {status}")
+if call(f"{base}/certs")[0] != 200:
+    sys.exit("keys (JWKS)")
+for path in ("/admin/", "/admin/master/console/", "/realms/master/.well-known/openid-configuration",
+             "/realms/aetherspark/account/", "/realms/aetherspark/login-actions/authenticate", "/"):
+    if call(path)[0] != 404:
+        sys.exit(f"{path} is not refused")
+secret = open("/test/service-secret").read().strip()
+status, body = call(f"{base}/token", {"grant_type": "client_credentials", "client_id": "stack-test-service", "client_secret": secret})
+if status != 200:
+    sys.exit(f"client credentials: HTTP {status}")
+token = json.loads(body)["access_token"]
+status, body = call(f"{base}/token/introspect", {"token": token, "client_id": "stack-test-service", "client_secret": secret})
+if status != 200 or not json.loads(body).get("active"):
+    sys.exit(f"introspection: HTTP {status}")
+print("discovery, keys, client credentials and introspection; admin, master, account and / refused")
+EOF
+chmod 0644 "$work/pg/backchannel.py"
+on_net() { # network, then the command in the egress tests' Python image, with $work/pg at /test
+    local net=$1
+    shift
+    docker run --rm --network "${COMPOSE_PROJECT_NAME}_$net" --read-only --cap-drop ALL \
+        --user "$AETHERSPARK_UID:$AETHERSPARK_GID" -v "$work/pg:/test:ro" "$py_image" "$@"
+}
+check "the back channel (auth-edge): discovery with the public issuer, keys, client credentials, introspection; admin, master, account refused" \
+    on_net auth-edge python3 -I /test/backchannel.py works auth-backchannel.aether.localhost
+check "the back channel refuses a caller on edge (another network than auth-edge)" \
+    on_net edge python3 -I /test/backchannel.py refused 172.30.63.2
+
 echo "--- C11: name constraints, per client (a test CA made with the real templates)"
 c11="$work/c11"
 mkdir -p "$c11" && chmod 0777 "$c11"
@@ -659,9 +761,12 @@ kc_serial() {
         | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["serial_number"])'
 }
 kc_first="$(kc_serial)"
+fingerprint() { on_pki "step certificate fingerprint /tls/$1/tls.crt" 2>/dev/null; }
+fa_first="$(fingerprint forward-auth)"
+wa_first="$(fingerprint whoami)"
 errors=0 pg_errors=0 kc_errors=0
 for _ in $(seq 1 30); do # 150 s: the renewers renew before 120 s, Traefik every minute
-    host_curl "https://$name/" >/dev/null 2>&1 || errors=$((errors + 1))
+    [ "$(host_curl "https://$name/stack-test/" 2>/dev/null)" = OK ] || errors=$((errors + 1))
     pgc keycloak keycloak "$pg_tls" "select 1" >/dev/null 2>&1 || pg_errors=$((pg_errors + 1))
     [ "$(via "$auth" /realms/aetherspark/.well-known/openid-configuration 2>/dev/null)" = 200 ] \
         || kc_errors=$((kc_errors + 1))
@@ -680,6 +785,17 @@ kc_reloaded() { # within two reload periods
     kc_tls -
 }
 check "Keycloak serves the renewed certificate after its reload" kc_reloaded
+watched() { # service, port: renewed, and served after cert-watch's restart (two periods at most)
+    local service=$1 port=$2 first=$3
+    [ -n "$first" ] && [ "$first" != "$(fingerprint "$service")" ] || { echo "not renewed"; return 1; }
+    for _ in $(seq 1 12); do
+        tls_py edge "$service-tls" "$service.svc.aether.localhost" "$port" no /test/root.crt >/dev/null 2>&1 && return 0
+        sleep 5
+    done
+    tls_py edge "$service-tls" "$service.svc.aether.localhost" "$port" no /test/root.crt
+}
+check "forward-auth was renewed and serves the new certificate (cert-watch restarted it)" watched forward-auth 4443 "$fa_first"
+check "the test page was renewed and serves the new certificate (cert-watch restarted it)" watched whoami 8443 "$wa_first"
 tr_renewed() { [ "$tr_first" != "$(served_serial)" ]; }
 check "Traefik renewed its certificate (new serial)" tr_renewed
 check "the renewer is healthy" renewer_healthy

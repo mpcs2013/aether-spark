@@ -69,6 +69,15 @@ The account page opens on **Personal info**. Email and names are optional, so th
 
 Run on the desktop on 2026-11-09, after the fresh database (below): the administrator again (checked with the key unplugged: refused), then the owner's everyday user with `--key` (YubiKey 1; its key shown as "USB, NFC").
 
+### The test page: Gate G3's sign-in (C8)
+`https://whoami.aether.localhost` is a page behind sign-in, with the same chain AetherSpark's own apps will use:
+1. Open it in Firefox. Without a session, the page sends you to AetherSpark's sign-in (`auth.aether.localhost`).
+2. Sign in with your everyday user: the password, then the YubiKey (or the app code).
+3. You are back on the page. It lists the request it received; the line `X-Auth-Request-Preferred-Username:` shows your everyday user's name. That line comes from the sign-in, never from the browser.
+4. `https://whoami.aether.localhost/oauth2/sign_out` signs you out of the page; the next visit asks for sign-in again. (Your Keycloak session may still be open: then the sign-in passes without questions until you also sign out at the account page.)
+
+`just stack-test` signs in to this page the same way, with an app code, and checks each step.
+
 ### Once, after PR 6a: a fresh Keycloak database on the desktop
 The config service account is created only by `setup`, and on the desktop `setup` ran before it existed. Development data is throw-away, so the simplest way is to start Keycloak's database afresh and set it up again (about 15 minutes, YubiKey 1 at hand):
 

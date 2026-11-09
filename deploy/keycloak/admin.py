@@ -540,13 +540,76 @@ def apply_profile(admin: Admin) -> list[str]:
     return [f"{REALM} user profile: {name} is still required" for name in still]
 
 
+def realm_clients() -> list[tuple[dict[str, Any], str]]:
+    """The aetherspark realm's clients, each with the name of its secret in the store. Today one:
+    Gate G3's forward-auth (deploy/compose/stack/compose.yaml), confidential, the browser flow with
+    PKCE only, redirecting to the test page's callback."""
+    page = f"https://whoami.aether.{ca.place()}"
+    forward_auth = {
+        "clientId": "forward-auth",
+        "name": "Gate G3's test page (forward-auth)",
+        "enabled": True,
+        "publicClient": False,
+        "clientAuthenticatorType": "client-secret",
+        "protocol": "openid-connect",
+        "standardFlowEnabled": True,
+        "implicitFlowEnabled": False,
+        "directAccessGrantsEnabled": False,
+        "serviceAccountsEnabled": False,
+        "frontchannelLogout": False,
+        # Its tokens carry none of the user's roles (the page needs none; Keycloak 26 also warns
+        # that "full scope allowed" is deprecated)
+        "fullScopeAllowed": False,
+        "redirectUris": [f"{page}/oauth2/callback"],
+        "webOrigins": [],
+        "attributes": {
+            "pkce.code.challenge.method": "S256",
+            "post.logout.redirect.uris": f"{page}/",
+        },
+    }
+    return [(forward_auth, "forward-auth-client-secret")]
+
+
+def apply_clients(admin: Admin) -> list[str]:
+    """Creates or updates each client with exactly the fields above and its secret from the store;
+    fields not named stay as Keycloak keeps them."""
+    findings = []
+    base = f"/admin/realms/{REALM}/clients"
+    for wanted, secret_name in realm_clients():
+        secret = read_secret(secret_name)
+        current = client_by_id(admin, REALM, wanted["clientId"])
+        if current is None:
+            admin.need("POST", base, {**wanted, "secret": secret}, ok=(201,))
+        else:
+            merged = {
+                **current,
+                **wanted,
+                "attributes": {**current.get("attributes", {}), **wanted["attributes"]},
+                "secret": secret,
+            }
+            admin.need("PUT", f"{base}/{current['id']}", merged, ok=(204,))
+        client = client_by_id(admin, REALM, wanted["clientId"]) or {}
+        for key, value in wanted.items():
+            got = client.get(key)
+            if key == "attributes":
+                got = {k: client.get("attributes", {}).get(k) for k in value}
+            if got != value:
+                findings.append(
+                    f"{REALM} client {wanted['clientId']} {key}: {got!r} is not {value!r}"
+                )
+        stored = admin.need("GET", f"{base}/{client.get('id')}/client-secret").get("value")
+        if stored != secret:
+            findings.append(f"{REALM} client {wanted['clientId']}: its secret is not the store's")
+    return findings
+
+
 def apply_realm(admin: Admin) -> list[str]:
     settings = realm_settings()
     ensure_flow(admin, REALM, USER_FLOW)
     findings = check_flow(admin, REALM, USER_FLOW)
     if findings:
         return findings  # never bind a flow that differs from the code
-    findings = apply_actions(admin) + apply_profile(admin)
+    findings = apply_actions(admin) + apply_profile(admin) + apply_clients(admin)
     admin.need("PUT", f"/admin/realms/{REALM}", settings, ok=(204,))
     return findings + check_settings(admin, REALM, settings)
 

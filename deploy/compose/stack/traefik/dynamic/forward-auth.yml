@@ -1,0 +1,71 @@
+# Gate G3's sign-in chain (docs/architecture/compose-base.md, "Gate G3's test relying party"):
+# whoami behind forward-auth, and Keycloak's back-channel entrypoint for services.
+http:
+  routers:
+    # The test page: every request first asks forward-auth "signed in?"; without a session the
+    # answer is the redirect to Keycloak's sign-in, which Traefik hands to the browser
+    whoami:
+      rule: 'Host(`whoami.aether.{{ env "AETHERSPARK_PLACE" }}`)'
+      entryPoints: [websecure]
+      middlewares: [forward-auth]
+      service: whoami
+      tls:
+        certResolver: stepca
+
+    # forward-auth's own pages on the same name: the callback after Keycloak, sign-out
+    whoami-oauth2:
+      rule: 'Host(`whoami.aether.{{ env "AETHERSPARK_PLACE" }}`) && PathPrefix(`/oauth2/`)'
+      entryPoints: [websecure]
+      service: forward-auth
+      tls:
+        certResolver: stepca
+
+    # The back channel: the aetherspark realm's protocol endpoints and discovery, nothing else, on
+    # their own entrypoint (9443, never published), from the auth-edge network only. Services reach
+    # it under the internal name auth-backchannel.aether.<place>; tokens still name the public issuer.
+    keycloak-backchannel:
+      rule: >-
+        Host(`auth-backchannel.aether.{{ env "AETHERSPARK_PLACE" }}`) &&
+        (PathPrefix(`/realms/aetherspark/protocol/openid-connect/`) || PathPrefix(`/realms/aetherspark/.well-known/`))
+      entryPoints: [backchannel]
+      middlewares: [backchannel-source]
+      service: keycloak
+      tls:
+        certResolver: stepca
+
+  middlewares:
+    forward-auth:
+      forwardAuth:
+        address: 'https://forward-auth.svc.aether.{{ env "AETHERSPARK_PLACE" }}:4443/'
+        # Headers like X-Forwarded-User from the browser are never passed on as the user: only what
+        # forward-auth answers reaches the page
+        trustForwardHeader: false
+        authResponseHeaders: [X-Auth-Request-User, X-Auth-Request-Preferred-Username, X-Auth-Request-Email]
+        tls:
+          ca: /ca-certs/root_ca.crt
+
+    backchannel-source:
+      ipAllowList:
+        sourceRange: ["172.30.62.0/24"]
+
+  services:
+    whoami:
+      loadBalancer:
+        serversTransport: whoami
+        servers:
+          - url: 'https://whoami.svc.aether.{{ env "AETHERSPARK_PLACE" }}:8443'
+
+    forward-auth:
+      loadBalancer:
+        serversTransport: forward-auth
+        servers:
+          - url: 'https://forward-auth.svc.aether.{{ env "AETHERSPARK_PLACE" }}:4443'
+
+  # Traefik checks each certificate: AetherSpark's root only, and the service's internal name
+  serversTransports:
+    whoami:
+      serverName: 'whoami.svc.aether.{{ env "AETHERSPARK_PLACE" }}'
+      rootCAs: [/ca-certs/root_ca.crt]
+    forward-auth:
+      serverName: 'forward-auth.svc.aether.{{ env "AETHERSPARK_PLACE" }}'
+      rootCAs: [/ca-certs/root_ca.crt]
