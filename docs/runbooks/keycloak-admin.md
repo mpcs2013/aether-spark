@@ -31,7 +31,9 @@ How the owner becomes Keycloak's administrator on the desktop, how the `aethersp
 3. **Sign in, set your password, register the key.** Open `https://auth-admin.aether.localhost/admin/master/console/`:
    1. sign in with `<username>` and the temporary password;
    2. **Update password:** choose your real password (14+ characters), and save it in your password manager;
-   3. **Passkey Registration:** click **Register**. The browser hands over to a **Windows Security** window. If your key has a security-key PIN, Windows asks for it; then touch YubiKey 1 when it blinks. Give it a label such as "YubiKey 1".
+   3. **Passkey Registration:** click **Register**. The browser hands over to a **Windows Security** window: choose **Security key**. If your key has a security-key PIN, Windows asks for it; then touch YubiKey 1 when it blinks. Give it a label such as "YubiKey 1". Labels must differ between one user's keys.
+
+      Both realms accept only external security keys. Before that rule, on 2026-11-09, Windows saved the passkey in **Windows Hello** on the PC instead of the YubiKey: sign-in then worked with the key unplugged. To check: the sign-in page lists your key with **"USB, NFC"**, not "Windows Hello". If you are unsure, unplug the key and sign in: it must get stuck at the passkey step.
 
    The console opens.
 4. **Delete the temporary administrator.** In the console: **Users** → `bootstrap-admin` → **Delete**. Keycloak marks it as temporary until then.
@@ -39,7 +41,12 @@ How the owner becomes Keycloak's administrator on the desktop, how the `aethersp
 
 Run on the desktop on 2026-11-08 (Firefox, YubiKey 1 with its PIN): all five steps as written.
 
-**YubiKey 2**, when it is at home: sign in, open your own account page (your name, top right), and under its signing-in or security section add a second security key; touch YubiKey 2 and label it "YubiKey 2". The exact menu names are confirmed and written in here at that session. With two keys registered, losing one does not lock you out.
+**YubiKey 2**, when it is at home, for each of your accounts:
+1. Open the account's own page: for the administrator `https://auth-admin.aether.localhost/realms/master/account/`, for your everyday user `https://auth.aether.localhost/realms/aetherspark/account/`.
+2. Sign in, then **Account security** → **Signing in**, and set up another passkey (security key).
+3. Choose **Security key**, PIN, touch YubiKey 2, label it "YubiKey 2".
+
+With two keys registered, losing one does not lock you out.
 
 ## The realm as code, and everyday users
 The `aetherspark` realm (the people who use AetherSpark) is described in the repository: `deploy/keycloak/aetherspark-realm.json` and `deploy/keycloak/admin.py`. Keycloak loads the realm file only into an empty database, so a change reaches a running Keycloak through **`just keycloak apply`**, which `just up` runs by itself after every start. It signs in as the **config service account** `aetherspark-config`, which `setup` creates. That account may change the `aetherspark` realm and nothing on the administrators' side, so its secret alone can never give anyone admin rights.
@@ -57,6 +64,10 @@ It asks twice for a temporary password, used once. Then open `https://auth.aethe
 - **a security key instead**: create the user with `just keycloak user add <name> --key`; at the first sign-in you register the YubiKey, as for the administrator.
 
 At every later sign-in: the password, then the code from the app (or the key's touch).
+
+The account page opens on **Personal info**. Email and names are optional, so there is nothing to fill in; AetherSpark sends no email.
+
+Run on the desktop on 2026-11-09, after the fresh database (below): the administrator again, then the owner's everyday user with `--key` (YubiKey 1), both checked with the key unplugged.
 
 ### Once, after PR 6a: a fresh Keycloak database on the desktop
 The config service account is created only by `setup`, and on the desktop `setup` ran before it existed. Development data is throw-away, so the simplest way is to start Keycloak's database afresh and set it up again (about 15 minutes, YubiKey 1 at hand):
@@ -99,6 +110,8 @@ Keycloak shows the break-glass user as temporary. It is the only account that ca
 | The browser refuses the security key | the page is not trusted (certificate warning) | Trust the root first (step 1) |
 | Too many wrong passwords | sign-in fails even with the right password | Wait 15 minutes; brute-force detection lets you in again |
 | A red ❗ next to the email in the user list | the administrator has no email address | Nothing: administrators need none, and the stack sends no email |
+| Registering a key says "Device already exists with the same name" | that user already has a key with that label | Choose another label |
+| Sign-in works with the YubiKey unplugged | the passkey was saved in Windows Hello (before the security-key-only rule) | Register the YubiKey again (choose **Security key**, a new label), then delete the Windows Hello entry under **Users** → the user → **Credentials** |
 | `just up` ends with `the realm does not match the repository` | `apply` found a difference it does not fix by itself (for example a login flow changed in the console) | Read the message above it. Undo the change in the console, or, with development data, start the database afresh (above) |
 | `just keycloak apply` says `apply skipped: no config service account yet` | `setup` has not run on this database | Run `just keycloak setup <username>` |
 | An administrator deleted a user's app code or key in the console | That user now signs in with the password alone: the second step applies to users who have one, and only new users get it as a default | At once, same page: **Users** → the user → **Required user actions**: add **Configure OTP** (or **Webauthn Register**), so the next sign-in sets one up again |

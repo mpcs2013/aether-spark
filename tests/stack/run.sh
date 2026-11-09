@@ -558,9 +558,18 @@ created = a.call("POST", "/admin/realms/aetherspark/users", {"username": "plain-
 actions = kc.find_user(a, "aetherspark", "plain-user")[0].get("requiredActions")
 if created[0] != 201 or actions != ["CONFIGURE_TOTP"]:
     sys.exit(f"a plain user: HTTP {created[0]}, required actions {actions}")
+# Email and names are optional (AetherSpark sends no email)
+profile = a.need("GET", "/admin/realms/aetherspark/users/profile")
+required = [x["name"] for x in profile["attributes"] if x["name"] in ("email", "firstName", "lastName") and "required" in x]
+if required:
+    sys.exit(f"still required in the user profile: {required}")
 EOF
-check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings)" \
+check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings); email and names optional" \
     python3 -I "$work/config_probe.py" "$repo"
+check "database: both realms accept only external security keys (cross-platform), never Windows Hello" kc_db \
+    "cross-platform cross-platform" \
+    "select string_agg(a.value, ' ' order by r.name) from realm_attribute a join realm r on r.id = a.realm_id
+      where a.name = 'webAuthnPolicyAuthenticatorAttachment' and r.name in ('aetherspark', 'master')"
 mkdir -p "$work/user" "$work/keyuser" && chmod 700 "$work/user" "$work/keyuser"
 for u in user keyuser; do
     ( umask 077; python3 -I -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' >"$work/$u/password" )

@@ -22,6 +22,8 @@
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,
   "otpPolicyPeriod": 30,
+  "webAuthnPolicyRpEntityName": "AetherSpark",
+  "webAuthnPolicyAuthenticatorAttachment": "cross-platform",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
