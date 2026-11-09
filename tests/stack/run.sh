@@ -36,9 +36,16 @@ ca_py() {
     python3 -I -c "import sys; sys.path.insert(0, sys.argv[1] + '/deploy/ca'); import ca; $code" "$repo" "$@"
 }
 step_image() { ca_py 'print(ca.image())'; }
-up() { # `just up` with the test route; its output goes to up.log
-    bash "$repo/deploy/compose/stack/up.sh" "${overlay[@]}" >"$work/up.log" 2>&1 \
-        || { tail -15 "$work/up.log"; return 1; }
+up() { # `just up` with the test route; its output goes to up.log. On failure: its last lines, and
+    # the last lines of every container that stopped (CI once lost postgres-auth here, 2026-11-09)
+    bash "$repo/deploy/compose/stack/up.sh" "${overlay[@]}" >"$work/up.log" 2>&1 && return 0
+    tail -8 "$work/up.log"
+    local id
+    for id in $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter status=exited); do
+        echo "--- $(docker inspect -f '{{.Name}} exit {{.State.ExitCode}}' "$id")"
+        docker logs --tail 12 "$id" 2>&1
+    done
+    return 1
 }
 
 pass() { printf 'PASS  %s\n' "$1"; }
