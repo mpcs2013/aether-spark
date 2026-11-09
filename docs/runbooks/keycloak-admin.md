@@ -1,6 +1,6 @@
 # Keycloak administration — runbook (WP3.1)
 
-How the owner becomes Keycloak's administrator on the desktop, and the way back in when that account is lost. The design is in [compose-base.md](../architecture/compose-base.md) ("Keycloak exposure", "Recovery and lock-out"); the certificate steps are in [certificates.md](certificates.md).
+How the owner becomes Keycloak's administrator on the desktop, how the `aetherspark` realm and its users are managed, and the way back in when the administrator account is lost. The design is in [compose-base.md](../architecture/compose-base.md) ("Keycloak exposure", "Recovery and lock-out"); the certificate steps are in [certificates.md](certificates.md).
 
 **In plain words.** Keycloak starts with a temporary administrator whose password only the machine knows. One command locks the administrators' side down and creates your own account. You then sign in once in the browser, choose your password and register your YubiKey, and delete the temporary account. From then on the admin console needs your password **and** a touch of the YubiKey. It answers only on `auth-admin.aether.localhost`, only from this machine. If you ever lose the account or both keys, the break-glass command below writes a new temporary administrator straight into Keycloak's database.
 
@@ -25,7 +25,7 @@ How the owner becomes Keycloak's administrator on the desktop, and the way back 
    just keycloak setup <username>
    ```
 
-   It asks twice for a **temporary password** (at least 14 characters; nothing is shown as you type). You use it only once, in step 3. It ends with `master realm hardened … your administrator is created`. It works only once: afterwards it can no longer sign in, and says so.
+   It asks twice for a **temporary password** (at least 14 characters; nothing is shown as you type). You use it only once, in step 3. It ends with `master realm hardened … your administrator and the config service account are created; the aetherspark realm is applied.` It works only once: afterwards it can no longer sign in, and says so.
 
    Neither the command nor `just` repeats your username in its output. Still, before you paste any output elsewhere, check that it does not show the name.
 3. **Sign in, set your password, register the key.** Open `https://auth-admin.aether.localhost/admin/master/console/`:
@@ -40,6 +40,38 @@ How the owner becomes Keycloak's administrator on the desktop, and the way back 
 Run on the desktop on 2026-11-08 (Firefox, YubiKey 1 with its PIN): all five steps as written.
 
 **YubiKey 2**, when it is at home: sign in, open your own account page (your name, top right), and under its signing-in or security section add a second security key; touch YubiKey 2 and label it "YubiKey 2". The exact menu names are confirmed and written in here at that session. With two keys registered, losing one does not lock you out.
+
+## The realm as code, and everyday users
+The `aetherspark` realm (the people who use AetherSpark) is described in the repository: `deploy/keycloak/aetherspark-realm.json` and `deploy/keycloak/admin.py`. Keycloak loads the realm file only into an empty database, so a change reaches a running Keycloak through **`just keycloak apply`**, which `just up` runs by itself after every start. It signs in as the **config service account** `aetherspark-config`, which `setup` creates. That account may change the `aetherspark` realm and nothing on the administrators' side, so its secret alone can never give anyone admin rights.
+
+**Users sign in with a password and a second factor**, whichever they set up: an **app code** (an authenticator app on the phone) or a **security key**. Every new user must set one up at the first sign-in, and nobody can delete their own.
+
+**Add a user** (for example your own everyday user, different from your administrator; the name stays local, like the administrator's):
+
+```powershell
+just keycloak user add <name>
+```
+
+It asks twice for a temporary password, used once. Then open `https://auth.aether.localhost/realms/aetherspark/account/` in the browser and sign in with it:
+- **an app code** (the default): Keycloak shows a QR code; scan it with your authenticator app, type the 6-digit code it shows, then choose your real password;
+- **a security key instead**: create the user with `just keycloak user add <name> --key`; at the first sign-in you register the YubiKey, as for the administrator.
+
+At every later sign-in: the password, then the code from the app (or the key's touch).
+
+### Once, after PR 6a: a fresh Keycloak database on the desktop
+The config service account is created only by `setup`, and on the desktop `setup` ran before it existed. Development data is throw-away, so the simplest way is to start Keycloak's database afresh and set it up again (about 15 minutes, YubiKey 1 at hand):
+
+```powershell
+just down
+```
+```powershell
+wsl -d Ubuntu-24.04 -- docker volume rm aetherspark_postgres-auth-data
+```
+```powershell
+just up
+```
+
+Then "First time" above, steps 2 to 5: `just keycloak setup <username>` (the same name or a new one), the first sign-in with the YubiKey, and deleting `bootstrap-admin`. The CA, the certificates and the browser's trust stay as they are. The old YubiKey registration went with the old database, so you register the key again.
 
 ## Break-glass: no administrator can sign in
 For a lost account, a forgotten password with no key left, or both keys lost. It does not need the old account.
@@ -67,6 +99,9 @@ Keycloak shows the break-glass user as temporary. It is the only account that ca
 | The browser refuses the security key | the page is not trusted (certificate warning) | Trust the root first (step 1) |
 | Too many wrong passwords | sign-in fails even with the right password | Wait 15 minutes; brute-force detection lets you in again |
 | A red ❗ next to the email in the user list | the administrator has no email address | Nothing: administrators need none, and the stack sends no email |
+| `just up` ends with `the realm does not match the repository` | `apply` found a difference it does not fix by itself (for example a login flow changed in the console) | Read the message above it. Undo the change in the console, or, with development data, start the database afresh (above) |
+| `just keycloak apply` says `apply skipped: no config service account yet` | `setup` has not run on this database | Run `just keycloak setup <username>` |
+| An administrator deleted a user's app code or key in the console | That user now signs in with the password alone: the second step applies to users who have one, and only new users get it as a default | At once, same page: **Users** → the user → **Required user actions**: add **Configure OTP** (or **Webauthn Register**), so the next sign-in sets one up again |
 
 ## Concepts
 - **Realm:** Keycloak's word for a set of users, apps and rules. `master` holds the administrators; `aetherspark` holds the people who use AetherSpark. They never mix.

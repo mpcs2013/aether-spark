@@ -129,6 +129,28 @@ def test_tmpfs_is_read_from_the_longest_mount_point(path: str, expected: bool) -
     assert store.is_tmpfs(Path(path), MOUNTINFO) is expected
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
+def test_a_folder_where_a_secret_file_belongs_is_named_for_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Docker leaves an empty folder per secret file when it restarts a container too early."""
+    secrets = tmp_path / "aetherspark" / "secrets"
+    (secrets / "step-ca-password").mkdir(parents=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(secrets))
+    with pytest.raises(store.InputError, match="Docker created"):
+        store.unseal([], mountinfo="22 1 0:25 / / rw - tmpfs tmpfs rw\n")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
+def test_a_clean_secrets_folder_is_left_alone(tmp_path: Path) -> None:
+    folder = tmp_path / "secrets"
+    folder.mkdir()
+    (folder / "a-secret").write_text("x")
+    assert store._docker_made(folder) is None
+    assert store._docker_made(tmp_path / "missing") is None
+
+
 def test_unseal_refuses_a_folder_on_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(tmp_path / "secrets"))
     with pytest.raises(store.InputError, match="not on a tmpfs"):
@@ -171,6 +193,16 @@ def test_a_secret_used_only_inside_a_mounted_derived_file_counts_as_used(tmp_pat
     assert store.check(manifest, [_project()]) == [
         "manifest: db-password is used by no Compose file",
         "manifest: keycloak-db.conf is used by no Compose file",
+    ]
+
+
+def test_a_secret_read_only_by_a_host_tool_needs_no_compose_file(tmp_path: Path) -> None:
+    host_only = {**GEN, "name": "tool-secret", "consumers": ["host:keycloak-admin"]}
+    manifest = _manifest(tmp_path, host_only)
+    assert store.check(manifest, [_project()]) == []
+    # ... and a service mounting it is not one of its consumers
+    assert store.check(manifest, [_project(**{"tool-secret": "tool-secret"})]) == [
+        "aetherspark: service keycloak reads tool-secret, not one of its consumers"
     ]
 
 

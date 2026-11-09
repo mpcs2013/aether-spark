@@ -536,6 +536,59 @@ breakglass() {
 check "break-glass creates a temporary administrator with Keycloak stopped, and Keycloak returns" breakglass
 check "... whose first sign-in also demands a security key" first_login breakglass-test "$work/breakglass-pw" key
 
+echo "--- The aetherspark realm as code; its users: password and a second factor (C10, PR 6a)"
+check "apply after setup changes nothing and reports the realm as the repository says" \
+    python3 -I "$repo/deploy/keycloak/admin.py" apply
+# The config service account, as `apply` uses it: what it may and may not reach
+cat >"$work/config_probe.py" <<'EOF'
+import sys
+sys.path.insert(0, sys.argv[1] + "/deploy/keycloak")
+import admin as kc
+a = kc.admin_route()
+if not kc.sign_in_config(a):
+    sys.exit("the config account cannot sign in")
+master = {p: a.call("GET", f"/admin/realms/master/{p}")[0] for p in ("users", "clients", "roles")}
+changed = a.call("PUT", "/admin/realms/master", {"bruteForceProtected": False})[0]
+if set(master.values()) != {403} or changed != 403:
+    sys.exit(f"master reachable: {master}, update {changed}")
+if a.call("GET", "/admin/realms/aetherspark/users")[0] != 200:
+    sys.exit("the aetherspark realm's users are out of reach")
+# A user created plainly (as in the console) still has to set up an app code
+created = a.call("POST", "/admin/realms/aetherspark/users", {"username": "plain-user", "enabled": True})
+actions = kc.find_user(a, "aetherspark", "plain-user")[0].get("requiredActions")
+if created[0] != 201 or actions != ["CONFIGURE_TOTP"]:
+    sys.exit(f"a plain user: HTTP {created[0]}, required actions {actions}")
+EOF
+check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings)" \
+    python3 -I "$work/config_probe.py" "$repo"
+mkdir -p "$work/user" "$work/keyuser" && chmod 700 "$work/user" "$work/keyuser"
+for u in user keyuser; do
+    ( umask 077; python3 -I -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' >"$work/$u/password" )
+done
+check "user add creates a user with a temporary password and an app code to set up" \
+    python3 -I "$repo/deploy/keycloak/admin.py" user add stack-test-user --password-file "$work/user/password"
+oidc() { python3 -I "$repo/tests/stack/oidc_flow.py" "$@" "$work/root.crt"; }
+check "first sign-in through Traefik: PKCE, app code set up, new password, tokens, refresh, userinfo, logout" \
+    oidc "$work/user" stack-test-user
+check "a later sign-in asks for the app code (a fresh browser remembers nothing)" oidc "$work/user" stack-test-user
+key_user_first() { # the client cannot touch a key: it must stop at the registration page
+    local out
+    out="$(oidc "$work/keyuser" stack-test-key-user 2>&1)"
+    printf '%s' "$out" | grep -q 'unexpected page' && grep -q registerWebAuthn "$work/keyuser/unexpected.html" \
+        || { printf '%s\n' "$out" | tail -2; return 1; }
+}
+check "user add --key: the first sign-in demands a security key instead" \
+    python3 -I "$repo/deploy/keycloak/admin.py" user add stack-test-key-user --key --password-file "$work/keyuser/password"
+check "... and stops at the security-key registration (no way around it)" key_user_first
+aether="(select id from realm where name = 'aetherspark')"
+check "database: the aetherspark realm signs in with the flow browser-2fa" kc_db browser-2fa \
+    "select f.alias from realm r join authentication_flow f on f.id = r.browser_flow where r.name = 'aetherspark'"
+check "database: users may not delete their own second factor; no profile questions" kc_db "f f" \
+    "select string_agg(case when enabled then 't' else 'f' end, ' ' order by alias) from required_action_provider
+      where realm_id = $aether and alias in ('delete_credential', 'VERIFY_PROFILE')"
+check "database: every new user must set up an app code (default action)" kc_db t \
+    "select default_action from required_action_provider where realm_id = $aether and alias = 'CONFIGURE_TOTP'"
+
 echo "--- C11: name constraints, per client (a test CA made with the real templates)"
 c11="$work/c11"
 mkdir -p "$c11" && chmod 0777 "$c11"

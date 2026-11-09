@@ -219,6 +219,35 @@ As ADR-0010 decides, made buildable:
 ## Gate G3's test relying party
 A pinned forward-auth container (an OIDC proxy) and a minimal "whoami" page. Traefik routes `whoami.aether.<place>` through forward-auth. Forward-auth signs the browser in at Keycloak (client `forward-auth`, confidential, MFA by the realm) and checks the token against Keycloak over the internal CA. The page shows the signed-in user's name. This proves the chain AetherSpark's own UIs will use, end to end.
 
+PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the realm as code and its users' second factor; **6b**, forward-auth, the whoami page and the back-channel entrypoint; **6c**, Ostium's realm checks.
+
+- **As built in PR 6a (2026-11-08):**
+  1. **The realm as code, also on a running Keycloak.** Keycloak imports the realm file only into an empty database, and since PR 5b no administrator can sign in without the browser and a key. So `deploy/keycloak/admin.py` gained:
+     - a **config service account**, `aetherspark-config`, which `setup` creates in `master`. It is a confidential client with client credentials only (no browser flow, no direct grants), its secret `keycloak-config-client-secret` in the store (read by the host tool, consumer `host:keycloak-admin`). Its roles are those of master's client `aetherspark-realm`: it administers the `aetherspark` realm, users included, and nothing in `master`. The stack test checks 403 on master's users, clients, roles and settings; Keycloak still answers it a short public summary of `master` (name, display name, a few flags), as for any admin account;
+     - **`apply`**, as that account: the realm file's settings, the required actions and the login flow. `just up` runs it after every start (skipped before `setup`), so the running realm follows the repository. A flow that differs from the code is reported, never rebuilt;
+     - **`user add NAME [--key]`**: a user with a temporary password and the second factor to set up.
+  2. **The users' second factor**, the owner's choice of an app code (TOTP) or a security key (WebAuthn): the flow `browser-2fa` asks for the password, then whichever of the two the user has.
+     - The second step is **conditional** on the user having one. A required step whose alternatives are all not set up yet fails the whole sign-in ("Invalid username or password", measured on 26.8.1), so a new user could never set one up.
+     - So every new user gets **setting up an app code as a default action**, however the user was created. With `--key`, `user add` replaces it with the key's registration.
+     - **Nobody may delete their own second factor** (`delete_credential` off).
+     - What remains: an administrator who deletes a user's second factor in the console leaves that user with the password alone until one is set up again. The runbook says to add the required action at once.
+     - Keycloak 26's **"verify profile"** action is off: it would ask every user for an email and names, and AetherSpark sends no email and shows the username.
+  3. **Tests** (`tests/stack/run.sh`, with `tests/stack/oidc_flow.py`, a browser's sign-in in standard-library Python):
+     - `apply` after `setup` changes nothing; the config account's limits; a user created plainly gets the app-code action;
+     - a first sign-in through Traefik's sign-in route: authorization code with PKCE (S256), the app code set up from the form's secret (as an authenticator app scans it), a new password, the code for tokens, issuer and user, a refresh, userinfo, logout, and the refresh token dead afterwards;
+     - a later sign-in asks for the app code (each run is a fresh browser);
+     - a `--key` user stops at the key's registration;
+     - from Keycloak's database: the bound flow, the default action, the two switched-off actions.
+
+     C10's client credentials and introspection come with 6b's confidential client, and the code flow through forward-auth (C8) with its page.
+  4. **The desktop** needs a fresh Keycloak database once: `setup` ran there before the config account existed. Development data is throw-away; the runbook has the steps, and the YubiKey is registered again.
+  5. **Services that read a secret no longer restart by themselves** (step-ca, `postgres-auth`, Keycloak: `restart: "no"`). Found on 2026-11-09:
+     - a stack left running across a restart of WSL came back without its in-memory secrets;
+     - Docker restarted those containers anyway, and created an empty root-owned folder at each missing secret file's path;
+     - the next unseal could not replace those folders.
+
+     Those services cannot start without `just up` in any case, which unseals the secrets first. Renewers and Traefik, which read no secret, still restart by themselves. If such folders exist anyway, unseal now stops with a message naming the folder to remove as root, instead of a bare "permission denied". The habit stays `just down` before shutting the desktop down.
+
 ## Certificate expiry and recovery
 Two different situations, documented in `docs/runbooks/certificates.md` and tested separately (C9a, C9b):
 
