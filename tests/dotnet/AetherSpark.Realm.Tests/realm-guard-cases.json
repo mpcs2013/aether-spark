@@ -1,0 +1,68 @@
+[
+  {
+    "path": "deploy/compose/stack/compose.yaml",
+    "content": "      - ../../keycloak/aetherspark-realm.json:/opt/keycloak/data/import/aetherspark-realm.json:ro\n",
+    "offends": false,
+    "in_scope": false
+  },
+  {
+    "path": "deploy/keycloak/admin.py",
+    "content": "REALM_FILE = Path(__file__).resolve().parent / \"aetherspark-realm.json\"\n",
+    "offends": false,
+    "in_scope": false
+  },
+  {
+    "path": "tests/dotnet/AetherSpark.Realm.Tests/Realm.cs",
+    "content": "public const string FileName = \"aetherspark-realm.json\";\n",
+    "offends": false,
+    "in_scope": false
+  },
+  {
+    "path": "tests/dotnet/AetherSpark.Realm.Tests/realm-guard-cases.json",
+    "content": "[{\"path\": \"x\", \"content\": \"/opt/keycloak/data/import/\"}]\n",
+    "offends": false,
+    "in_scope": false
+  },
+  {
+    "path": "docs/runbooks/keycloak-admin.md",
+    "content": "The realm file, deploy/keycloak/aetherspark-realm.json, is imported once.\n",
+    "offends": false,
+    "in_scope": false
+  },
+  {
+    "path": "deploy/compose/llm/compose.yaml",
+    "content": "    volumes:\n      - ./realm:/opt/keycloak/data/import:ro\n",
+    "offends": true,
+    "in_scope": true
+  },
+  {
+    "path": "deploy/keycloak/Dockerfile",
+    "content": "COPY aetherspark-realm.json /opt/keycloak/data/import/\n",
+    "offends": true,
+    "in_scope": true
+  },
+  {
+    "path": "tests/stack/run.sh",
+    "content": "cp deploy/keycloak/AetherSpark-Realm.JSON \"$work/\"\n",
+    "offends": true,
+    "in_scope": true
+  },
+  {
+    "path": "tests/dotnet/AetherSpark.Realm.Tests/RealmFileTests.cs",
+    "content": "File.ReadAllText(\"deploy/keycloak/aetherspark-realm.json\");\n",
+    "offends": true,
+    "in_scope": true
+  },
+  {
+    "path": ".claude/agents/identity-dev.md",
+    "content": "---\nname: identity-dev\n---\nEdit aetherspark-realm.json freely.\n",
+    "offends": true,
+    "in_scope": true
+  },
+  {
+    "path": ".claude/skills/journal/SKILL.md",
+    "content": "---\nname: journal\n---\nWrites journal entries.\n",
+    "offends": false,
+    "in_scope": true
+  }
+]

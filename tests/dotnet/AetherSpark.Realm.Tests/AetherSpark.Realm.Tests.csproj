@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The realm file's checks and the realm guard, with Ostium's rules (ADR-0009 amendment 1).
+       Ostium.Keycloak.Realm is for test projects only: no other project references it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Ostium.Keycloak.Realm" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The tests read the repository's files: the dev container builds outside the workspace, so
+         the output folder says nothing about where the repository is -->
+    <AssemblyMetadata Include="RepositoryRoot"
+                      Value="$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', '..'))" />
+  </ItemGroup>
+</Project>

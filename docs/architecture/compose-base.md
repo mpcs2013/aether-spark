@@ -280,6 +280,23 @@ PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the real
      - C9a: both services renewed and serving the new certificate after cert-watch's restart.
 
      The test suite's own route moved to `whoami.aether.<place>/stack-test/`, since the name now belongs to the page.
+- **As built in PR 6c (2026-11-09):**
+  1. **The realm file holds the clients.** `forward-auth` moved from `admin.py` into `deploy/keycloak/aetherspark-realm.json`, so the file is the whole realm and can be checked as an export.
+     - Its addresses use one placeholder, `${AETHERSPARK_PLACE}`. Keycloak's import fills it in from the keycloak service's environment (not secret), and `apply` fills it in itself. The stack test checks, before `setup`, that the imported client accepts its callback on `whoami.aether.localhost`.
+     - The file holds no secret: a client's `secret` is exactly its placeholder, `${FORWARD_AUTH_CLIENT_SECRET}` (Ostium's rule). `apply` sets the store's secret (`CLIENT_SECRETS` in `admin.py` names it) and refuses a client whose `secret` is anything else.
+     - Keycloak has no variable for that placeholder, on purpose (no secret in its environment, C5). Its import then keeps the placeholder's text as the secret (measured on 26.8.1, 2026-11-09). So between a fresh database's first start and `setup`, `forward-auth`'s secret is a known text. Accepted: in that window the realm has no user, and the client has no password grant and no service account, so the secret opens nothing. From `setup` on, `apply` sets the store's secret and checks it on every `just up`.
+     - The file now also states what Keycloak would otherwise fill in by default: the device and CIBA grants off, RS256 for access and ID tokens. Ostium's rules count an absent value as a finding.
+  2. **Ostium's realm checks** (`Ostium.Keycloak.Realm` 0.5.0, ADR-0009 amendment 1), in the test project `tests/dotnet/AetherSpark.Realm.Tests`, run by `just ci` on both architectures:
+     - the realm file, with the place filled in, against the per-client rules (`forward-auth` declared as a confidential "BFF" client: PKCE S256, exact redirect and sign-out addresses, no web origins, no password, implicit, device or CIBA grant, no service account, full scope off, RS256, tokens of at most 5 minutes), and no client undeclared;
+     - the file as committed: no secret and no placeholder other than the declared ones;
+     - each rule really bites: a weakened copy of the file gives the finding;
+     - **the realm guard**: no tracked file names the realm file or Keycloak's import folder, except the stack's Compose file (the one import), `admin.py`, the test project's profile and case table, and Markdown outside `.claude/`. A table of cases proves each exemption is needed and that, for example, a Dockerfile copying the file into the import folder or an agent's instructions naming it fail.
+  3. **The package's supply chain** (ADR-0009 amendments 1 and 2; runbook [ostium-packages.md](../runbooks/ostium-packages.md)):
+     - `nuget.config` sends `Ostium.*` to Ostium's feed only; the test project has a lock file and CI restores in locked mode;
+     - CI's .NET jobs get `packages: read` and pass the job's token to NuGet in that step only (into the dev container as one variable of its run);
+     - locally, the owner's read-only token lives in Windows Credential Manager, and `just ostium-feed restore` hands it to one restore;
+     - Ostium's signer line is pinned in `.github/allowed-signers/ostium` (O-010); the owner's consumer check of 0.5.0 is recorded in the PR.
+  4. **Left for later:** the running-realm checks (`CheckRunningRealmAsync`, with a realm account holding only `view-realm` and `view-clients`) and Ostium's live protocol flows, which need a test user and a throw-away Keycloak; the local folder feed of pinned packages with the backup (WP3.5).
 
 ## Certificate expiry and recovery
 Two different situations, documented in `docs/runbooks/certificates.md` and tested separately (C9a, C9b):

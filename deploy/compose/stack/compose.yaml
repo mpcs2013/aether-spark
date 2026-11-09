@@ -197,6 +197,10 @@ services:
       KC_DB_URL: "jdbc:postgresql://postgres-auth.svc.aether.${AETHERSPARK_PLACE:-localhost}:5432/keycloak?sslmode=verify-full&sslrootcert=/ca-certs/root_ca.crt"
       KC_DB_USERNAME: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: bootstrap-admin
+      # The realm file's place, filled in by the import (its clients' addresses); not secret. The
+      # clients' secret placeholders have no variable here on purpose: `just keycloak apply` sets
+      # the secrets from the store (admin.py, secret_placeholder).
+      AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
       # One node: no cluster discovery and no cluster ports (the build sets it too)
       KC_CACHE: local
     secrets: [keycloak.conf]

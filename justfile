@@ -28,6 +28,11 @@ dotnet-ci:
     dotnet build AetherSpark.slnx --no-restore
     dotnet test --solution AetherSpark.slnx --no-build
 
+# Ostium's private feed on Windows (docs/runbooks/ostium-packages.md): save | restore [-Pin] | forget
+[windows]
+ostium-feed *args:
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/ostium-feed.ps1 {{ args }}
+
 # Python: apply formatting and safe lint fixes
 py-fix:
     -{{ uv }} ruff check --fix

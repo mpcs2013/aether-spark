@@ -25,8 +25,9 @@ It signs in as Keycloak's temporary first-start administrator, whose password it
 in-memory secrets folder. After the run the owner signs in with the new account and deletes
 `bootstrap-admin` in the console (docs/runbooks/keycloak-admin.md).
 
-`apply` brings the `aetherspark` realm to what this repository says: its settings
-(deploy/keycloak/aetherspark-realm.json), its required actions, and the login flow `browser-2fa`:
+`apply` brings the `aetherspark` realm to what this repository says: its settings and clients
+(deploy/keycloak/aetherspark-realm.json, with each client's secret from the secrets store), its
+required actions, and the login flow `browser-2fa`:
 the password, then an app code or a security key, whichever the user has set up. Every new user
 must set one up at the first sign-in, and no user may delete their own. Keycloak imports the realm
 file only into an empty database, so `apply` is how a change reaches a running realm. It signs in
@@ -86,6 +87,21 @@ CONFIG_ROLES = (
     "query-users",
 )
 MIN_PASSWORD = 14  # both realms' password policy
+# The realm file's place: the keycloak service has it in its environment, so the import fills it in
+PLACE_PLACEHOLDER = "${AETHERSPARK_PLACE}"
+# Each client of the realm file and its secret in the store. Today one: Gate G3's forward-auth
+# (deploy/compose/stack/compose.yaml), confidential, the browser flow with PKCE only. Its tokens
+# carry none of the user's roles (fullScopeAllowed false; the page needs none).
+CLIENT_SECRETS = {"forward-auth": "forward-auth-client-secret"}
+
+
+def secret_placeholder(secret_name: str) -> str:
+    """A client's `secret` in the realm file: exactly this placeholder (Ostium's rule
+    export.secret-not-placeholder). Keycloak has no such variable, so its import keeps the text as
+    the secret (measured on 26.8.1, 2026-11-09) until `apply` sets the store's: a known value only
+    before `setup`, while the realm has no user and the client no password or service grant."""
+    return "${" + secret_name.upper().replace("-", "_") + "}"
+
 
 # A flow is (alias, description, steps); a step is (parent, provider or sub-flow alias, requirement)
 Flow = tuple[str, str, tuple[tuple[str, str, str], ...]]
@@ -495,13 +511,28 @@ def no_direct_grants(admin: Admin) -> None:
 # The aetherspark realm
 
 
-def realm_settings() -> dict[str, Any]:
-    """The realm file's settings, and the login flow `apply` creates (not in the file: Keycloak's
-    import would refuse a flow that does not exist yet)."""
-    data = json.loads(REALM_FILE.read_text(encoding="utf-8"))
+def realm_file() -> dict[str, Any]:
+    """The realm file with its place filled in, as Keycloak's import does. The clients' secret
+    placeholders stay (realm_clients); any other `${...}` is refused."""
+    text = REALM_FILE.read_text(encoding="utf-8").replace(PLACE_PLACEHOLDER, ca.place())
+    rest = text
+    for name in CLIENT_SECRETS.values():
+        rest = rest.replace(secret_placeholder(name), "")
+    if "${" in rest:
+        raise InputError(
+            f"{REALM_FILE.name}: a placeholder other than {PLACE_PLACEHOLDER} "
+            "and the clients' secrets"
+        )
+    data: dict[str, Any] = json.loads(text)
     if data.get("realm") != REALM:
         raise InputError(f"{REALM_FILE.name}: realm must be {REALM}")
-    settings = {k: v for k, v in data.items() if k != "realm"}
+    return data
+
+
+def realm_settings() -> dict[str, Any]:
+    """The realm file's settings, and the login flow `apply` creates (not in the file: Keycloak's
+    import would refuse a flow that does not exist yet). Clients are applied one by one."""
+    settings = {k: v for k, v in realm_file().items() if k not in ("realm", "clients")}
     settings["browserFlow"] = USER_FLOW[0]
     return settings
 
@@ -541,33 +572,19 @@ def apply_profile(admin: Admin) -> list[str]:
 
 
 def realm_clients() -> list[tuple[dict[str, Any], str]]:
-    """The aetherspark realm's clients, each with the name of its secret in the store. Today one:
-    Gate G3's forward-auth (deploy/compose/stack/compose.yaml), confidential, the browser flow with
-    PKCE only, redirecting to the test page's callback."""
-    page = f"https://whoami.aether.{ca.place()}"
-    forward_auth = {
-        "clientId": "forward-auth",
-        "name": "Gate G3's test page (forward-auth)",
-        "enabled": True,
-        "publicClient": False,
-        "clientAuthenticatorType": "client-secret",
-        "protocol": "openid-connect",
-        "standardFlowEnabled": True,
-        "implicitFlowEnabled": False,
-        "directAccessGrantsEnabled": False,
-        "serviceAccountsEnabled": False,
-        "frontchannelLogout": False,
-        # Its tokens carry none of the user's roles (the page needs none; Keycloak 26 also warns
-        # that "full scope allowed" is deprecated)
-        "fullScopeAllowed": False,
-        "redirectUris": [f"{page}/oauth2/callback"],
-        "webOrigins": [],
-        "attributes": {
-            "pkce.code.challenge.method": "S256",
-            "post.logout.redirect.uris": f"{page}/",
-        },
-    }
-    return [(forward_auth, "forward-auth-client-secret")]
+    """The realm file's clients without their `secret` field, each with the name of its secret in
+    the store (CLIENT_SECRETS). The file holds only the placeholder: a client without an entry in
+    CLIENT_SECRETS, or whose `secret` is anything else, is refused."""
+    clients = []
+    for client in realm_file().get("clients", []):
+        name = CLIENT_SECRETS.get(client.get("clientId", ""))
+        if name is None or client.get("secret") != secret_placeholder(name):
+            raise InputError(
+                f"{REALM_FILE.name}: client {client.get('clientId')!r} needs an entry in "
+                "CLIENT_SECRETS and its placeholder as its secret"
+            )
+        clients.append(({k: v for k, v in client.items() if k != "secret"}, name))
+    return clients
 
 
 def apply_clients(admin: Admin) -> list[str]:

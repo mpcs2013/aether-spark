@@ -6,7 +6,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# ADR-0004: read-only GITHUB_TOKEN, no other secrets
+# ADR-0004: read-only GITHUB_TOKEN, no other secrets. The jobs that restore Ostium's packages add
+# `packages: read` (ADR-0009 amendment 1).
 permissions:
   contents: read
 
@@ -82,6 +83,10 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    # Ostium's private packages (ADR-0009 amendment 1): read-only, granted per package
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -104,7 +109,13 @@ jobs:
       # age for the secrets round trip (ADR-0010); its test refuses to skip in CI on Linux
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age && age --version
 
-      - run: just ci
+      # `just ci` in its two parts, so only the .NET part has the feed credential: NuGet reads it
+      # for the source "ostium" (nuget.config)
+      - env:
+          NuGetPackageSourceCredentials_ostium: "Username=${{ github.actor }};Password=${{ secrets.GITHUB_TOKEN }}"
+        run: just dotnet-ci
+
+      - run: just py-ci
 
   # The dev container builds and passes `just ci` on both architectures (WP2.4; arm64 = the Spark)
   devcontainer:
@@ -121,6 +132,10 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    # Ostium's private packages, as in the build job
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -131,8 +146,13 @@ jobs:
       # The container user (uid 1654) differs from the runner's; it writes tool caches here
       - run: chmod -R a+rwX .
 
-      - run: >
-          docker run --rm -v "$PWD:/workspace" -w /workspace aetherspark-dev
+      # The feed credential reaches the container only as an environment variable of this one run
+      # (-e NAME passes the runner's value; it is not in the command line or the image)
+      - env:
+          NuGetPackageSourceCredentials_ostium: "Username=${{ github.actor }};Password=${{ secrets.GITHUB_TOKEN }}"
+        run: >
+          docker run --rm -e NuGetPackageSourceCredentials_ostium
+          -v "$PWD:/workspace" -w /workspace aetherspark-dev
           sh -c 'git config --global --add safe.directory /workspace && just ci'
 
   # The Python workspace on Windows (paths, line endings, the desktop's own platform)

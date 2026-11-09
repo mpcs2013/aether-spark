@@ -9,6 +9,7 @@
 | [secrets.md](secrets.md) | P3a (WP3.3) | **Ready** (2026-11-06): one-time WSL2 setup (age, just), the desktop proof, `just secrets generate / unseal / clear / rotate`, adding a secret; the Spark's production store follows with WP6.4 |
 | [llm-trial.md](llm-trial.md) | P5b (WP5b.1, early) | **Ready** (2026-11-07): LLM serving's first light on the Spark: model pull through the ops proxy, vLLM on an internal network, the first answer and the speed measurement |
 | [keycloak-admin.md](keycloak-admin.md) | P3a (WP3.1) | **Run** on the desktop 2026-11-08 (first time, steps 1–5): harden the master realm and create the owner's administrator (`just keycloak setup`), first sign-in with the YubiKey, delete the temporary administrator; break-glass (`just keycloak-break-glass`, tested by the stack test); YubiKey 2 when it is home |
+| [ostium-packages.md](ostium-packages.md) | P3a (WP3.1, WP3.5) | **Ready** (2026-11-09): the read-only feed token in Windows Credential Manager (`just ostium-feed save`), pinning an `Ostium.*` version, Ostium's consumer check in the PR |
 | [certificates.md](certificates.md) | P3a (WP3.1) | **Ready** (2026-11-06): the CA (`just up`, `just ca status / root / renew-intermediate`), trusting the root in Edge, Chrome and Firefox and removing it, what to do when something expires, re-init; the Spark's CA follows with WP6.4 |
 
 Planned (P3a–P7): `bootstrap.md`, `agent-kill-switch.md`, `cutover.md`, `restore-drill.md`, `model-update.md`, `patching.md`.
