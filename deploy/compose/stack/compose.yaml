@@ -74,13 +74,15 @@ services:
       STEPPATH: /tmp/.step
       CA_URL: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000"
       PLACE: "${AETHERSPARK_PLACE:-localhost}"
-      SERVICES: postgres-auth keycloak
-    secrets: [step-ca-provisioner-postgres-auth, step-ca-provisioner-keycloak]
+      SERVICES: postgres-auth keycloak forward-auth whoami
+    secrets: [step-ca-provisioner-postgres-auth, step-ca-provisioner-keycloak, step-ca-provisioner-forward-auth, step-ca-provisioner-whoami]
     volumes:
       - ./cert-bootstrap.sh:/bootstrap.sh:ro
       - *ca-certs
       - postgres-auth-tls:/tls/postgres-auth
       - keycloak-tls:/tls/keycloak
+      - forward-auth-tls:/tls/forward-auth
+      - whoami-tls:/tls/whoami
     networks: [pki]
     depends_on:
       step-ca: { condition: service_healthy }
@@ -115,6 +117,19 @@ services:
     volumes:
       - *ca-certs
       - keycloak-tls:/tls
+
+  # The same for forward-auth's and the test page's; cert-watch.sh restarts them on a new certificate
+  forward-auth-renewer:
+    <<: *renewer
+    volumes:
+      - *ca-certs
+      - forward-auth-tls:/tls
+
+  whoami-renewer:
+    <<: *renewer
+    volumes:
+      - *ca-certs
+      - whoami-tls:/tls
 
   # Keycloak's own database server (decision 5): the official image (Alpine, zlib fixed; its FROM line
   # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
@@ -211,6 +226,104 @@ services:
       start_period: 180s
       start_interval: 2s
 
+  # Gate G3's sign-in helper (compose-base.md, "Gate G3's test relying party"): oauth2-proxy behind
+  # Traefik's forwardAuth. It sends a browser without a session to Keycloak's sign-in (the public
+  # name), and redeems the code and fetches the keys through Traefik's back-channel entrypoint (the
+  # internal name), while checking that tokens name the public issuer. Every option is here; its two
+  # secrets come from files. cert-watch.sh restarts it when its 24-hour certificate is renewed.
+  forward-auth:
+    <<: [*no-restart, *hardening]
+    build: ./forward-auth
+    image: aetherspark/forward-auth:local
+    labels: { aetherspark.role: ui-api }
+    entrypoint: ["sh", "/cert-watch/cert-watch.sh", "/tls/tls.crt", "oauth2-proxy"]
+    command:
+      - --provider=oidc
+      - --provider-display-name=AetherSpark
+      - --client-id=forward-auth
+      - --client-secret-file=/run/secrets/forward-auth-client-secret
+      - --cookie-secret-file=/run/secrets/forward-auth-cookie-secret
+      - --cookie-name=_aetherspark_g3
+      - --cookie-secure=true
+      - --cookie-samesite=lax
+      - --oidc-issuer-url=https://auth.aether.${AETHERSPARK_PLACE:-localhost}/realms/aetherspark
+      - --skip-oidc-discovery
+      - --login-url=https://auth.aether.${AETHERSPARK_PLACE:-localhost}/realms/aetherspark/protocol/openid-connect/auth
+      - --redeem-url=https://auth-backchannel.aether.${AETHERSPARK_PLACE:-localhost}:9443/realms/aetherspark/protocol/openid-connect/token
+      - --oidc-jwks-url=https://auth-backchannel.aether.${AETHERSPARK_PLACE:-localhost}:9443/realms/aetherspark/protocol/openid-connect/certs
+      - --provider-ca-file=/ca-certs/root_ca.crt
+      - --code-challenge-method=S256
+      - --redirect-url=https://whoami.aether.${AETHERSPARK_PLACE:-localhost}/oauth2/callback
+      - --whitelist-domain=whoami.aether.${AETHERSPARK_PLACE:-localhost}
+      # Users have no email (AetherSpark sends none): the username stands in for it
+      - --email-domain=*
+      - --oidc-email-claim=preferred_username
+      - --insecure-oidc-allow-unverified-email
+      - --skip-provider-button
+      # forwardAuth: an answer for the request Traefik asks about, and the user in response headers
+      - --upstream=static://202
+      - --set-xauthrequest
+      - --reverse-proxy
+      - --trusted-proxy-ip=172.30.63.2
+      - --http-address=
+      - --https-address=:4443
+      - --tls-cert-file=/tls/tls.crt
+      - --tls-key-file=/tls/tls.key
+      # The callback's URL carries the one-time authorization code: not in the request log
+      - --exclude-logging-path=/oauth2/callback
+    environment:
+      CERT_WATCH_SECONDS: "${AETHERSPARK_CERT_WATCH_SECONDS:-60}"
+    secrets: [forward-auth-client-secret, forward-auth-cookie-secret]
+    healthcheck:
+      # Inside the container only; its certificate names the internal name, not 127.0.0.1
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--no-check-certificate", "https://127.0.0.1:4443/ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    pids_limit: 100
+    volumes:
+      - ./cert-watch:/cert-watch:ro
+      - forward-auth-tls:/tls:ro
+      - *ca-certs
+    networks:
+      edge:
+        aliases: ["forward-auth.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+      auth-edge: {}
+    depends_on:
+      forward-auth-renewer: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+
+  # Gate G3's test page: echoes the request, so it shows the user forward-auth put into it
+  whoami:
+    <<: *hardening
+    build: ./whoami
+    image: aetherspark/whoami:local
+    labels: { aetherspark.role: ui-api }
+    entrypoint: ["sh", "/cert-watch/cert-watch.sh", "/tls/tls.crt", "whoami"]
+    command: ["-port", "8443", "-cert", "/tls/tls.crt", "-key", "/tls/tls.key", "-name", "AetherSpark G3"]
+    environment:
+      CERT_WATCH_SECONDS: "${AETHERSPARK_CERT_WATCH_SECONDS:-60}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--no-check-certificate", "https://127.0.0.1:8443/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+    tmpfs: [/tmp]
+    mem_limit: 64m
+    pids_limit: 50
+    volumes:
+      - ./cert-watch:/cert-watch:ro
+      - whoami-tls:/tls:ro
+    networks:
+      edge:
+        aliases: ["whoami.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+    depends_on:
+      whoami-renewer: { condition: service_healthy }
+
   traefik:
     <<: *hardening
     image: traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a
@@ -240,6 +353,17 @@ services:
       TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDPERCENT: "false"
       TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDQUESTIONMARK: "false"
       TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDHASH: "false"
+      # The back-channel entrypoint (forward-auth.yml): services reach Keycloak's protocol paths here,
+      # on auth-edge only (an allowlist of its subnet); never published
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_ADDRESS: ":9443"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_TLS: "true"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDSLASH: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDBACKSLASH: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDNULLCHARACTER: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDSEMICOLON: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDPERCENT: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDQUESTIONMARK: "false"
+      TRAEFIK_ENTRYPOINTS_BACKCHANNEL_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDHASH: "false"
       TRAEFIK_ENTRYPOINTS_PING_ADDRESS: ":8082"
       TRAEFIK_PING: "true"
       TRAEFIK_PING_ENTRYPOINT: ping
@@ -266,12 +390,21 @@ services:
       # Keycloak's only caller; Keycloak trusts forwarded headers from this address only
       auth-front:
         ipv4_address: 172.30.61.2
-      # Its public names, so step-ca's TLS-ALPN challenge reaches it (and nothing else claims them)
+      # The apps' network: forward-auth and the test page; forward-auth trusts forwarded headers from
+      # this address only
+      edge:
+        ipv4_address: 172.30.63.2
+      # The back-channel entrypoint's network: services reach Keycloak's protocol paths by this name
+      auth-edge:
+        ipv4_address: 172.30.62.2
+        aliases: ["auth-backchannel.aether.${AETHERSPARK_PLACE:-localhost}"]
+      # Its names, so step-ca's TLS-ALPN challenge reaches it (and nothing else claims them)
       pki:
         aliases:
           - "auth.aether.${AETHERSPARK_PLACE:-localhost}"
           - "auth-admin.aether.${AETHERSPARK_PLACE:-localhost}"
           - "whoami.aether.${AETHERSPARK_PLACE:-localhost}"
+          - "auth-backchannel.aether.${AETHERSPARK_PLACE:-localhost}"
     depends_on:
       step-ca: { condition: service_healthy }
     healthcheck:
@@ -296,6 +429,14 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-keycloak"
   keycloak.conf:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/keycloak.conf"
+  step-ca-provisioner-forward-auth:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-forward-auth"
+  step-ca-provisioner-whoami:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-whoami"
+  forward-auth-client-secret:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/forward-auth-client-secret"
+  forward-auth-cookie-secret:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/forward-auth-cookie-secret"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:
@@ -303,6 +444,8 @@ volumes:
   postgres-auth-tls: {}
   postgres-auth-data: {}
   keycloak-tls: {}
+  forward-auth-tls: {}
+  whoami-tls: {}
 
 networks:
   # A fixed subnet, so that the source address Traefik sees from the host is known (its gateway)
@@ -327,3 +470,16 @@ networks:
     enable_ipv6: false
     driver_opts: { com.docker.network.bridge.name: as-db-auth }
     ipam: { config: [{ subnet: 172.30.60.0/24, gateway: 172.30.60.1 }] }
+  # Traefik and the apps behind it (forward-auth and Gate G3's test page); Traefik at a fixed address
+  edge:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-edge }
+    ipam: { config: [{ subnet: 172.30.63.0/24, gateway: 172.30.63.1, ip_range: 172.30.63.128/25 }] }
+  # The back channel of the edge group: its services reach Keycloak's protocol paths through Traefik's
+  # back-channel entrypoint (forward-auth.yml admits this subnet only)
+  auth-edge:
+    internal: true
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-auth-edge }
+    ipam: { config: [{ subnet: 172.30.62.0/24, gateway: 172.30.62.1, ip_range: 172.30.62.128/25 }] }

@@ -5,10 +5,12 @@
     { "name": "step-ca", "context": "deploy/compose/stack/step-ca" },
     { "name": "postgres-auth", "context": "deploy/compose/stack/postgres-auth" },
     { "name": "keycloak", "context": "deploy/keycloak" },
+    { "name": "forward-auth", "context": "deploy/compose/stack/forward-auth" },
+    { "name": "whoami", "context": "deploy/compose/stack/whoami" },
     { "name": "egress-lab", "context": "tests/egress/lab" },
     { "name": "host-role-test", "context": "tests/host-role" }
   ],
-  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local", "aetherspark/keycloak:local"],
+  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local", "aetherspark/keycloak:local", "aetherspark/forward-auth:local", "aetherspark/whoami:local"],
   "exclude": {
     "deploy/images/grype.Dockerfile": "the scanner's own pin, read by scan.sh; nothing builds it"
   }

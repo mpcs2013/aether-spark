@@ -252,6 +252,34 @@ PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the real
      - The owner set the policy in the console, registered the YubiKey again and deleted the Windows Hello entry. The everyday user was then created with `--key`, on the YubiKey (checked: "USB, NFC").
      - The stack test reads both realms' policy from the database.
      - Email and names in the `aetherspark` realm's user profile are optional, since the account page marked them as missing.
+- **As built in PR 6b (2026-11-09):**
+  1. **The chain.** `whoami.aether.<place>` is routed through Traefik's `forwardAuth` to **forward-auth** (oauth2-proxy 7.15.6, on `edge`).
+     - Without a session it answers with the redirect to Keycloak's sign-in on the public name: client `forward-auth`, authorization code with PKCE (S256).
+     - After the sign-in it answers 202 and names the user in `X-Auth-Request-*` headers, which Traefik copies into the request to the page. Headers of the same name from the browser never reach the page (`trustForwardHeader: false`; tested).
+     - Its own paths (`/oauth2/…`: the callback, sign-out) are routed to it directly on the same name.
+     - Users have no email, so the username stands in for it (`--oidc-email-claim=preferred_username`).
+  2. **The back-channel entrypoint.** Traefik's entrypoint `backchannel` (port 9443, never published) on `auth-edge`, under the internal name `auth-backchannel.aether.<place>` (an alias on `auth-edge`; its certificate from step-ca over ACME like the public names).
+     - It routes only the `aetherspark` realm's protocol endpoints and discovery, only from `auth-edge`'s subnet; everything else gets 404, other networks 403.
+     - forward-auth uses it to redeem codes and fetch keys (`--skip-oidc-discovery` with explicit URLs), while it checks that tokens name the **public** issuer. Keycloak issues them under the public name whatever address the request came in on. So the question of O-037 is settled here without Ostium's library; for .NET APIs (P4a) it stays as asked.
+  3. **The realm's client.** `apply` creates or updates `forward-auth` in the `aetherspark` realm:
+     - confidential, its secret `forward-auth-client-secret` from the store (also mounted into forward-auth);
+     - the browser flow only, PKCE required, redirects only to the page's callback;
+     - "full scope" off, so its tokens carry none of the user's roles. The page needs none, and Keycloak 26 warns that the switch is deprecated. The same warning names the config service account, whose roles reach its token through that switch; moving those roles to explicit scope mappings is left for a later change.
+
+     The cookie key `forward-auth-cookie-secret` is a generated secret too.
+     - **Introspection is allowed only for tokens issued for the asking client:** Keycloak 26 answers `active: false` otherwise ("not in the token audience", measured 2026-11-09). An API that checks its own tokens therefore needs an audience mapper on the client that requests them, as the test's service client has.
+  4. **Certificates of programs that read them only at start.** oauth2-proxy and whoami both load their certificate once (read in their source, 2026-11-09). `deploy/compose/stack/cert-watch/cert-watch.sh` runs each one and restarts it when the renewer has replaced the file (checked every minute; the restart takes well under a second; sessions live in the browser's cookie). So both images are built here with a shell:
+     - **forward-auth:** oauth2-proxy's static binary from the release image (pinned by digest) on the stack's Alpine, zlib fixed;
+     - **whoami:** built from its tagged source with Go 1.27.3, modules raised as for step-ca. The release image (v1.12.0) carried Go 1.26.5 with 1 Critical and 16 High fixed findings.
+
+     Both scan clean, so the PR needs no exception.
+  5. **No secret in forward-auth's environment, inspect output or log**, and the callback (which carries the one-time authorization code in its URL) is left out of its request log. forward-auth reads two secrets, so like the other secret readers it does not restart by itself.
+  6. **Tests** (`tests/stack/run.sh`, `tests/stack/oidc_flow.py --page`):
+     - C8: the page redirects to Keycloak as `forward-auth` with PKCE; after password and app code it shows the user; a forged user header is ignored; after sign-out the page asks for sign-in again;
+     - C10: on the back channel, discovery (public issuer), keys, client credentials and introspection (with a test client), and 404 for admin, master, account and other paths; 403 from `edge`;
+     - C9a: both services renewed and serving the new certificate after cert-watch's restart.
+
+     The test suite's own route moved to `whoami.aether.<place>/stack-test/`, since the name now belongs to the page.
 
 ## Certificate expiry and recovery
 Two different situations, documented in `docs/runbooks/certificates.md` and tested separately (C9a, C9b):

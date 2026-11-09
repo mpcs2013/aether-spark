@@ -33,6 +33,8 @@ updates:
       - /deploy/compose/egress
       - /deploy/compose/stack/step-ca
       - /deploy/compose/stack/postgres-auth
+      - /deploy/compose/stack/forward-auth
+      - /deploy/compose/stack/whoami
       - /deploy/keycloak   # its base is ignored below
       - /tests/egress/lab
       - /tests/host-role
