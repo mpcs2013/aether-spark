@@ -31,5 +31,32 @@
   "eventsExpiration": 2592000,
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
-  "internationalizationEnabled": false
+  "internationalizationEnabled": false,
+  "clients": [
+    {
+      "clientId": "forward-auth",
+      "name": "Gate G3's test page (forward-auth)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${FORWARD_AUTH_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["https://whoami.aether.${AETHERSPARK_PLACE}/oauth2/callback"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://whoami.aether.${AETHERSPARK_PLACE}/",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "access.token.signed.response.alg": "RS256",
+        "id.token.signed.response.alg": "RS256"
+      }
+    }
+  ]
 }

@@ -364,6 +364,9 @@ check "discovery through Traefik names the issuer https://$auth/realms/aetherspa
 check "the realm's keys (JWKS) through Traefik" answers 200 "$auth" /realms/aetherspark/protocol/openid-connect/certs
 check "the sign-in page through Traefik" answers 200 "$auth" \
     "/realms/aetherspark/protocol/openid-connect/auth?client_id=account-console&response_type=code&scope=openid&code_challenge=$(printf 'x%.0s' $(seq 1 43))&code_challenge_method=S256&redirect_uri=https://$auth/realms/aetherspark/account/" -L
+# Before setup and apply, so only Keycloak's import has seen the realm file: it filled in the place
+check "the import created forward-auth with the place filled in (its callback is accepted)" answers 200 "$auth" \
+    "/realms/aetherspark/protocol/openid-connect/auth?client_id=forward-auth&response_type=code&scope=openid&code_challenge=$(printf 'x%.0s' $(seq 1 43))&code_challenge_method=S256&redirect_uri=https://whoami.aether.localhost/oauth2/callback"
 for p in /admin/ /admin/master/console/ /admin/realms/aetherspark /realms/master/ \
     /realms/master/protocol/openid-connect/token /realms/aetherspark/../master/ '//admin/' \
     '/realms/aetherspark/%2e%2e/%2e%2e/admin/' '/realms/aetherspark/..%2fmaster/' '/%61dmin/' \
