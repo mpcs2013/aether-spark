@@ -119,6 +119,7 @@ USER_FLOW: Flow = (
 # The aetherspark realm's required actions: alias -> (enabled, a default action for every new user).
 # VERIFY_PROFILE is off: Keycloak 26 would ask every user for an email and names, and AetherSpark
 # sends no email and shows the username (measured 2026-11-08)
+OPTIONAL_ATTRIBUTES = ("email", "firstName", "lastName")
 USER_ACTIONS = {
     "CONFIGURE_TOTP": (True, True),
     "webauthn-register": (True, False),
@@ -144,6 +145,9 @@ ADMIN_SETTINGS: dict[str, Any] = {
     "adminEventsEnabled": True,
     "adminEventsDetailsEnabled": False,
     "webAuthnPolicyRpEntityName": "AetherSpark administration",
+    # External security keys only: without it Windows may save the passkey in Windows Hello on the
+    # PC, offered in the same dialog (seen at the owner's sign-in, 2026-11-09)
+    "webAuthnPolicyAuthenticatorAttachment": "cross-platform",
 }
 
 
@@ -516,13 +520,33 @@ def apply_actions(admin: Admin) -> list[str]:
     return findings
 
 
+def apply_profile(admin: Admin) -> list[str]:
+    """Email and names are optional: Keycloak 26's default user profile requires them, and the
+    account page then marks them as missing, though AetherSpark sends no email (2026-11-09)."""
+    path = f"/admin/realms/{REALM}/users/profile"
+    profile = admin.need("GET", path)
+    changed = False
+    for attribute in profile.get("attributes", []):
+        if attribute.get("name") in OPTIONAL_ATTRIBUTES and "required" in attribute:
+            del attribute["required"]
+            changed = True
+    if changed:
+        admin.need("PUT", path, profile, ok=(200,))
+    still = [
+        a["name"]
+        for a in admin.need("GET", path).get("attributes", [])
+        if a.get("name") in OPTIONAL_ATTRIBUTES and "required" in a
+    ]
+    return [f"{REALM} user profile: {name} is still required" for name in still]
+
+
 def apply_realm(admin: Admin) -> list[str]:
     settings = realm_settings()
     ensure_flow(admin, REALM, USER_FLOW)
     findings = check_flow(admin, REALM, USER_FLOW)
     if findings:
         return findings  # never bind a flow that differs from the code
-    findings = apply_actions(admin)
+    findings = apply_actions(admin) + apply_profile(admin)
     admin.need("PUT", f"/admin/realms/{REALM}", settings, ok=(204,))
     return findings + check_settings(admin, REALM, settings)
 

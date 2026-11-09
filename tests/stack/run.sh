@@ -36,9 +36,16 @@ ca_py() {
     python3 -I -c "import sys; sys.path.insert(0, sys.argv[1] + '/deploy/ca'); import ca; $code" "$repo" "$@"
 }
 step_image() { ca_py 'print(ca.image())'; }
-up() { # `just up` with the test route; its output goes to up.log
-    bash "$repo/deploy/compose/stack/up.sh" "${overlay[@]}" >"$work/up.log" 2>&1 \
-        || { tail -15 "$work/up.log"; return 1; }
+up() { # `just up` with the test route; its output goes to up.log. On failure: its last lines, and
+    # the last lines of every container that stopped (CI once lost postgres-auth here, 2026-11-09)
+    bash "$repo/deploy/compose/stack/up.sh" "${overlay[@]}" >"$work/up.log" 2>&1 && return 0
+    tail -8 "$work/up.log"
+    local id
+    for id in $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter status=exited); do
+        echo "--- $(docker inspect -f '{{.Name}} exit {{.State.ExitCode}}' "$id")"
+        docker logs --tail 12 "$id" 2>&1
+    done
+    return 1
 }
 
 pass() { printf 'PASS  %s\n' "$1"; }
@@ -558,9 +565,18 @@ created = a.call("POST", "/admin/realms/aetherspark/users", {"username": "plain-
 actions = kc.find_user(a, "aetherspark", "plain-user")[0].get("requiredActions")
 if created[0] != 201 or actions != ["CONFIGURE_TOTP"]:
     sys.exit(f"a plain user: HTTP {created[0]}, required actions {actions}")
+# Email and names are optional (AetherSpark sends no email)
+profile = a.need("GET", "/admin/realms/aetherspark/users/profile")
+required = [x["name"] for x in profile["attributes"] if x["name"] in ("email", "firstName", "lastName") and "required" in x]
+if required:
+    sys.exit(f"still required in the user profile: {required}")
 EOF
-check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings)" \
+check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings); email and names optional" \
     python3 -I "$work/config_probe.py" "$repo"
+check "database: both realms accept only external security keys (cross-platform), never Windows Hello" kc_db \
+    "cross-platform cross-platform" \
+    "select string_agg(a.value, ' ' order by r.name) from realm_attribute a join realm r on r.id = a.realm_id
+      where a.name = 'webAuthnPolicyAuthenticatorAttachment' and r.name in ('aetherspark', 'master')"
 mkdir -p "$work/user" "$work/keyuser" && chmod 700 "$work/user" "$work/keyuser"
 for u in user keyuser; do
     ( umask 077; python3 -I -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' >"$work/$u/password" )

@@ -247,6 +247,11 @@ PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the real
      - the next unseal could not replace those folders.
 
      Those services cannot start without `just up` in any case, which unseals the secrets first. Renewers and Traefik, which read no secret, still restart by themselves. If such folders exist anyway, unseal now stops with a message naming the folder to remove as root, instead of a bare "permission denied". The habit stays `just down` before shutting the desktop down.
+  6. **External security keys only** (follow-up, 2026-11-09): both realms' WebAuthn policy is `cross-platform` (master through `setup`, `aetherspark` through the realm file and `apply`).
+     - At the owner's sign-in after the fresh database, Windows had saved the administrator's passkey in **Windows Hello** on the PC, offered in the same dialog as the security key: sign-in worked with the YubiKey unplugged.
+     - The owner set the policy in the console, registered the YubiKey again and deleted the Windows Hello entry. The everyday user was then created with `--key`, on the YubiKey (checked: "USB, NFC").
+     - The stack test reads both realms' policy from the database.
+     - Email and names in the `aetherspark` realm's user profile are optional, since the account page marked them as missing.
 
 ## Certificate expiry and recovery
 Two different situations, documented in `docs/runbooks/certificates.md` and tested separately (C9a, C9b):
