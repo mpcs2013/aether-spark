@@ -12,6 +12,6 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
 
-    <PackageVersion Include="Ostium.Keycloak.Realm" Version="0.5.0" />
+    <PackageVersion Include="Ostium.Keycloak.Realm" Version="[0.5.0]" />
   </ItemGroup>
 </Project>

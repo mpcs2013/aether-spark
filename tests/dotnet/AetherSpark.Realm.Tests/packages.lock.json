@@ -4,7 +4,7 @@
     "net10.0": {
       "Ostium.Keycloak.Realm": {
         "type": "Direct",
-        "requested": "[0.5.0, )",
+        "requested": "[0.5.0, 0.5.0]",
         "resolved": "0.5.0",
         "contentHash": "1Mmxq9cu4ospF91ykwsFX5GqKt/3USPBDMh1MPMWJlL+wbq6QzCBReNyfQMhOnXJAjKyDUoXFi6Z8lJfvKilpA=="
       },
