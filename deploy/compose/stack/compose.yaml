@@ -11,6 +11,13 @@ x-hardening: &hardening
   restart: unless-stopped
   user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
 
+# Services that read a secret do not restart by themselves: their secrets live only in memory, so
+# after a restart of WSL or Docker they cannot start, and Docker would create empty root-owned
+# folders where the secret files belong, which the next unseal cannot replace (seen 2026-11-09).
+# `just up` unseals and starts them again.
+x-no-restart: &no-restart
+  restart: "no"
+
 # step-ca, the bootstrap step and the renewers share one image, built from step-ca/Dockerfile (its
 # FROM line is the only pin; deploy/ca/ca.py reads it too)
 x-step: &step
@@ -35,7 +42,7 @@ x-ca-certs: &ca-certs
 
 services:
   step-ca:
-    <<: *step
+    <<: [*no-restart, *step]
     labels: { aetherspark.role: step-ca }
     entrypoint: ["step-ca"]
     command: ["/ca/config/ca.json", "--password-file", "/run/secrets/step-ca-password"]
@@ -113,7 +120,7 @@ services:
   # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
   # TLS from the renewer's volume, the reviewed pg_hba.conf, on db-auth only
   postgres-auth:
-    <<: *hardening
+    <<: [*no-restart, *hardening]
     build: ./postgres-auth
     image: aetherspark/postgres-auth:local
     labels: { aetherspark.role: postgres }
@@ -150,7 +157,7 @@ services:
   # db-auth. Its two passwords come from one configuration file in the in-memory secrets folder
   # (Keycloak has no *_FILE variables); everything else here is not secret.
   keycloak:
-    <<: *hardening
+    <<: [*no-restart, *hardening]
     build: ../../keycloak
     image: aetherspark/keycloak:local
     labels: { aetherspark.role: keycloak }

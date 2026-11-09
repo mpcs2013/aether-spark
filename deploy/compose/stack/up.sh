@@ -29,5 +29,9 @@ python3 -I "$repo/deploy/ca/ca.py" prepare
 dc up -d --wait --force-recreate step-ca
 dc run --rm cert-bootstrap
 dc up -d --wait --force-recreate
+# The aetherspark realm as the repository says (deploy/keycloak/admin.py apply): Keycloak imports
+# the realm file only into an empty database. Skipped before `just keycloak setup` has run
+python3 -I "$repo/deploy/keycloak/admin.py" apply --if-ready \
+    || echo "up: the realm does not match the repository; see docs/runbooks/keycloak-admin.md" >&2
 # The intermediate's expiry is watched, not remembered (exit 1 below 60 days: renew it)
 python3 -I "$repo/deploy/ca/ca.py" status || echo "up: see docs/runbooks/certificates.md" >&2

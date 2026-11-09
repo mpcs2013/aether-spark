@@ -51,7 +51,7 @@ It must say `PASS  5b`. The proof never prints a secret.
 ## Adding a secret
 1. Add an entry to `deploy/secrets.manifest.json`:
    - `name`: lower-case, the file name the service sees under `/run/secrets/`;
-   - `consumers`: the Compose services allowed to read it;
+   - `consumers`: the Compose services allowed to read it; a tool on the host that reads it from the in-memory folder is named `host:<tool>` (for example `host:keycloak-admin`), and a secret read only by host tools needs no Compose file;
    - `rotation_days`: optional;
    - either `generator` (`{"type": "random", "bytes": 32}`, at least 16 bytes) or `derived`, a file built from other secrets, such as `"db-password={keycloak-db-password}\n"`.
 2. In the Compose file: a top-level secret with the same name and `file:` in the in-memory folder; only its consumers list it.
@@ -61,6 +61,13 @@ It must say `PASS  5b`. The proof never prints a secret.
 - **No value on screen, in a file on disk, in an argument or in an environment variable.** Images that cannot read a file get a configuration file from the in-memory folder instead (Keycloak: `--config-file`).
 - **Every service that reads a secret runs as the stack's user** (on the desktop, your WSL user, uid 1000), because the files are 0400 and belong to that user; each file is mounted only into its own service.
 - **Hand-made secrets are only two:** the age keys and the Keycloak break-glass password (ADR-0010 change 3).
+
+## When something is wrong
+| Situation | What you see | What to do |
+|---|---|---|
+| The desktop or WSL restarted while the stack was up (no `just down` before) | `just up` stops at unseal: `… holds folders Docker created where the secret files belong …` | The folders are empty and hold no secret. Remove the folder the message names, as root, from PowerShell: `wsl -u root -- rm -r '<the folder>'`, then `just up`. Habit: `just down` before shutting the desktop down |
+
+Why it happens: the in-memory folder is empty after a restart of WSL. Docker restarted containers that read secrets, and created an empty root-owned folder at each missing secret file's path. Since 2026-11-09 those services no longer restart by themselves, so this should not come back.
 
 ## Concepts
 - **age:** a small encryption tool. A key pair: the public half seals, the private half (the dev key) opens.

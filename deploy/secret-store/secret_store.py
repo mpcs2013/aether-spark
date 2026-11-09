@@ -36,6 +36,7 @@ MANIFEST = ROOT / "deploy" / "secrets.manifest.json"
 NAME = re.compile(r"^[a-z0-9][a-z0-9.-]{0,62}$")
 REFERENCE = re.compile(r"\{([a-z0-9][a-z0-9.-]{0,62})\}")
 MIN_BYTES = 16  # 128 bits
+HOST_PREFIX = "host:"  # a consumer that is a tool on the host (WSL2, the Spark), not a service
 ENTRY_KEYS = {"name", "consumers", "rotation_days", "generator", "derived"}
 
 
@@ -246,9 +247,34 @@ def _write_private(path: Path, text: str) -> None:
         handle.write(text)
 
 
+def _docker_made(target: Path) -> Path | None:
+    """The folder to remove when Docker has filled the secrets path: it creates a missing bind
+    source as an empty root-owned folder, for a secret file too, when it restarts a container
+    before the secrets are unsealed (after a restart of WSL or Docker without `just down`).
+    None when the folder is ours and holds no folder (secret files are never folders)."""
+    if sys.platform == "win32" or not target.is_dir():
+        return None  # the in-memory folder exists only on Linux (WSL2, the Spark)
+    mine = os.getuid()
+    if target.stat().st_uid == mine and not any(p.is_dir() for p in target.iterdir()):
+        return None
+    # Climb to the topmost folder that is not ours, but never above the runtime folder
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/nonexistent"))
+    stray = target
+    while stray.parent.stat().st_uid != mine and runtime in stray.parent.parents:
+        stray = stray.parent
+    return stray
+
+
 def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
     """Decrypts every secret into the in-memory folder, which must be a tmpfs; returns the names."""
     target = secret_dir()
+    stray = _docker_made(target)
+    if stray is not None:
+        raise InputError(
+            f"{stray} holds folders Docker created where the secret files belong (a restart "
+            "without `just down`); they hold no secret. Remove them as root, then run `just up` "
+            f"again: from PowerShell, wsl -u root -- rm -r '{stray}'"
+        )
     _private_dir(target)
     if not is_tmpfs(target, mountinfo):
         raise InputError(f"{target} is not on a tmpfs: secrets are never decrypted to disk")
@@ -311,6 +337,8 @@ def check(manifest: list[Secret], rendered: list[dict[str, Any]]) -> list[str]:
     for s in manifest:
         if s.derived and s.name in used:
             used.update(REFERENCE.findall(s.derived))
+    # A secret read only by a host tool (consumer "host:<tool>"), never by a container
+    used.update(s.name for s in manifest if all(c.startswith(HOST_PREFIX) for c in s.consumers))
     findings.extend(
         f"manifest: {name} is used by no Compose file" for name in sorted(set(known) - used)
     )
