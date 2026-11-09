@@ -67,7 +67,7 @@ At every later sign-in: the password, then the code from the app (or the key's t
 
 The account page opens on **Personal info**. Email and names are optional, so there is nothing to fill in; AetherSpark sends no email.
 
-Run on the desktop on 2026-11-09, after the fresh database (below): the administrator again, then the owner's everyday user with `--key` (YubiKey 1), both checked with the key unplugged.
+Run on the desktop on 2026-11-09, after the fresh database (below): the administrator again (checked with the key unplugged: refused), then the owner's everyday user with `--key` (YubiKey 1; its key shown as "USB, NFC").
 
 ### Once, after PR 6a: a fresh Keycloak database on the desktop
 The config service account is created only by `setup`, and on the desktop `setup` ran before it existed. Development data is throw-away, so the simplest way is to start Keycloak's database afresh and set it up again (about 15 minutes, YubiKey 1 at hand):
