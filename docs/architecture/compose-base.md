@@ -422,13 +422,26 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
 | C3b | Every client refuses a certificate from a foreign CA or with a wrong name: Traefik → Keycloak, Keycloak → `postgres-auth` (`verify-full`), renewer → step-ca, forward-auth → Keycloak | CI |
 | C4 | Nothing is published except Traefik's 443, on `127.0.0.1` on the desktop | desktop, CI |
 | C5 | No secret value in `docker inspect` of any container, in a Compose file, in an image or in a process environment | CI |
-| C6 | The egress suite passes with the WP3.1 services in the stack (Gate G3) | desktop, CI, Spark |
+| C6 | The egress suite passes with the WP3.1 services in the stack (Gate G3). *As built (2026-11-10):* below the table | desktop, CI, Spark |
 | C7 | The image scan covers every image of the stack, the Keycloak build and the renewer included, on both architectures (including an arm64 entry in each index digest) | CI |
 | C8 | `whoami.aether.localhost` signs a test user in through Keycloak with MFA and shows the user's name | desktop |
 | C9a | **Normal renewal**, with 10-minute certificates in CI: renewal at two thirds; the `postgres-auth` reload (shortened in the test) and Keycloak's reload pick up the new files with no failed connection; after a stop shorter than the lifetime (the overnight case), `just up` renews before reporting healthy | CI |
 | C9b | **Recovery after expiry:** with every leaf expired, `just up` re-bootstraps and reaches healthy; with a short-lived test intermediate expired, issuance fails visibly and the runbook's renewal with the root restores it | CI |
 | C10 | **Required functions work** through Traefik: discovery, the authorization code flow with PKCE and MFA, token and refresh, JWKS, userinfo, logout; client credentials and introspection on the back-channel entrypoint. **Admin is denied** on `auth.` and on the back-channel entrypoint: `/admin/`, `/realms/master/` and the management port, including `..`, encoded and doubled-slash variants; the admin route refuses an address outside its allowlist, with the real source address checked. **No bypass:** no container but Traefik reaches Keycloak's port (from `edge`, `auth-edge` and `pki` members); no response for an IP address, an unknown `Host`, an internal `*.svc` name on the public entrypoint, or an SNI that differs from `Host`; a forged `X-Forwarded-For` from a non-Traefik address is ignored. **Master realm:** MFA required, brute-force detection on, no direct grants | CI |
 | C11 | **Name constraints, per client:** a certificate for a name outside the place's suffix, signed by a test intermediate set up like the real one, is refused by every client the stack uses (Traefik and the step CLI in Go, Keycloak's Java and its JDBC driver, the .NET back-channel client, curl/OpenSSL in the tests) and, in the trust-distribution runbook, by the owner's browsers (Firefox, Edge) | CI; desktop (browsers) |
+
+**C6 as built (2026-11-10).** The egress suite's own clients stand in for kinds of containers; C6 checks the stack's real services, at the end of `tests/stack/run.sh`, after the whole run.
+- **From inside each service's network namespace** (step-ca, a renewer, postgres-auth, Keycloak, forward-auth, the test page): a throw-away container joins the service's namespace (`--network container:`), so it has the service's routes and resolver whatever tools the service's image has. It checks, as E2, E7 and E8 do:
+  - HTTPS to a public address and to a public name fails;
+  - Docker's resolver gives no answer for an outside name, and a public resolver cannot be reached;
+  - IPv6 out fails.
+  Each service's control must work from the same place: a name of the stack it may resolve.
+- **With the host rules (layer 3), in CI:** `tests/stack/layer3.sh` builds the images, installs the rules with test settings (as `tests/egress/layer3.sh` does), then runs the stack test under them, as on the Spark. Its extra checks:
+  - **E14, adapted:** during the whole run (sign-ins, renewals, restarts, expiry and recovery), the rules dropped nothing from the stack's networks, so no service tried to reach anything outside;
+  - **E16:** no service reaches a host listener through its network's gateway;
+  - **Traefik**, on `ingress`, a network with a route out: the same probes fail, and the drops are logged on `ingress` (E9).
+- **On the desktop** there is no layer 3. Traefik's probes are skipped with a visible line: on Docker Desktop it can reach the internet, as the egress design accepts.
+- **On the Spark** C6 runs with the stack's first deployment (WP6.4).
 
 ## Residual risks
 - **The intermediate key is on-line,** in step-ca's volume and encrypted. Its name constraint limits a theft to the place's suffix for the clients C11 verifies; the off-line root and the encrypted backup cover the rest.

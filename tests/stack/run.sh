@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # step-ca, Traefik and postgres-auth end to end (docs/architecture/compose-base.md, tests C3, C3b,
-# C5 for postgres-auth, C9a, C9b, C11).
+# C5 for postgres-auth, C6, C9a, C9b, C11). C6's host-rule checks need tests/stack/layer3.sh (CI).
 # Needs Docker, age, python3, curl and openssl; runs in WSL2 and in CI (about 13 minutes).
 # Everything is throw-away: its own Compose project, store, dev key and in-memory folder, and
 # 3-minute certificates so that renewal and expiry happen within the run. Prints PASS/FAIL lines;
@@ -176,6 +176,17 @@ if [ -n "$(docker ps -q --filter label=com.docker.compose.project=aetherspark)" 
     echo "FAIL  the stack (project aetherspark) is running: it holds port 443 and the as- bridges;"
     echo "      run just down first"
     exit 1
+fi
+
+# C6 with the egress host rules in place (AETHERSPARK_LAYER3=1, set by tests/stack/layer3.sh in
+# CI): the kernel log from this run on, read with sudo. The log is a ring buffer, so the baseline is
+# the last line's timestamp, never a line count (tests/egress/layer3.sh).
+layer3="${AETHERSPARK_LAYER3:-}"
+klog() { sudo -n dmesg 2>/dev/null; }
+klog_mark() { klog | tail -n 1 | awk -F'[][]' '{gsub(/ /, "", $2); print $2}'; }
+if [ -n "$layer3" ]; then
+    klog_start="$(klog_mark)"
+    [ -n "$klog_start" ] || { echo "FAIL  the kernel log is readable (sudo dmesg)"; exit 1; }
 fi
 
 echo "--- setup: just up with the test route"
@@ -808,8 +819,10 @@ dc stop postgres-auth-renewer >/dev/null 2>&1
 on_pki 'rm -f /tls/postgres-auth/tls.crt' >/dev/null 2>&1
 dc run --rm cert-bootstrap >/dev/null 2>&1
 dc stop >/dev/null 2>&1
-sleep 135
 overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 75%'; }
+# Until the renewal point has passed, then at once: a fixed wait missed the 45-second window between
+# the renewal point and expiry when the stop took long (desktop, 2026-11-10)
+for _ in $(seq 1 40); do overdue >/dev/null 2>&1 && break; sleep 5; done
 check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
@@ -840,6 +853,96 @@ check "ca renew-intermediate (the runbook) signs a new one from the sealed root"
 check "just up then issues and reaches healthy" up
 year() { ca status | grep -q 'valid for 36[45] more days'; }
 check "ca status reports the new intermediate (about a year)" year
+
+echo "--- C6: the egress rules hold for the stack's own services (egress.md, Tests)"
+# Each probe runs inside a service's own network namespace (--network container:), so it has the
+# service's routes and resolver whatever tools the service's image has. Busybox's nslookup and curl
+# from the egress tests' client image. Every "fail" has a control that must work from the same
+# place: a name of the stack the service may resolve.
+curl_image="$(sed -n 's/^ *image: *\(curlimages\/curl:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.test.yaml" | head -1)"
+cat >"$work/pg/egress.sh" <<'EOF'
+# One line per probe, "<name> ok" or "<name> fail". $1: a stack name the service may resolve
+# (control); $2: its network's gateway, for the host-service probe (layer 3), or nothing. Docker's
+# resolver is asked by its address: a container joining another's namespace may get another
+# resolv.conf (CI's Docker Engine did, 2026-11-10), so the default resolver proves nothing.
+t() { n=$1; shift; if "$@" >/dev/null 2>&1; then echo "$n ok"; else echo "$n fail"; fi; }
+echo "resolv.conf $(awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf)"
+t control nslookup "$1" 127.0.0.11
+t https-address curl -s -m 5 -k -o /dev/null https://1.1.1.1/
+t https-name curl -s -m 5 -o /dev/null https://www.sec.gov/
+t dns-docker nslookup www.sec.gov 127.0.0.11
+t dns-public nslookup www.sec.gov 1.1.1.1
+t ipv6 curl -s -m 5 -g -6 -k -o /dev/null "https://[2606:4700:4700::1111]/"
+if [ -n "${2:-}" ]; then t host-service curl -s -m 5 -o /dev/null "http://$2:8099/"; fi
+EOF
+chmod 0644 "$work/pg/egress.sh"
+probe() { # service, control name, gateway or "": the probe lines from the service's namespace
+    local id
+    id="$(dc ps -q "$1")"
+    [ -n "$id" ] || { echo "no container"; return 1; }
+    docker run --rm --network "container:$id" --read-only --cap-drop ALL \
+        --user "$AETHERSPARK_UID:$AETHERSPARK_GID" -v "$work/pg:/test:ro" \
+        --entrypoint sh "$curl_image" /test/egress.sh "$2" "$3"
+}
+c6() { # service, control name, gateway (layer 3) or "": the control works, everything else fails
+    local service=$1 out p want got said
+    out="$(probe "$@" 2>&1)"
+    for p in control https-address https-name dns-docker dns-public ipv6 ${3:+host-service}; do
+        want=fail said=fails
+        [ "$p" = control ] && want=ok said=works
+        got="$(printf '%s\n' "$out" | awk -v p="$p" '$1 == p {print $2}')"
+        if [ "$got" = "$want" ]; then
+            pass "$service: $p $said"
+        else
+            fail "$service: $p (expected $want, got ${got:-nothing})" "$out"
+        fi
+    done
+}
+# Kernel log lines since a mark, from the stack's own bridges. Never `grep -q` at the end of a
+# pipeline: it exits at the first match and, with pipefail, a found line would read as not found.
+stack_bridges='as-(ingress|auth-front|pki|db-auth|edge|auth-edge)'
+drops_since() { klog | awk -F'[][]' -v since="$1" '$2 + 0 > since + 0' | grep -E "aetherspark-[a-z]+:IN=$stack_bridges "; }
+gw() { [ -n "$layer3" ] && echo "$1"; } # the host-service probe needs layer 3's host listener
+if [ -z "$curl_image" ]; then
+    fail "the egress tests' client image is found (tests/egress/compose.test.yaml)"
+else
+    host_pid=
+    if [ -n "$layer3" ]; then
+        # E14, adapted: the whole run so far (sign-ins, renewals, restarts) sent nothing that the
+        # rules dropped from the stack's networks. Before the probes below, which are dropped on purpose.
+        no_drops() {
+            local lines
+            lines="$(drops_since "$klog_start")"
+            [ -z "$lines" ] && return 0
+            printf '%s\n' "$lines" | grep -oE 'aetherspark-[a-z]+:IN=[^ ]+ OUT=[^ ]*|DST=[^ ]+|PROTO=[^ ]+|DPT=[0-9]+' \
+                | paste -sd ' ' | fold -w 200 | head -10
+            return 1
+        }
+        check "E14: nothing from the stack's networks was dropped during the whole run" no_drops
+        # E16: a host service on every address; containers must not reach it through a bridge
+        python3 -m http.server 8099 --bind 0.0.0.0 >/dev/null 2>&1 &
+        host_pid=$!
+        sleep 1
+        check "E16 control: the host service answers on the host" curl -s -m 5 -o /dev/null http://127.0.0.1:8099/
+    fi
+    probes_start="$( [ -n "$layer3" ] && klog_mark)"
+    c6 step-ca traefik "$(gw 172.30.50.1)"
+    c6 postgres-auth-renewer step-ca "$(gw 172.30.50.1)"
+    c6 postgres-auth keycloak "$(gw 172.30.60.1)"
+    c6 keycloak traefik "$(gw 172.30.61.1)"
+    c6 forward-auth traefik "$(gw 172.30.63.1)"
+    c6 whoami traefik "$(gw 172.30.63.1)"
+    if [ -n "$layer3" ]; then
+        # Traefik is on ingress, a network with a route out: only the host rules stop it (E9)
+        c6 traefik keycloak 172.30.30.1
+        traefik_dropped() { drops_since "$probes_start" | grep 'IN=as-ingress ' >/dev/null; }
+        check "E9: Traefik's attempts were dropped and logged on ingress" traefik_dropped
+        kill "$host_pid" 2>/dev/null
+        wait "$host_pid" 2>/dev/null
+    else
+        printf 'SKIP  traefik: on ingress, a network with a route out; only the host rules (layer 3, CI and the Spark) stop it\n'
+    fi
+fi
 
 echo "stack-test: $fails failed"
 [ "$fails" -eq 0 ]
