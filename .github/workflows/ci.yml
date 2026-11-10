@@ -66,7 +66,7 @@ jobs:
           # contexts are deploy/images/targets.json's (a test keeps them in step).
           images=$all; any '(^|/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$|(^|/)(docker-)?compose[^/]*\.ya?ml$|^(\.devcontainer/|deploy/compose/egress/|deploy/compose/stack/step-ca/|deploy/compose/stack/postgres-auth/|deploy/compose/stack/forward-auth/|deploy/compose/stack/whoami/|deploy/keycloak/|deploy/images/|tests/egress/lab/|tests/host-role/)' && images=true
           # The stack end to end (step-ca, Traefik, postgres-auth, Keycloak): the stack, the CA and secrets tools, and their test
-          stack=$all; any '^(deploy/ca/|deploy/compose/stack/|deploy/keycloak/|deploy/secret-store/|deploy/secrets\.manifest\.json$|tests/stack/)' && stack=true
+          stack=$all; any '^(deploy/ca/|deploy/compose/stack/|deploy/host/|deploy/keycloak/|deploy/secret-store/|deploy/secrets\.manifest\.json$|tests/stack/|tests/egress/compose\.(test|layer3)\.yaml$)' && stack=true
           printf 'code=%s\npython=%s\ndevcontainer=%s\negress=%s\nlint=%s\nhost_role=%s\nimages=%s\nstack=%s\n' "$code" "$python" "$devcontainer" "$egress" "$lint" "$host_role" "$images" "$stack" | tee -a "$GITHUB_OUTPUT"
 
   build:
@@ -211,8 +211,9 @@ jobs:
       # with them, then the layer-3 tests
       - run: sudo bash tests/egress/layer3.sh
 
-  # The stack end to end (compose-base.md, tests C3, C3b, C5, C9a, C9b, C10 so far, C11) on both
-  # architectures (arm64 = the Spark): 3-minute certificates, so renewal and expiry happen in the run
+  # The stack end to end (compose-base.md, tests C3, C3b, C5, C6, C9a, C9b, C10, C11) on both
+  # architectures (arm64 = the Spark), under the egress host rules (layer 3) as on the Spark:
+  # 3-minute certificates, so renewal and expiry happen in the run
   stack:
     name: stack-test (${{ matrix.arch }})
     needs: changes
@@ -236,7 +237,8 @@ jobs:
       # age seals the throw-away secrets and the CA's root key (ADR-0010)
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age && age --version
 
-      - run: bash tests/stack/run.sh
+      # With the egress host rules in place, as on the Spark (C6); the desktop runs it without them
+      - run: bash tests/stack/layer3.sh
 
   # Lints L1-L3 (egress.md, "Compose and config lint"); the fixture tests run in `just ci`. Root for
   # the rule load in a scratch namespace; no host rules are changed.
