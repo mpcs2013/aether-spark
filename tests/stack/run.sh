@@ -819,8 +819,10 @@ dc stop postgres-auth-renewer >/dev/null 2>&1
 on_pki 'rm -f /tls/postgres-auth/tls.crt' >/dev/null 2>&1
 dc run --rm cert-bootstrap >/dev/null 2>&1
 dc stop >/dev/null 2>&1
-sleep 135
 overdue() { on_pki 'step certificate needs-renewal /tls/postgres-auth/tls.crt --expires-in 75%'; }
+# Until the renewal point has passed, then at once: a fixed wait missed the 45-second window between
+# the renewal point and expiry when the stop took long (desktop, 2026-11-10)
+for _ in $(seq 1 40); do overdue >/dev/null 2>&1 && break; sleep 5; done
 check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
