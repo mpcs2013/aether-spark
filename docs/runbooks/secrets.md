@@ -65,9 +65,9 @@ It must say `PASS  5b`. The proof never prints a secret.
 ## When something is wrong
 | Situation | What you see | What to do |
 |---|---|---|
-| The desktop or WSL restarted while the stack was up (no `just down` before) | `just up` stops at unseal: `… holds folders Docker created where the secret files belong …` | The folders are empty and hold no secret. Remove the folder the message names, as root, from PowerShell: `wsl -u root -- rm -r '<the folder>'`, then `just up`. Habit: `just down` before shutting the desktop down |
+| Docker, the desktop or WSL restarted while the stack was up (no `just down` before) | `just up` (at unseal) or `just down` (at clear) stops: `… holds folders Docker created where the secret files belong …`, then the command to run | The folders are empty and hold no secret. Run the command the message gives, which removes the folder it names as root: on the desktop from PowerShell (`wsl -d <your distribution> -u root -- rm -r '<the folder>'`), on the Spark with `sudo`. Then `just up` again, or nothing more after `just down`. Habit: `just down` before shutting the desktop down |
 
-Why it happens: the in-memory folder is empty after a restart of WSL. Docker restarted containers that read secrets, and created an empty root-owned folder at each missing secret file's path. Since 2026-11-09 those services no longer restart by themselves, so this should not come back.
+Why it happens: the in-memory folder is empty after a restart of WSL or Docker. Docker then created an empty root-owned folder at each missing secret file's path, and often the folder above them too. Since 2026-11-09 the services that read secrets no longer restart by themselves (`restart: "no"`), yet on 2026-11-10 Docker still made the folders for exactly those services' secrets at its restart, while they stayed stopped; the cause is not known. So the message names the topmost such folder, and removing it is enough.
 
 ## Concepts
 - **age:** a small encryption tool. A key pair: the public half seals, the private half (the dev key) opens.
