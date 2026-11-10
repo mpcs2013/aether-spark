@@ -265,16 +265,30 @@ def _docker_made(target: Path) -> Path | None:
     return stray
 
 
+def _refuse_docker_made(target: Path, then: str) -> None:
+    """Stops with the folder to remove and the exact command for this machine: on the desktop it
+    is run from PowerShell into this WSL distribution, on the Spark with sudo. Seen after a restart
+    of Docker while the secrets were not unsealed, also for services that do not restart by
+    themselves (2026-11-10; cause not known)."""
+    stray = _docker_made(target)
+    if stray is None:
+        return
+    distro = os.environ.get("WSL_DISTRO_NAME", "")
+    command = (
+        f"from PowerShell, wsl -d {distro} -u root -- rm -r '{stray}'"
+        if distro
+        else f"sudo rm -r '{stray}'"
+    )
+    raise InputError(
+        f"{stray} holds folders Docker created where the secret files belong; they hold no "
+        f"secret. Remove them as root, then {then}: {command}"
+    )
+
+
 def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
     """Decrypts every secret into the in-memory folder, which must be a tmpfs; returns the names."""
     target = secret_dir()
-    stray = _docker_made(target)
-    if stray is not None:
-        raise InputError(
-            f"{stray} holds folders Docker created where the secret files belong (a restart "
-            "without `just down`); they hold no secret. Remove them as root, then run `just up` "
-            f"again: from PowerShell, wsl -u root -- rm -r '{stray}'"
-        )
+    _refuse_docker_made(target, "run `just up` again")
     _private_dir(target)
     if not is_tmpfs(target, mountinfo):
         raise InputError(f"{target} is not on a tmpfs: secrets are never decrypted to disk")
@@ -299,10 +313,12 @@ def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
 
 
 def clear() -> bool:
-    """Removes the in-memory folder and everything in it; True if there was one."""
+    """Removes the in-memory folder and everything in it; True if there was one. Folders Docker
+    made there are not ours to remove: named, with the command (`just down` ends with this)."""
     target = secret_dir()
     if not target.exists():
         return False
+    _refuse_docker_made(target, "nothing else is needed")
     for item in target.iterdir():
         item.chmod(stat.S_IWUSR | stat.S_IRUSR)
         item.unlink()

@@ -143,6 +143,27 @@ def test_a_folder_where_a_secret_file_belongs_is_named_for_removal(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
+@pytest.mark.parametrize(
+    ("distro", "command"),
+    [("Ubuntu-24.04", "wsl -d Ubuntu-24.04 -u root -- rm -r '{}'"), ("", "sudo rm -r '{}'")],
+)
+def test_clear_names_docker_made_folders_with_the_command_for_this_machine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, distro: str, command: str
+) -> None:
+    """`just down` met them on 2026-11-10 and stopped with a bare PermissionError."""
+    secrets = tmp_path / "aetherspark" / "secrets"
+    (secrets / "keycloak.conf").mkdir(parents=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(secrets))
+    monkeypatch.setenv("WSL_DISTRO_NAME", distro)
+    with pytest.raises(store.InputError) as raised:
+        store.clear()
+    assert "Docker created" in str(raised.value)
+    assert command.format(secrets) in str(raised.value)
+    assert (secrets / "keycloak.conf").is_dir()  # nothing is removed
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
 def test_a_clean_secrets_folder_is_left_alone(tmp_path: Path) -> None:
     folder = tmp_path / "secrets"
     folder.mkdir()
