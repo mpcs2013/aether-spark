@@ -860,12 +860,15 @@ echo "--- C6: the egress rules hold for the stack's own services (egress.md, Tes
 curl_image="$(sed -n 's/^ *image: *\(curlimages\/curl:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.test.yaml" | head -1)"
 cat >"$work/pg/egress.sh" <<'EOF'
 # One line per probe, "<name> ok" or "<name> fail". $1: a stack name the service may resolve
-# (control); $2: its network's gateway, for the host-service probe (layer 3), or nothing.
+# (control); $2: its network's gateway, for the host-service probe (layer 3), or nothing. Docker's
+# resolver is asked by its address: a container joining another's namespace may get another
+# resolv.conf (CI's Docker Engine did, 2026-11-10), so the default resolver proves nothing.
 t() { n=$1; shift; if "$@" >/dev/null 2>&1; then echo "$n ok"; else echo "$n fail"; fi; }
-t control nslookup "$1"
+echo "resolv.conf $(awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf)"
+t control nslookup "$1" 127.0.0.11
 t https-address curl -s -m 5 -k -o /dev/null https://1.1.1.1/
 t https-name curl -s -m 5 -o /dev/null https://www.sec.gov/
-t dns-docker nslookup www.sec.gov
+t dns-docker nslookup www.sec.gov 127.0.0.11
 t dns-public nslookup www.sec.gov 1.1.1.1
 t ipv6 curl -s -m 5 -g -6 -k -o /dev/null "https://[2606:4700:4700::1111]/"
 if [ -n "${2:-}" ]; then t host-service curl -s -m 5 -o /dev/null "http://$2:8099/"; fi
