@@ -161,7 +161,7 @@ egress-lint:
 # Generate or check shared types from contracts/ (ADR-0002)
 contracts *args: (pending "WP2.2/2.3" "contracts")
 
-# Secrets (ADR-0010, docs/runbooks/secrets.md): generate | unseal | clear | check RENDERED...
+# Secrets (ADR-0010, docs/runbooks/secrets.md): generate | enter NAME | unseal | clear | check RENDERED...
 # generate and unseal run in WSL2 (or on the Spark); the folder they write must be a tmpfs
 secrets *args:
     {{ if os() == "windows" { "python" } else { "python3" } }} -I deploy/secret-store/secret_store.py {{ args }}

@@ -4,12 +4,15 @@
 
     generate          create the missing secrets, sealed with age
     rotate NAME       replace one generated secret's value
+    enter NAME        type in an entered secret's value at a terminal; sealed with age
     unseal            decrypt them into the in-memory folder
     clear             empty and remove the in-memory folder
     check RENDERED... the manifest and the Compose secrets agree
 
 The manifest (deploy/secrets.manifest.json) holds names, consumers, rotation and generator rules,
-never values. Sealed values live in the store (default ~/.aetherspark/secrets/dev), decrypted ones
+never values. A secret is generated (random), derived (a file built from other secrets) or entered:
+a value another party issues, such as the backup login (ADR-0010 note of 2026-11-11), typed in once
+by the owner. Sealed values live in the store (default ~/.aetherspark/secrets/dev), decrypted ones
 only in the in-memory folder (default $XDG_RUNTIME_DIR/aetherspark/secrets, which must be a tmpfs).
 No value is ever printed, logged, passed in an argument or placed in an environment variable.
 
@@ -19,6 +22,7 @@ Exit codes: 0 done, 1 findings or a refused folder, 2 unusable input or a missin
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import re
@@ -27,6 +31,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,10 +39,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "deploy" / "secrets.manifest.json"
 NAME = re.compile(r"^[a-z0-9][a-z0-9.-]{0,62}$")
-REFERENCE = re.compile(r"\{([a-z0-9][a-z0-9.-]{0,62})\}")
+# {name} in a derived template; {name|url} percent-encodes the value (a login inside a URL)
+REFERENCE = re.compile(r"\{([a-z0-9][a-z0-9.-]{0,62})(\|url)?\}")
 MIN_BYTES = 16  # 128 bits
 HOST_PREFIX = "host:"  # a consumer that is a tool on the host (WSL2, the Spark), not a service
-ENTRY_KEYS = {"name", "consumers", "rotation_days", "generator", "derived"}
+ENTRY_KEYS = {"name", "consumers", "rotation_days", "generator", "derived", "entered"}
+# What an entered value may look like, by kind: nothing that could change a URL's meaning or carry
+# a control character. A password may be any printable ASCII, since it is percent-encoded.
+ENTERED = {
+    "name": re.compile(r"^[A-Za-z0-9._-]{1,64}$"),
+    "password": re.compile(r"^[\x21-\x7e]{12,256}$"),
+    "address": re.compile(r"^[A-Za-z0-9.-]{1,253}:[0-9]{1,5}$"),
+    "path": re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*/?$"),
+}
+# Tests and CI give an entered value through this file descriptor instead of a terminal
+ENTER_FD = "AETHERSPARK_SECRETS_ENTER_FD"
 
 
 class InputError(Exception):
@@ -49,8 +65,14 @@ class Secret:
     name: str
     consumers: tuple[str, ...]
     rotation_days: int | None
-    random_bytes: int  # 0 for a derived file
-    derived: str  # a template naming other secrets as {name}; "" for a generated value
+    random_bytes: int  # 0 for a derived file or an entered value
+    derived: str  # a template naming other secrets as {name}; "" otherwise
+    entered: str = ""  # the kind of an entered value (a key of ENTERED); "" otherwise
+
+
+def references(template: str) -> set[str]:
+    """The secrets a derived template names."""
+    return {m[0] for m in REFERENCE.findall(template)}
 
 
 def load_manifest(path: Path = MANIFEST) -> list[Secret]:
@@ -68,7 +90,9 @@ def load_manifest(path: Path = MANIFEST) -> list[Secret]:
     for index, entry in enumerate(data["secrets"]):
         where = f"{path.name} entry {index}"
         if not isinstance(entry, dict) or not {"name", "consumers"} <= set(entry) <= ENTRY_KEYS:
-            raise InputError(f"{where}: keys must be name, consumers and generator or derived")
+            raise InputError(
+                f"{where}: keys must be name, consumers and one of generator, derived, entered"
+            )
         name, consumers = entry["name"], entry["consumers"]
         if not isinstance(name, str) or not NAME.match(name):
             raise InputError(f"{where}: name {name!r} is not a lower-case file name")
@@ -85,11 +109,26 @@ def load_manifest(path: Path = MANIFEST) -> list[Secret]:
             not isinstance(rotation, int) or isinstance(rotation, bool) or rotation < 1
         ):
             raise InputError(f"{where}: rotation_days must be a positive number of days or absent")
-        generator, derived = entry.get("generator"), entry.get("derived")
-        if (generator is None) == (derived is None):
-            raise InputError(f"{where}: exactly one of generator and derived")
+        generator, derived, entered = (
+            entry.get("generator"),
+            entry.get("derived"),
+            entry.get("entered"),
+        )
+        if [generator, derived, entered].count(None) != 2:
+            raise InputError(f"{where}: exactly one of generator, derived and entered")
         size = 0
-        if generator is not None:
+        kind = ""
+        if entered is not None:
+            if (
+                not isinstance(entered, dict)
+                or set(entered) != {"kind"}
+                or entered["kind"] not in ENTERED
+            ):
+                raise InputError(
+                    f'{where}: entered must be {{"kind": one of {", ".join(ENTERED)}}}'
+                )
+            kind = entered["kind"]
+        elif generator is not None:
             if (
                 not isinstance(generator, dict)
                 or generator.get("type") != "random"
@@ -101,24 +140,31 @@ def load_manifest(path: Path = MANIFEST) -> list[Secret]:
                 raise InputError(f"{where}: at least {MIN_BYTES} random bytes (128 bits)")
         elif not isinstance(derived, str) or not REFERENCE.search(derived):
             raise InputError(f"{where}: derived must be a template naming at least one {{secret}}")
-        result.append(Secret(name, tuple(consumers), rotation, size, derived or ""))
-    generated = {s.name for s in result if not s.derived}
+        result.append(Secret(name, tuple(consumers), rotation, size, derived or "", kind))
+    sources = {s.name for s in result if not s.derived}  # generated or entered
     for s in result:
-        missing = sorted(set(REFERENCE.findall(s.derived)) - generated)
+        missing = sorted(references(s.derived) - sources)
         if missing:
             raise InputError(
-                f"{path.name}: {s.name} refers to {missing}, which are not generated secrets"
+                f"{path.name}: {s.name} refers to {missing}, which are not generated or entered"
             )
     return result
 
 
 def render(template: str, values: dict[str, str]) -> str:
-    """A derived file's text; every {name} must be a known value."""
+    """A derived file's text; every {name} must be a known value; {name|url} is percent-encoded."""
 
     def value(match: re.Match[str]) -> str:
-        return values[match[1]]
+        text = values[match[1]]
+        return urllib.parse.quote(text, safe="") if match[2] else text
 
     return REFERENCE.sub(value, template)
+
+
+def check_entered(kind: str, value: str) -> None:
+    """Refuses a value that does not have its kind's form; the message never holds the value."""
+    if not ENTERED[kind].match(value) or (kind == "path" and ".." in value.split("/")):
+        raise InputError(f"not a valid {kind}: see docs/runbooks/secrets.md for the allowed form")
 
 
 def is_tmpfs(path: Path, mountinfo: str | None = None) -> bool:
@@ -217,7 +263,7 @@ def generate(manifest: list[Secret]) -> list[str]:
     created = []
     for s in manifest:
         sealed = store / f"{s.name}.age"
-        if s.derived or sealed.exists():
+        if s.derived or s.entered or sealed.exists():
             continue
         seal(token.token_urlsafe(s.random_bytes).encode("ascii"), sealed, recipient)
         created.append(s.name)
@@ -231,6 +277,8 @@ def rotate(manifest: list[Secret], name: str) -> None:
         raise InputError(f"{name} is not in the manifest")
     if entry.derived:
         raise InputError(f"{name} is derived; rotate the secrets it names instead")
+    if entry.entered:
+        raise InputError(f"{name} is entered; type its new value with `just secrets enter {name}`")
     sealed = store_dir() / f"{name}.age"
     if sealed.exists():
         sealed.unlink()
@@ -239,6 +287,42 @@ def rotate(manifest: list[Secret], name: str) -> None:
 
 def _decrypt(sealed: Path) -> str:
     return open_sealed(sealed).decode("utf-8")
+
+
+def _read_entered(name: str) -> str:
+    """One value: from the tests' file descriptor, else typed twice at a terminal, never echoed.
+    A pipe or a redirect is refused: it leaves the value in a file or the shell's history."""
+    fd = os.environ.get(ENTER_FD)
+    if fd:
+        with os.fdopen(int(fd), "r", encoding="utf-8", closefd=False) as handle:
+            return handle.readline().rstrip("\n")
+    if not sys.stdin.isatty():
+        raise InputError("enter reads from a terminal only, never from a pipe or a file")
+    value = getpass.getpass(f"{name}: ")
+    if getpass.getpass(f"{name}, again: ") != value:
+        raise InputError("the two entries differ; nothing was sealed")
+    return value
+
+
+def enter(manifest: list[Secret], name: str) -> None:
+    """Seals the value of an entered secret, replacing any earlier one."""
+    entry = next((s for s in manifest if s.name == name), None)
+    if entry is None:
+        raise InputError(f"{name} is not in the manifest")
+    if not entry.entered:
+        raise InputError(f"{name} is not an entered secret")
+    value = _read_entered(name)
+    check_entered(entry.entered, value)
+    sealed = store_dir() / f"{name}.age"
+    if sealed.exists():
+        sealed.unlink()
+    seal(value.encode("utf-8"), sealed)
+
+
+def not_entered(manifest: list[Secret]) -> list[str]:
+    """The entered secrets whose value is not in the store yet."""
+    store = store_dir()
+    return [s.name for s in manifest if s.entered and not (store / f"{s.name}.age").is_file()]
 
 
 def _write_private(path: Path, text: str) -> None:
@@ -293,9 +377,10 @@ def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
     if not is_tmpfs(target, mountinfo):
         raise InputError(f"{target} is not on a tmpfs: secrets are never decrypted to disk")
     store = store_dir()
+    missing = set(not_entered(manifest))
     values: dict[str, str] = {}
     for s in manifest:
-        if s.derived:
+        if s.derived or s.name in missing:
             continue
         sealed = store / f"{s.name}.age"
         if not sealed.is_file():
@@ -307,6 +392,10 @@ def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
         if path.exists():
             path.chmod(stat.S_IWUSR | stat.S_IRUSR)
             path.unlink()
+        # A missing entered value, and every file built from one, are left out (and an older copy
+        # removed): the stack starts without them, and the job that needs them says so
+        if s.name in missing or references(s.derived) & missing:
+            continue
         _write_private(path, render(s.derived, values) if s.derived else values[s.name])
         written.append(s.name)
     return written
@@ -352,7 +441,7 @@ def check(manifest: list[Secret], rendered: list[dict[str, Any]]) -> list[str]:
     # A generated secret may reach its service only inside a derived file
     for s in manifest:
         if s.derived and s.name in used:
-            used.update(REFERENCE.findall(s.derived))
+            used.update(references(s.derived))
     # A secret read only by a host tool (consumer "host:<tool>"), never by a container
     used.update(s.name for s in manifest if all(c.startswith(HOST_PREFIX) for c in s.consumers))
     findings.extend(
@@ -368,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_parser(command)
     rot = sub.add_parser("rotate")
     rot.add_argument("name")
+    ent = sub.add_parser("enter")
+    ent.add_argument("name")
     chk = sub.add_parser("check")
     chk.add_argument(
         "rendered", nargs="+", type=Path, help="docker compose config --format json output"
@@ -383,8 +474,17 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "rotate":
             rotate(manifest, args.name)
             print(f"secrets: {args.name} rotated; run unseal and restart its consumers")
+        elif args.command == "enter":
+            enter(manifest, args.name)
+            print(f"secrets: {args.name} entered and sealed; run unseal to use it")
         elif args.command == "unseal":
             print(f"secrets: {len(unseal(manifest))} unsealed into {secret_dir()}")
+            waiting = not_entered(manifest)
+            if waiting:
+                print(
+                    f"secrets: not entered yet, left out with what is built from them: "
+                    f"{', '.join(waiting)} (just secrets enter NAME)"
+                )
         elif args.command == "clear":
             print("secrets: cleared" if clear() else "secrets: nothing to clear")
         else:
