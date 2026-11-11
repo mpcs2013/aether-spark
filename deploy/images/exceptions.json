@@ -10,15 +10,6 @@
       "expires": "2026-11-30"
     },
     {
-      "id": "CVE-2026-111497",
-      "target": "dev-container",
-      "package": "libbrotli1",
-      "reason": "Fixed in Ubuntu (1.1.0-2ubuntu0.1) but not yet in Microsoft's .NET SDK image the dev container builds on. Development only, never deployed; no tool in it decompresses untrusted Brotli data. Dependabot moves the SDK image when Microsoft rebuilds it.",
-      "issue": 31,
-      "approved": "2026-10-31",
-      "expires": "2026-11-30"
-    },
-    {
       "id": "CVE-2026-119373",
       "target": "python",
       "package": "sqlite-libs",
@@ -446,6 +437,87 @@
       "target": "curlimages/curl",
       "package": "krb5-libs",
       "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-107778",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112314",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112320",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112321",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112322",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112323",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-119079",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40355",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40356",
+      "target": "python",
+      "package": "krb5-libs",
+      "reason": "Test image only (the egress and stack tests' small check scripts on throwaway CI runners and the desktop). The scripts never use Kerberos, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but the image's rebuild of 2026-11 does not carry it yet; Dependabot moves the digest when it does.",
       "issue": 31,
       "approved": "2026-11-11",
       "expires": "2026-12-11"
