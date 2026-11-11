@@ -82,9 +82,118 @@ def test_unusable_entries_are_refused(tmp_path: Path, entry: dict[str, Any], mes
         _manifest(tmp_path, entry)
 
 
-def test_a_derived_file_may_only_name_generated_secrets(tmp_path: Path) -> None:
-    with pytest.raises(store.InputError, match="not generated secrets"):
+def test_a_derived_file_may_only_name_generated_or_entered_secrets(tmp_path: Path) -> None:
+    with pytest.raises(store.InputError, match="not generated or entered"):
         _manifest(tmp_path, {**DERIVED, "derived": "x={missing}"})
+    with pytest.raises(store.InputError, match="not generated or entered"):
+        _manifest(
+            tmp_path, GEN, DERIVED, {**DERIVED, "name": "y.conf", "derived": "{keycloak-db.conf}"}
+        )
+
+
+# Entered secrets (ADR-0010 note of 2026-11-11)
+
+LOGIN = {"name": "backup-login-name", "consumers": ["restic"], "entered": {"kind": "name"}}
+LOGIN_PW = {
+    "name": "backup-login-password",
+    "consumers": ["restic"],
+    "entered": {"kind": "password"},
+}
+REPO = {
+    "name": "backup-repository",
+    "consumers": ["restic"],
+    "derived": "rest:http://{backup-login-name|url}:{backup-login-password|url}@host:1/x/",
+}
+
+
+def test_an_entered_secret_and_a_file_built_from_it_load(tmp_path: Path) -> None:
+    name, password, repo = _manifest(tmp_path, LOGIN, LOGIN_PW, REPO)
+    assert (name.entered, password.entered, repo.entered) == ("name", "password", "")
+    assert store.references(repo.derived) == {"backup-login-name", "backup-login-password"}
+
+
+@pytest.mark.parametrize(
+    "entered",
+    [{"kind": "secret"}, {"kind": "name", "value": "x"}, "name", {}],
+)
+def test_an_unknown_entered_form_is_refused(tmp_path: Path, entered: Any) -> None:
+    with pytest.raises(store.InputError, match="entered must be"):
+        _manifest(tmp_path, {**LOGIN, "entered": entered})
+
+
+def test_an_entry_is_exactly_one_kind(tmp_path: Path) -> None:
+    with pytest.raises(store.InputError, match="exactly one"):
+        _manifest(tmp_path, {**LOGIN, "generator": GEN["generator"]})
+
+
+def test_url_references_are_percent_encoded() -> None:
+    text = store.render("u={a|url} p={b|url} raw={b}", {"a": "me@x", "b": "p/@:#?%"})
+    assert text == "u=me%40x p=p%2F%40%3A%23%3F%25 raw=p/@:#?%"
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "ok"),
+    [
+        ("name", "aetherspark", True),
+        ("name", "a@b", False),
+        ("name", "", False),
+        ("password", "Correct-Horse-9!x", True),
+        ("password", "short", False),
+        ("password", "has a space in it", False),
+        ("password", "tab\there-12345", False),
+        ("address", "backup.example:8000", True),
+        ("address", "10.0.0.5:8000", True),
+        ("address", "10.0.0.5", False),
+        ("address", "user@host:8000", False),
+        ("path", "aetherspark/", True),
+        ("path", "a/b", True),
+        ("path", "/root", False),
+        ("path", "a/../b", False),
+        ("path", "a?b", False),
+    ],
+)
+def test_entered_values_have_their_kinds_form(kind: str, value: str, ok: bool) -> None:
+    if ok:
+        store.check_entered(kind, value)
+    else:
+        with pytest.raises(store.InputError) as raised:
+            store.check_entered(kind, value)
+        if value:
+            assert value not in str(raised.value)  # the message never repeats the value
+
+
+def test_entered_secrets_are_not_rotated(tmp_path: Path) -> None:
+    with pytest.raises(store.InputError, match="just secrets enter"):
+        store.rotate(_manifest(tmp_path, LOGIN), "backup-login-name")
+
+
+def test_enter_refuses_a_pipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(store.ENTER_FD, raising=False)
+    # A regular file, as from `enter NAME < file`; os.devnull would read as a terminal on Windows
+    piped = tmp_path / "value"
+    piped.write_text("aetherspark\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "stdin", piped.open(encoding="utf-8"))
+    with pytest.raises(store.InputError, match="terminal only"):
+        store.enter(_manifest(tmp_path, LOGIN), "backup-login-name")
+    with pytest.raises(store.InputError, match="not an entered secret"):
+        store.enter(_manifest(tmp_path, GEN), "db-password")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
+def test_unseal_leaves_out_what_is_not_entered_yet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`just up` from a clean clone works before the backup login is entered (C1)."""
+    secrets = tmp_path / "secrets"
+    secrets.mkdir()
+    (secrets / "backup-repository").write_text("stale")  # from an earlier login
+    monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(secrets))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_STORE", str(tmp_path / "store"))
+    manifest = _manifest(tmp_path, LOGIN, LOGIN_PW, REPO)
+    assert store.not_entered(manifest) == ["backup-login-name", "backup-login-password"]
+    mountinfo = f"22 1 0:25 / {tmp_path.as_posix()} rw - tmpfs tmpfs rw\n"
+    assert store.unseal(manifest, mountinfo=mountinfo) == []
+    assert not (secrets / "backup-repository").exists()
 
 
 def test_a_name_listed_twice_is_refused(tmp_path: Path) -> None:
@@ -291,4 +400,49 @@ def test_generate_unseal_and_clear_round_trip(
         assert not folder.exists()
         assert store.clear() is False
     finally:
+        shutil.rmtree(memory, ignore_errors=True)
+
+
+def _enter_through_fd(
+    monkeypatch: pytest.MonkeyPatch, manifest: list[Any], name: str, value: str
+) -> None:
+    """As CI does: the value through a pipe's file descriptor, never an argument."""
+    read, write = os.pipe()
+    os.write(write, (value + "\n").encode())
+    os.close(write)
+    monkeypatch.setenv(store.ENTER_FD, str(read))
+    try:
+        store.enter(manifest, name)
+    finally:
+        os.close(read)
+
+
+@pytest.mark.skipif(shutil.which("age") is None, reason="age is not installed (CI installs it)")
+def test_enter_seals_and_unseal_builds_the_repository_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tmpfs = _usable_tmpfs()
+    if tmpfs is None:
+        pytest.skip("no tmpfs on this machine")
+    memory = tmpfs / f"aetherspark-test-enter-{os.getpid()}"
+    monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(memory / "secrets"))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_STORE", str(tmp_path / "store"))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_KEY", str(tmp_path / "keys" / "dev.key"))
+    manifest = _manifest(tmp_path, LOGIN, LOGIN_PW, REPO)
+    try:
+        assert store.generate(manifest) == []  # entered secrets are never generated
+        _enter_through_fd(monkeypatch, manifest, "backup-login-name", "aetherspark")
+        _enter_through_fd(monkeypatch, manifest, "backup-login-password", "p@ss/w:rd#12345")
+        sealed = (tmp_path / "store" / "backup-login-password.age").read_bytes()
+        assert sealed.startswith(b"age-encryption.org/v1") and b"p@ss" not in sealed
+        assert store.not_entered(manifest) == []
+        assert store.unseal(manifest) == list(s.name for s in manifest)
+        repo = (memory / "secrets" / "backup-repository").read_text(encoding="utf-8")
+        assert repo == "rest:http://aetherspark:p%40ss%2Fw%3Ard%2312345@host:1/x/"
+        with pytest.raises(store.InputError, match="not a valid password"):
+            _enter_through_fd(monkeypatch, manifest, "backup-login-password", "short")
+        # A refused value leaves the sealed one as it was
+        assert (tmp_path / "store" / "backup-login-password.age").read_bytes() == sealed
+    finally:
+        store.clear()
         shutil.rmtree(memory, ignore_errors=True)

@@ -43,24 +43,34 @@ It must say `PASS  5b`. The proof never prints a secret.
 | `just secrets generate` | Creates every secret in the manifest that the store lacks, sealed; creates the dev key on first use. Changes nothing that exists |
 | `just secrets unseal` | Opens every secret into the in-memory folder (refuses if that folder is not memory-backed) |
 | `just secrets clear` | Empties and removes the in-memory folder |
-| `just secrets rotate <name>` | Replaces one secret's value; then `unseal` and restart the services that read it |
+| `just secrets rotate <name>` | Replaces one generated secret's value; then `unseal` and restart the services that read it |
+| `just secrets enter <name>` | Asks for an *entered* secret's value twice, without showing it, checks its form and seals it, replacing an earlier value. Terminal only: a pipe or a file is refused |
 | `just secrets check <rendered.json>` | CI's check: the manifest and the rendered Compose agree |
 
-`just up` and `just down` call `generate`, `unseal` and `clear` themselves (from WP3.1's first services).
+`just up` and `just down` call `generate`, `unseal` and `clear` themselves (from WP3.1's first services). Until an entered secret has a value, `unseal` leaves it out, with every file built from it, and names it; the stack starts without it.
+
+**Entered secrets** (ADR-0010 note of 2026-11-11) are values another party issues, today the backup login from the home infrastructure (exchange A-015). Type them from the password manager's entry; each kind has a fixed form, and anything else is refused without the value being shown:
+
+| Kind | Allowed |
+|---|---|
+| `name` | 1–64 letters, digits, `.`, `_`, `-` |
+| `password` | 12–256 printable characters without spaces (percent-encoded wherever it goes into an address) |
+| `address` | `host:port`: a name or IPv4 address, then the port |
+| `path` | segments of letters, digits, `.`, `_`, `-`, separated by `/`; no leading `/`, no `..` |
 
 ## Adding a secret
 1. Add an entry to `deploy/secrets.manifest.json`:
    - `name`: lower-case, the file name the service sees under `/run/secrets/`;
    - `consumers`: the Compose services allowed to read it; a tool on the host that reads it from the in-memory folder is named `host:<tool>` (for example `host:keycloak-admin`), and a secret read only by host tools needs no Compose file;
    - `rotation_days`: optional;
-   - either `generator` (`{"type": "random", "bytes": 32}`, at least 16 bytes) or `derived`, a file built from other secrets, such as `"db-password={keycloak-db-password}\n"`.
+   - exactly one of `generator` (`{"type": "random", "bytes": 32}`, at least 16 bytes); `entered` (`{"kind": "name"}`, or `password`, `address`, `path`); or `derived`, a file built from generated or entered secrets, such as `"db-password={keycloak-db-password}\n"`. In a derived file, `{name|url}` percent-encodes the value, for a login inside an address.
 2. In the Compose file: a top-level secret with the same name and `file:` in the in-memory folder; only its consumers list it.
 3. The lint refuses any other source, and CI's check refuses a secret outside the manifest or an entry nobody uses.
 
 ## Rules that never bend
 - **No value on screen, in a file on disk, in an argument or in an environment variable.** Images that cannot read a file get a configuration file from the in-memory folder instead (Keycloak: `--config-file`).
 - **Every service that reads a secret runs as the stack's user** (on the desktop, your WSL user, uid 1000), because the files are 0400 and belong to that user; each file is mounted only into its own service.
-- **Hand-made secrets are only two:** the age keys and the Keycloak break-glass password (ADR-0010 change 3).
+- **Hand-made secrets are only these:** the age keys, the Keycloak break-glass password and entered secrets (ADR-0010 change 3 and its note of 2026-11-11).
 
 ## When something is wrong
 | Situation | What you see | What to do |
