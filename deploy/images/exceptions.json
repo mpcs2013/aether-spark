@@ -251,6 +251,204 @@
       "issue": 31,
       "approved": "2026-11-08",
       "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-123158",
+      "target": "host-role-test",
+      "package": "openssh-client",
+      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-123158",
+      "target": "host-role-test",
+      "package": "openssh-server",
+      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-123158",
+      "target": "host-role-test",
+      "package": "openssh-sftp-server",
+      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-123158",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "openssh-client",
+      "reason": "The LLM trial's serving image never runs ssh: the client is unused, and the container has no way out (internal network, no proxy). NVIDIA has no rebuilt image yet; the next pin bump or the expiry re-scan moves it.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-107778",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-107778",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112314",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112314",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112320",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112320",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112321",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112321",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112322",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112322",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112323",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-112323",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-119079",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-119079",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40355",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40355",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40356",
+      "target": "curlimages/curl",
+      "package": "krb5",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-40356",
+      "target": "curlimages/curl",
+      "package": "krb5-libs",
+      "reason": "Test client only (egress and stack tests on throwaway CI runners and the desktop). The tests never request Kerberos (GSS-API/Negotiate) authentication, so krb5 is not reached. Alpine has the fix (1.22.3-r0) but curl's image is not rebuilt yet; Dependabot moves the image when it is.",
+      "issue": 31,
+      "approved": "2026-11-11",
+      "expires": "2026-12-11"
     }
   ]
 }
