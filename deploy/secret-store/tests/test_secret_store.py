@@ -341,7 +341,7 @@ def test_the_repositorys_manifest_loads() -> None:
     Compose files."""
     manifest = store.load_manifest()
     assert manifest, "the manifest lists the stack's secrets"
-    assert all(s.random_bytes >= store.MIN_BYTES or s.derived for s in manifest)
+    assert all(s.random_bytes >= store.MIN_BYTES or s.derived or s.entered for s in manifest)
 
 
 # The round trip with age, on a real tmpfs

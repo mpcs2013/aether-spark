@@ -76,6 +76,18 @@ Every snapshot has the same four paths from the first one on (A-015, condition c
    - the key's ID and the build's end reported in A-015, so the home infrastructure removes the scratch repository and its login.
 5. **The owner's drill** from the NAS in a fresh WSL distribution, recorded in `restore-drill.md`; the first scheduled run reported in A-015 (the freshness check starts); the roadmap's Gate G3 items "restore drill passes" and "`just up` from clean WSL2" closed.
 
+## As built
+- **PR 3 is split** like WP3.1's PR 5: **3a** the backup (the job, `just backup`, the daily run, `key-add`, tests B1–B5 and B7); **3b** `just restore`, the drill (B6) and the runbook `restore-drill.md`.
+- **3a (2026-11-11):**
+  - **restic and CI's stand-in are built from their tagged source** with Go 1.27.3 on the stack's Alpine (`deploy/backup/Dockerfile`, `tests/stack/standin/Dockerfile`), as whoami is: the release images (restic 0.19.1, rest-server 0.14.0, the latest) carried 10 Critical / 60 High and 24 Critical / 141 High fixed findings at the scan of 2026-11-11.
+  - **The staging folder is always made by the job**, before any of its containers starts, and removed after; the Compose binds forbid Docker to create it (`create_host_path: false`). The first CI run showed why: a container started before it existed left a root-owned folder that no later run could remove, as Docker did with the secrets (2026-11-09, 2026-11-10).
+  - **Two one-shot services** in profile `backup`, both that restic image as the stack's user: `backup` (on `backup`, the repository file and the key's password as Compose secrets, the staging folder at `/backup`, the sealed store read-only at `/backup/sealed`, a tmpfs cache) and `backup-files` (no network; copies the CA volume to and from the staging folder). `deploy/backup/backup.sh` drives them; `just backup` and `just up` (`run --if-due`) call it.
+  - **The lint's one exception to `/run`:** policy.json `memory_bind_dirs` admits the staging folder, bound exactly, for the role `restic` only (egress.md, L1; fixture tests).
+  - **A target that does not answer** would hold `just up` for many minutes, since restic retries; so the job first checks the target's port within 5 seconds from its own network (the address read inside the container, never printed), then whether the repository opens with AetherSpark's key.
+  - **The refused delete (B3)** is one HTTP DELETE from the host (`deploy/backup/append_only.py`, standard library), which the backup target admits in the desktop phase; the restic image has no plain delete, and `forget` is never sent to the NAS.
+  - **CI's stand-in** with the host rules is the pinned rest-server's program in a network namespace at the test NAS address, started by `tests/stack/layer3.sh`; on the desktop, a container on `backup` (`tests/stack/compose.test.yaml`, profile `standin`).
+  - **The manifest:** four entered secrets (the login's name and password, the target's address, the repository path), the repository file derived from them, and the generated `backup-key-password`.
+
 ## Document changes (in this note's pull request)
 - **ADR-0003, a dated note:** the restic job is a one-shot service in its own profile, `backup`, started once a day by `just up` and by `just backup`. *Replaces*, in the note of 2026-10-23, "`ops` (observability, restic)" with "`ops` (observability)".
 - **ADR-0010, a dated note** (entered secrets; the desktop-phase backup login; the dev key's off-line copy). *Replaces*, in change 3, "only the two age keys and the Keycloak break-glass password" with "the two age keys, the Keycloak break-glass password and entered secrets"; and, in the amendment of 2026-10-04, for the desktop-phase repository only, "never used by platform services".

@@ -854,6 +854,128 @@ check "just up then issues and reaches healthy" up
 year() { ca status | grep -q 'valid for 36[45] more days'; }
 check "ca status reports the new intermediate (about a year)" year
 
+echo "--- WP3.4: the backup job (backup-job.md, tests B1-B5, B7)"
+# The target's stand-in: with the host rules, tests/stack/layer3.sh runs it outside Docker's bridges
+# at the test NAS address and gives its login in a file; otherwise a container on `backup`, with a
+# login made here. An "owner" key creates the repository, as the home infrastructure did on the NAS.
+bk() { bash "$repo/deploy/backup/backup.sh" "$@" "${overlay[@]}"; }
+# The job's containers mount the staging folder, which must exist (Docker may not create it); the
+# test's own restic calls make it as backup.sh does, and backup.sh's next run removes it
+bk_staging="$(dirname "$AETHERSPARK_SECRETS_DIR")/backup"
+export AETHERSPARK_BACKUP_DIR="$bk_staging"
+t_stage() { mkdir -p "$bk_staging/sealed" && chmod 0700 "$bk_staging"; }
+restic_t() { t_stage && dc --profile backup run --rm --no-deps -T backup "$@"; }
+export AETHERSPARK_BACKUP_MARKER="$work/backup-last"
+standin_dir="$work/standin"
+mkdir -p "$standin_dir/data" "$standin_dir/login" "$work/owner"
+if [ -n "${AETHERSPARK_BACKUP_STANDIN:-}" ]; then
+    standin_address=$AETHERSPARK_BACKUP_STANDIN
+    { read -r bk_name; read -r bk_password; } <"$AETHERSPARK_STANDIN_LOGIN_FILE"
+else
+    standin_address=backup-standin:8000
+    bk_name=stack-test
+    bk_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    dc --profile standin build backup-standin >/dev/null 2>&1
+    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint htpasswd aetherspark/rest-server:local -niB "$bk_name" \
+        >"$standin_dir/login/.htpasswd"
+    chmod 0644 "$standin_dir/login/.htpasswd"
+    export AETHERSPARK_STANDIN_DIR="$standin_dir"
+    dc --profile standin up -d backup-standin >/dev/null 2>&1
+fi
+python3 -I -c 'import secrets; print(secrets.token_urlsafe(32))' >"$work/owner/pw"
+chmod 0644 "$work/owner/pw"
+enter() { # name, value: through the test's file descriptor, never an argument of the tool
+    AETHERSPARK_SECRETS_ENTER_FD=3 python3 -I "$repo/deploy/secret-store/secret_store.py" enter "$1" 3< <(printf '%s\n' "$2") >/dev/null
+}
+# Never `grep -q` at the end of a pipeline here (pipefail: an early exit reads as "not found")
+no_login_yet() { bk run --if-due 2>&1 | grep 'skipped: no backup login' >/dev/null; }
+check "B: just up before the login is entered warns and skips the backup" no_login_yet
+enter_login() {
+    enter backup-login-name "$bk_name" && enter backup-login-password "$bk_password" \
+        && enter backup-address "$standin_address" && enter backup-repository-path "$bk_name/stack" \
+        && python3 -I "$repo/deploy/secret-store/secret_store.py" unseal >/dev/null
+}
+check "B: the login is entered (four entered secrets) and unsealed" enter_login
+owner_restic() { # restic with the owner's key (a file here; the owner types it on the NAS's)
+    t_stage && dc --profile backup run --rm --no-deps -T -e RESTIC_PASSWORD_FILE=/owner/pw -v "$work/owner:/owner:ro" backup "$@"
+}
+owner_setup() {
+    owner_restic init >/dev/null && owner_restic key add --new-password-file /run/secrets/backup-key-password >/dev/null
+}
+check "B: the owner creates the repository and adds AetherSpark's key (as key-add does)" owner_setup
+bk_out="$(bk run 2>&1)" && bk_rc=0 || bk_rc=$?
+check "B: just backup makes a snapshot" [ "$bk_rc" -eq 0 ]
+[ "$bk_rc" -eq 0 ] || printf '%s\n' "$bk_out" | tail -15 | sed 's/^/      /'
+snap="$(restic_t snapshots --json --host aetherspark-desktop --tag aetherspark-stack --latest 1 2>/dev/null \
+    | python3 -I -c 'import json, sys; s = json.load(sys.stdin); print(s[-1]["id"] if s else "")')"
+b1() { # exactly the four paths; no TLS volume, no unsealed secret, no age key; the sealed files only
+    restic_t ls --json "$snap" | python3 -I -c 'import json, sys
+items = [json.loads(l) for l in sys.stdin if l.strip()]
+paths = sorted(i["path"] for i in items if "node" in (i.get("struct_type"), i.get("message_type")) and "path" in i)
+tops = {p.split("/")[2] for p in paths if p.startswith("/backup/") and p.count("/") >= 2}
+bad = [p for p in paths if "-tls" in p or "/run/secrets" in p or p.endswith(".key")]
+sealed = [p for p in paths if p.startswith("/backup/sealed/") and not p.endswith(".age")]
+dump = "/backup/keycloak/keycloak.dump" in paths
+ca = any(p.startswith("/backup/ca/certs/root_ca.crt") for p in paths)
+ok = tops == {"ca", "keycloak", "sealed", "feed"} and not bad and not sealed and dump and ca
+print(sorted(tops), bad[:3], sealed[:3], dump, ca) if not ok else None
+sys.exit(0 if ok else 1)'
+}
+check "B1: the snapshot holds exactly ca, keycloak (the dump), sealed (*.age only) and feed" b1
+b2() { # the job's settings name files only; no secret value in its rendered Compose or its output.
+    # The login's name, the address and the path are not secret (the name is part of this project's)
+    local config f
+    config="$(dc --profile backup config --format json)"
+    for f in "$AETHERSPARK_SECRETS_DIR"/*; do
+        case $(basename "$f") in backup-login-name | backup-address | backup-repository-path) continue ;; esac
+        if grep -F -f "$f" <<<"$config$bk_out" >/dev/null; then echo "a value of $(basename "$f") is visible"; return 1; fi
+    done
+}
+check "B2: no secret value in the job's configuration or output" b2
+b3_forget() { ! restic_t forget "$snap" >/dev/null 2>&1; }
+check "B3: the job's login cannot forget a snapshot (append-only)" b3_forget
+still_there() { restic_t snapshots --json "$snap" | grep "$snap" >/dev/null; }
+check "B3: ... and the snapshot is still there" still_there
+if [ -n "${AETHERSPARK_BACKUP_STANDIN:-}" ]; then
+    check "B3: an HTTP DELETE of the snapshot is refused (403), from the host" bk prove-append-only
+else
+    printf 'SKIP  B3: the HTTP DELETE runs from the host, which reaches the stand-in only in CI (layer 3)\n'
+fi
+count_snaps() { restic_t snapshots --json --host aetherspark-desktop --tag aetherspark-stack | python3 -I -c 'import json, sys; print(len(json.load(sys.stdin)))'; }
+n_before="$(count_snaps)"
+bk run --if-due >/dev/null 2>&1
+check "B4: a second run the same day (just up's) makes no snapshot" [ "$(count_snaps)" = "$n_before" ]
+rm -f "$AETHERSPARK_BACKUP_MARKER"
+# With the host rules, the stand-in is a process the wrapper controls (AETHERSPARK_STANDIN_CTL)
+standin() { if [ -n "${AETHERSPARK_STANDIN_CTL:-}" ]; then "$AETHERSPARK_STANDIN_CTL" "$1"; else dc --profile standin "$1" backup-standin >/dev/null 2>&1; fi; }
+standin stop
+unreachable() { bk run --if-due 2>&1 | grep 'skipped: the backup target does not answer' >/dev/null; }
+check "B4: with the target unreachable, just up's run warns and goes on" unreachable
+standin start
+check "B5: step-ca is healthy after the jobs" [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q step-ca)")" = healthy ]
+check "B5: no staging folder is left" [ ! -e "$(dirname "$AETHERSPARK_SECRETS_DIR")/backup" ]
+dc stop postgres-auth >/dev/null 2>&1
+dump_fails() { ! bk run >/dev/null 2>&1 && [ ! -e "$(dirname "$AETHERSPARK_SECRETS_DIR")/backup" ]; }
+check "B5: a failed job (the dump) leaves no staging folder" dump_fails
+check "B5: ... and step-ca running" [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q step-ca)")" = healthy ]
+dc up -d --wait postgres-auth >/dev/null 2>&1
+if [ -n "$layer3" ]; then
+    b7() { # the job's network reaches the target and nothing else; the drop is logged
+        local mark out
+        mark="$(klog_mark)"
+        out="$(docker run --rm --network "${COMPOSE_PROJECT_NAME}_backup" --read-only --cap-drop ALL "$curl_image_b7" \
+            sh -c "curl -s -m 5 -o /dev/null -w '%{http_code}' http://$standin_address/ || true; echo; curl -s -m 5 -k -o /dev/null https://1.1.1.1/ && echo out || echo none")"
+        printf '%s\n' "$out" | head -1 | grep -qE '^(200|401|404|405)$' || { echo "the target did not answer: $out"; return 1; }
+        printf '%s\n' "$out" | tail -1 | grep -qx none || { echo "reached the internet"; return 1; }
+        drops_since_b7 "$mark" | grep 'IN=as-backup ' >/dev/null || { echo "no drop logged on as-backup"; return 1; }
+    }
+    curl_image_b7="$(sed -n 's/^ *image: *\(curlimages\/curl:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.test.yaml" | head -1)"
+    drops_since_b7() { klog | awk -F'[][]' -v since="$1" '$2 + 0 > since + 0' | grep -E 'aetherspark-[a-z]+:IN=as-backup '; }
+    check "B7: from the backup network, the target answers, the internet does not, and the drop is logged" b7
+else
+    printf 'SKIP  B7: the backup network reaches only the target with the host rules (CI and the Spark)\n'
+fi
+
 echo "--- C6: the egress rules hold for the stack's own services (egress.md, Tests)"
 # Each probe runs inside a service's own network namespace (--network container:), so it has the
 # service's routes and resolver whatever tools the service's image has. Busybox's nslookup and curl

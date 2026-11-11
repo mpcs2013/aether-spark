@@ -211,9 +211,19 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
                     " not all interfaces"
                 )
 
+        memory_bind = policy.get("memory_bind_dirs") or {"roles": [], "dirs": []}
         for volume in service.get("volumes") or []:
             source = str(volume.get("source", ""))
             hit = host_path_hit(source, forbidden_paths) if volume.get("type") != "volume" else None
+            # The backup job's in-memory staging folder, exactly, for its roles (backup-job.md)
+            if (
+                hit
+                and volume.get("type") == "bind"
+                and role in memory_bind["roles"]
+                and posixpath.normpath(source) == source
+                and any(re.fullmatch(d, source) for d in memory_bind["dirs"])
+            ):
+                hit = None
             if hit:
                 findings.append(f"{where}: mount of {source} reaches {hit}")
             if (

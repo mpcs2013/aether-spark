@@ -35,6 +35,8 @@ updates:
       - /deploy/compose/stack/postgres-auth
       - /deploy/compose/stack/forward-auth
       - /deploy/compose/stack/whoami
+      - /deploy/backup
+      - /tests/stack/standin
       - /deploy/keycloak   # its base is ignored below
       - /tests/egress/lab
       - /tests/host-role
