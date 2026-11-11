@@ -55,7 +55,7 @@ Decrypted values live in one tmpfs folder per machine (mode 0700), the only sour
 - Every service that reads a secret runs as the stack's user (the WSL user on the desktop, a dedicated user on the Spark), with files at 0400: Compose ignores a file secret's owner and mode outside Swarm, and the desktop cannot change a file's owner without `sudo`.
 - The desktop proof (`tests/secret-store/desktop-proof.sh`) passed on 2026-11-06: Docker Desktop mounts the same tmpfs into the container, with no copy in the writable layer, on WSL2's disk or in Docker's metadata, and nothing after a WSL restart ([secrets.md](../runbooks/secrets.md)).
 
-## Note (2026-11-11, proposed, with WP3.4) — entered secrets; the desktop-phase backup login; the dev key's off-line copy
+## Note (2026-11-11, accepted 2026-11-11, with WP3.4) — entered secrets; the desktop-phase backup login; the dev key's off-line copy
 With the backup job ([backup-job.md](../architecture/backup-job.md); exchange A-015):
 - **Entered secrets.** A manifest entry may be *entered*: a value issued by another party, typed in once by the owner at a terminal (asked twice, never echoed, never from a pipe or an argument; tests use a file descriptor of their own) and sealed with the others. `generate` and `rotate` skip it; `unseal` skips a missing one and every derived file that names it, and names them.
 - **The desktop-phase backup login.** The backup job uses the desktop-phase repository's login, entered, and a repository key of AetherSpark's own, generated. The login and the repository's original password stay in the owner's password manager as the record and the recovery path. The original password reaches a container only once, at `just backup key-add`, typed at restic's own prompt.
