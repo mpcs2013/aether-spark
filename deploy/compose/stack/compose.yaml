@@ -419,6 +419,52 @@ services:
       start_period: 30s
       start_interval: 1s
 
+  # The backup job (docs/architecture/backup-job.md): one-shot restic runs, never a standing
+  # service (profile `backup`, ADR-0003 note of 2026-11-11), started by deploy/backup/backup.sh.
+  # On `backup` only, the one network with a way out to the backup target; the target by its
+  # address, so no name lookups. The repository's address with the login, and AetherSpark's key's
+  # password, come from files only. The in-memory staging folder holds the CA copy and the
+  # Keycloak dump; the sealed store is read-only. The paths inside are fixed (A-015, condition c).
+  backup:
+    <<: [*no-restart, *hardening]
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    labels: { aetherspark.role: restic }
+    profiles: [backup]
+    user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
+    environment:
+      RESTIC_REPOSITORY_FILE: /run/secrets/backup-repository
+      RESTIC_PASSWORD_FILE: /run/secrets/backup-key-password
+      RESTIC_CACHE_DIR: /cache
+    secrets: [backup-repository, backup-key-password]
+    tmpfs:
+      - "/cache:uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+      - /tmp
+    volumes:
+      - type: bind
+        source: "${AETHERSPARK_BACKUP_DIR:-/run/aetherspark/backup}"
+        target: /backup
+      - type: bind
+        source: "${AETHERSPARK_SECRETS_STORE:-/srv/aetherspark/secrets}"
+        target: /backup/sealed
+        read_only: true
+    mem_limit: 512m
+    pids_limit: 100
+    networks: [backup]
+
+  # Copies the CA volume to and from the staging folder (step-ca stopped meanwhile); no network
+  backup-files:
+    <<: [*no-restart, *hardening]
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    labels: { aetherspark.role: restic }
+    profiles: [backup]
+    user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
+    network_mode: none
+    volumes:
+      - step-ca:/ca
+      - type: bind
+        source: "${AETHERSPARK_BACKUP_DIR:-/run/aetherspark/backup}"
+        target: /backup
+
 # Files in the in-memory folder (`just secrets unseal`); the lint accepts no other source
 secrets:
   step-ca-password:
@@ -441,6 +487,10 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/forward-auth-client-secret"
   forward-auth-cookie-secret:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/forward-auth-cookie-secret"
+  backup-repository:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/backup-repository"
+  backup-key-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/backup-key-password"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:
@@ -487,3 +537,9 @@ networks:
     enable_ipv6: false
     driver_opts: { com.docker.network.bridge.name: as-auth-edge }
     ipam: { config: [{ subnet: 172.30.62.0/24, gateway: 172.30.62.1, ip_range: 172.30.62.128/25 }] }
+  # The backup job's way to the backup target (egress.md, `backup`): not internal; on the Spark and
+  # in CI the host rules let it reach only the target's address and port
+  backup:
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.name: as-backup }
+    ipam: { config: [{ subnet: 172.30.40.0/24, gateway: 172.30.40.1 }] }

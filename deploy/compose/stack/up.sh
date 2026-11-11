@@ -33,5 +33,9 @@ dc up -d --wait --force-recreate
 # the realm file only into an empty database. Skipped before `just keycloak setup` has run
 python3 -I "$repo/deploy/keycloak/admin.py" apply --if-ready \
     || echo "up: the realm does not match the repository; see docs/runbooks/keycloak-admin.md" >&2
+# Once a day, a snapshot to the backup target (docs/architecture/backup-job.md). A missing login or
+# an unreachable target is a warning: the stack is up either way
+bash "$repo/deploy/backup/backup.sh" run --if-due "$@" \
+    || echo "up: the backup failed; see docs/runbooks/restore-drill.md" >&2
 # The intermediate's expiry is watched, not remembered (exit 1 below 60 days: renew it)
 python3 -I "$repo/deploy/ca/ca.py" status || echo "up: see docs/runbooks/certificates.md" >&2

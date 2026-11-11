@@ -1,6 +1,23 @@
-# Test overlay (tests/stack/run.sh): adds the test route. Paths are relative to the first file's
-# folder, deploy/compose/stack/.
+# Test overlay (tests/stack/run.sh): adds the test route, and a stand-in for the NAS's backup server.
+# Paths are relative to the first file's folder, deploy/compose/stack/.
 services:
   traefik:
     volumes:
       - ../../../tests/stack/test-route.yml:/etc/traefik/dynamic/test/test-route.yml:ro
+
+  # The backup target's stand-in where the test runs without the host rules (the desktop): an
+  # append-only rest-server with private repositories and a login, as on the NAS. With the host rules
+  # (CI, tests/stack/layer3.sh) the stand-in runs outside Docker's bridges instead, so the job's
+  # traffic crosses them as on the Spark. Its data and login file: the test's own folder.
+  backup-standin:
+    image: restic/rest-server:0.14.0@sha256:d2aff06f47eb38637dff580c3e6bce4af98f386c396a25d32eb6727ec96214a5
+    profiles: [standin]
+    user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
+    entrypoint: ["rest-server"]
+    command: ["--path", "/data", "--listen", ":8000", "--append-only", "--private-repos", "--htpasswd-file", "/login/.htpasswd"]
+    read_only: true
+    cap_drop: [ALL]
+    volumes:
+      - "${AETHERSPARK_STANDIN_DIR:-/nonexistent}/data:/data"
+      - "${AETHERSPARK_STANDIN_DIR:-/nonexistent}/login:/login:ro"
+    networks: [backup]

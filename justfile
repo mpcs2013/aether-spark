@@ -19,7 +19,7 @@ ci: dotnet-ci py-ci
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/ca deploy/compose deploy/images deploy/keycloak deploy/secret-store tests/python tests/stack
+    {{ uv }} mypy src/python deploy/backup deploy/ca deploy/compose deploy/images deploy/keycloak deploy/secret-store tests/python tests/stack
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -67,6 +67,12 @@ keycloak *args:
 [unix]
 keycloak-break-glass username:
     @bash deploy/keycloak/break-glass.sh {{ username }}
+
+# The backup job (docs/architecture/backup-job.md): run | key-add | snapshots | prove-append-only.
+# `just up` runs it once a day by itself
+[unix]
+backup *args="run":
+    bash deploy/backup/backup.sh {{ args }}
 
 # The stack end to end: tests C3, C3b, C5, C9a, C9b, C10 so far, C11 (tests/stack/run.sh; ~20 minutes)
 [unix]
@@ -132,6 +138,11 @@ keycloak *args:
 [windows]
 keycloak-break-glass username:
     @{{ wsl }} keycloak-break-glass {{ username }}
+
+# The backup job, in WSL2 (backup-job.md): run | key-add | snapshots | prove-append-only
+[windows]
+backup *args="run":
+    {{ wsl }} backup {{ args }}
 
 # The stack end to end, in WSL2 (tests/stack/run.sh; ~20 minutes)
 [windows]

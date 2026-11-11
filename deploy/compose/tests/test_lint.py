@@ -565,3 +565,48 @@ def test_main_exit_codes(tmp_path: Path) -> None:
     assert lint.main(["lint.py", "compose", str(dirty)]) == 1
     assert lint.main(["lint.py", "compose", str(tmp_path / "missing.json")]) == 2
     assert lint.main(["lint.py"]) == 2
+
+
+# The backup job's in-memory staging folder: the one exception to /run (backup-job.md)
+RESTIC = "restic/restic:0.19.1@sha256:" + "0" * 64
+
+
+@pytest.mark.parametrize(
+    ("role", "source", "ok"),
+    [
+        ("restic", "/run/user/1000/aetherspark/backup", True),
+        ("restic", "/run/aetherspark/backup", True),
+        ("restic", "/run/aetherspark", False),  # a folder above
+        ("restic", "/run/user/1000/aetherspark/backup/ca", False),  # a folder below
+        ("restic", "/run/user/1000/aetherspark/secrets", False),  # the secrets folder
+        ("restic", "/run/aetherspark/../aetherspark/backup", False),  # not normalised
+        ("ingester", "/run/aetherspark/backup", False),  # another role
+    ],
+)
+def test_only_the_backup_job_mounts_only_its_staging_folder(
+    role: str, source: str, ok: bool
+) -> None:
+    project = _valid()
+    nets = ("backup",) if role == "restic" else ("ingest",)
+    extra: dict[str, Any] = {"image": RESTIC} if role == "restic" else {}
+    project["networks"]["backup"] = _net("backup")
+    project["services"]["job"] = _service(
+        role, *nets, volumes=[{"type": "bind", "source": source, "target": "/backup"}], **extra
+    )
+    findings = _findings(project)
+    assert (findings == []) is ok, findings
+
+
+def test_the_staging_exception_is_for_binds_only() -> None:
+    project = _valid()
+    project["networks"]["backup"] = _net("backup")
+    project["volumes"] = {"staging": {"driver_opts": {"device": "/run/aetherspark"}}}
+    project["services"]["job"] = _service("restic", "backup", image=RESTIC)
+    assert any("reaches" in f for f in _findings(project))
+
+
+def test_the_backup_role_runs_only_restics_image() -> None:
+    project = _valid()
+    project["networks"]["backup"] = _net("backup")
+    project["services"]["job"] = _service("restic", "backup", image="alpine:3@sha256:" + "0" * 64)
+    assert any("runs only restic/restic" in f for f in _findings(project))
