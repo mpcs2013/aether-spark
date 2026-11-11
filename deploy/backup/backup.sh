@@ -91,14 +91,17 @@ copy_ca() { # step-ca stopped only for the copy: its database is not safe to cop
     step_ca_stopped=0
 }
 
+# Every container of the job mounts the staging folder, so it exists before any of them starts
+# (Docker would create a missing one as root, compose.yaml: create_host_path false) and is gone after
+staged() { trap cleanup EXIT; stage; }
+
 run() {
     if [ "$if_due" = 1 ] && [ "$(cat "$marker" 2>/dev/null)" = "$(date -u +%F)" ]; then exit 0; fi
     ready || warn_or_fail "no backup login yet (just secrets enter; docs/runbooks/restore-drill.md)"
+    staged
     answers || warn_or_fail "the backup target does not answer"
     restic_ cat config >/dev/null 2>&1 \
         || warn_or_fail "the repository does not open with AetherSpark's key (just backup key-add first)"
-    trap cleanup EXIT
-    stage
     dump_keycloak || { say "the Keycloak dump failed" >&2; exit 1; }
     copy_ca
     local out id
@@ -121,14 +124,16 @@ case $cmd in
     run) run ;;
     key-add)
         ready || { say "enter the backup login first (just secrets enter)" >&2; exit 1; }
+        staged
         # Interactive: restic asks for the existing password itself; the new one is a file
         dc --profile backup run --rm --no-deps -e RESTIC_PASSWORD_FILE= backup \
             key add --new-password-file /run/secrets/backup-key-password ;;
-    snapshots) restic_ snapshots --host "$host" --tag "$tag" ;;
+    snapshots) staged; restic_ snapshots --host "$host" --tag "$tag" ;;
     prove-append-only)
         # From the host, which the backup target admits in the desktop phase (A-012 requirement 8):
         # restic has no plain delete, and `forget` is never run against the NAS (A-015 condition a)
         ready || { say "enter the backup login first" >&2; exit 1; }
+        staged
         latest="$(restic_ snapshots --json --host "$host" --tag "$tag" --latest 1 \
             | python3 -I -c 'import json, sys; s = json.load(sys.stdin); print(s[-1]["id"] if s else "")')"
         [ -n "$latest" ] || { say "no snapshot of host $host and tag $tag yet" >&2; exit 1; }

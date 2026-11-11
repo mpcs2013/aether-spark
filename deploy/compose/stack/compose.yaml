@@ -425,9 +425,12 @@ services:
   # address, so no name lookups. The repository's address with the login, and AetherSpark's key's
   # password, come from files only. The in-memory staging folder holds the CA copy and the
   # Keycloak dump; the sealed store is read-only. The paths inside are fixed (A-015, condition c).
+  # restic is built here from its source (deploy/backup/Dockerfile: the release image's libraries are
+  # old). The staging folder must exist (backup.sh makes it): Docker would create it as root.
   backup:
     <<: [*no-restart, *hardening]
-    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    build: ../../backup
+    image: aetherspark/restic:local
     labels: { aetherspark.role: restic }
     profiles: [backup]
     user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
@@ -443,10 +446,12 @@ services:
       - type: bind
         source: "${AETHERSPARK_BACKUP_DIR:-/run/aetherspark/backup}"
         target: /backup
+        bind: { create_host_path: false }
       - type: bind
         source: "${AETHERSPARK_SECRETS_STORE:-/srv/aetherspark/secrets}"
         target: /backup/sealed
         read_only: true
+        bind: { create_host_path: false }
     mem_limit: 512m
     pids_limit: 100
     networks: [backup]
@@ -454,7 +459,7 @@ services:
   # Copies the CA volume to and from the staging folder (step-ca stopped meanwhile); no network
   backup-files:
     <<: [*no-restart, *hardening]
-    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    image: aetherspark/restic:local
     labels: { aetherspark.role: restic }
     profiles: [backup]
     user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
@@ -464,6 +469,7 @@ services:
       - type: bind
         source: "${AETHERSPARK_BACKUP_DIR:-/run/aetherspark/backup}"
         target: /backup
+        bind: { create_host_path: false }
 
 # Files in the in-memory folder (`just secrets unseal`); the lint accepts no other source
 secrets:

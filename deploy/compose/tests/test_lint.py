@@ -568,7 +568,7 @@ def test_main_exit_codes(tmp_path: Path) -> None:
 
 
 # The backup job's in-memory staging folder: the one exception to /run (backup-job.md)
-RESTIC = "restic/restic:0.19.1@sha256:" + "0" * 64
+RESTIC = "aetherspark/restic:local"
 
 
 @pytest.mark.parametrize(
@@ -609,4 +609,4 @@ def test_the_backup_role_runs_only_restics_image() -> None:
     project = _valid()
     project["networks"]["backup"] = _net("backup")
     project["services"]["job"] = _service("restic", "backup", image="alpine:3@sha256:" + "0" * 64)
-    assert any("runs only restic/restic" in f for f in _findings(project))
+    assert any("runs only aetherspark/restic:local" in f for f in _findings(project))

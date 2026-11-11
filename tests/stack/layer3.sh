@@ -14,7 +14,8 @@ fi
 # builds of the same files are served from the cache. Image pulls run in the Docker daemon on the
 # host, which the rules do not restrict here (only the Spark's host mode does).
 COMPOSE_PROJECT_NAME=as-stack-test AETHERSPARK_PLACE=localhost \
-    docker compose -f "$repo/deploy/compose/stack/compose.yaml" build step-ca postgres-auth keycloak forward-auth whoami \
+    docker compose -f "$repo/deploy/compose/stack/compose.yaml" -f "$repo/tests/stack/compose.test.yaml" \
+    build step-ca postgres-auth keycloak forward-auth whoami backup backup-standin \
     || exit 1
 for f in tests/egress/compose.layer3.yaml tests/egress/compose.test.yaml tests/stack/compose.test.yaml deploy/compose/stack/compose.yaml; do
     for image in $(sed -n 's/^ *image: *\([^ ]*@sha256:[0-9a-f]*\) *$/\1/p' "$repo/$f" | sort -u); do
@@ -48,7 +49,7 @@ echo "--- layer 3 in place"
 # a login made here; run.sh gets the login in a file and a command to stop and start it.
 standin="$(mktemp -d)"
 trap 'rm -f "$env_file"; [ -x "$standin/ctl" ] && "$standin/ctl" stop; sudo ip netns del t3home 2>/dev/null; rm -rf "$standin"' EXIT
-standin_image="$(sed -n 's/^ *image: *\(restic\/rest-server:[^ ]*\) *$/\1/p' "$repo/tests/stack/compose.test.yaml")"
+standin_image=aetherspark/rest-server:local  # built above (tests/stack/standin)
 cid="$(docker create "$standin_image")" && docker cp -q "$cid:/usr/bin/rest-server" "$standin/rest-server" && docker rm "$cid" >/dev/null || exit 1
 standin_name=stack-test
 standin_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"

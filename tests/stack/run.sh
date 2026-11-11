@@ -859,7 +859,11 @@ echo "--- WP3.4: the backup job (backup-job.md, tests B1-B5, B7)"
 # at the test NAS address and gives its login in a file; otherwise a container on `backup`, with a
 # login made here. An "owner" key creates the repository, as the home infrastructure did on the NAS.
 bk() { bash "$repo/deploy/backup/backup.sh" "$@" "${overlay[@]}"; }
-restic_t() { dc --profile backup run --rm --no-deps -T backup "$@"; }
+# The job's containers mount the staging folder, which must exist (Docker may not create it); the
+# test's own restic calls make it as backup.sh does, and backup.sh's next run removes it
+bk_staging="$(dirname "$AETHERSPARK_SECRETS_DIR")/backup"
+t_stage() { mkdir -p "$bk_staging/sealed" && chmod 0700 "$bk_staging"; }
+restic_t() { t_stage && dc --profile backup run --rm --no-deps -T backup "$@"; }
 export AETHERSPARK_BACKUP_MARKER="$work/backup-last"
 standin_dir="$work/standin"
 mkdir -p "$standin_dir/data" "$standin_dir/login" "$work/owner"
@@ -870,8 +874,8 @@ else
     standin_address=backup-standin:8000
     bk_name=stack-test
     bk_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
-    standin_image="$(sed -n 's/^ *image: *\(restic\/rest-server:[^ ]*\) *$/\1/p' "$repo/tests/stack/compose.test.yaml")"
-    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint htpasswd "$standin_image" -niB "$bk_name" \
+    dc --profile standin build backup-standin >/dev/null 2>&1
+    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint htpasswd aetherspark/rest-server:local -niB "$bk_name" \
         >"$standin_dir/login/.htpasswd"
     chmod 0644 "$standin_dir/login/.htpasswd"
     export AETHERSPARK_STANDIN_DIR="$standin_dir"
@@ -892,7 +896,7 @@ enter_login() {
 }
 check "B: the login is entered (four entered secrets) and unsealed" enter_login
 owner_restic() { # restic with the owner's key (a file here; the owner types it on the NAS's)
-    dc --profile backup run --rm --no-deps -T -e RESTIC_PASSWORD_FILE=/owner/pw -v "$work/owner:/owner:ro" backup "$@"
+    t_stage && dc --profile backup run --rm --no-deps -T -e RESTIC_PASSWORD_FILE=/owner/pw -v "$work/owner:/owner:ro" backup "$@"
 }
 owner_setup() {
     owner_restic init >/dev/null && owner_restic key add --new-password-file /run/secrets/backup-key-password >/dev/null
@@ -906,7 +910,7 @@ snap="$(restic_t snapshots --json --host aetherspark-desktop --tag aetherspark-s
 b1() { # exactly the four paths; no TLS volume, no unsealed secret, no age key; the sealed files only
     restic_t ls --json "$snap" | python3 -I -c 'import json, sys
 items = [json.loads(l) for l in sys.stdin if l.strip()]
-paths = sorted(i["path"] for i in items if i.get("struct_type") == "node")
+paths = sorted(i["path"] for i in items if "node" in (i.get("struct_type"), i.get("message_type")) and "path" in i)
 tops = {p.split("/")[2] for p in paths if p.startswith("/backup/") and p.count("/") >= 2}
 bad = [p for p in paths if "-tls" in p or "/run/secrets" in p or p.endswith(".key")]
 sealed = [p for p in paths if p.startswith("/backup/sealed/") and not p.endswith(".age")]

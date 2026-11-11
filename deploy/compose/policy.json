@@ -52,7 +52,7 @@
     "traefik": "traefik",
     "runtime-proxy": "aetherspark/egress-proxy:local",
     "ops-proxy": "aetherspark/egress-proxy:local",
-    "restic": "restic/restic"
+    "restic": "aetherspark/restic:local"
   },
   "_memory_bind_dirs": "The one exception to host_paths_forbidden's /run: the backup job's in-memory staging folder (docs/architecture/backup-job.md), as full-match regular expressions, bound exactly (never a folder above or below it) and only for these roles.",
   "memory_bind_dirs": { "roles": ["restic"], "dirs": ["/run/aetherspark/backup", "/run/user/[0-9]+/aetherspark/backup"] },
