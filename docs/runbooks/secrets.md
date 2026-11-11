@@ -12,7 +12,7 @@ How AetherSpark's secrets are created, sealed, opened into memory and rotated on
 | The dev key | WSL2: `~/.aetherspark/keys/dev.key`, mode 0600 | Opens dev values only, never production ones |
 | Opened values | WSL2: `$XDG_RUNTIME_DIR/aetherspark/secrets/<name>`, folder 0700, files 0400 | In memory (tmpfs); gone after `clear` or `wsl --shutdown` |
 
-**Dev values are throw-away.** If the dev key or the store is lost, run `generate` again and reset the dev stack's volumes (the CA and the databases were made with the old values). Nothing from the desktop is ever used on the Spark.
+**The dev key has an off-line copy** (from WP3.4, [backup-job.md](../architecture/backup-job.md)), kept with the recovery sheet: with it, a lost desktop is restored from the backup with the same CA and data. Only if both the key and its copy are lost, run `generate` again and reset the dev stack's volumes (the CA and the databases were made with the old values). Nothing from the desktop is ever used on the Spark.
 
 ## One-time setup in WSL2 (Ubuntu 24.04)
 Run in a WSL2 terminal (`wsl -d Ubuntu-24.04`):

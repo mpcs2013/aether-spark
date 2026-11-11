@@ -107,5 +107,14 @@ With WP3.1 ([compose-base.md](../architecture/compose-base.md)):
 - **Not backed up:** Traefik's ACME store (re-issued at start) and the renewers' certificates (re-bootstrapped at `just up`).
 - **Consequence:** the restore drill also proves sign-in after a restore of `postgres-auth`.
 
+## Note (2026-11-11, accepted 2026-11-11, with WP3.4) — the desktop-phase job and the drill
+Designed in [backup-job.md](../architecture/backup-job.md); the home infrastructure's side agreed in exchange A-015.
+- **The job:** a one-shot restic container in its own profile (ADR-0003 note), on `backup` only, run once a day by `just up` and by `just backup`. It only adds and reads, never `forget` or `prune`. Every snapshot has the machine's fixed host name, one tag and four fixed paths, the package feed's included from the first snapshot. Checks select by host and tag. The repository opens with AetherSpark's own key beside the owner's original password, which is the recovery key.
+- **Consistency and plaintext:** step-ca stops only while its volume is copied into an in-memory staging folder; Keycloak's database is dumped inside `postgres-auth` into the same folder; nothing plaintext reaches a disk.
+- **Proofs:** on the backup target, the refused delete is proven by one delete request against the job's own snapshot, never by `forget`. CI restores onto a clean state on every stack test; the owner's drill from the backup target, in a fresh WSL distribution with only the off-line recovery items, closes Gate G3. **The quarterly drill starts with Gate G3.**
+- **After an incident** (the desktop or a backup key possibly compromised): restores take an explicit snapshot ID from before it, checked against the target's arrival times; the root CA's fingerprint is compared after every restore; the home infrastructure replaces the repository and its login, and AetherSpark rotates the realm's signing keys and client secrets and has every user set up a new app code. The repository holds those secrets encrypted, and every key opens it.
+- **Build trials** use a separate scratch repository, removed afterwards.
+- *Replaces*, in "Desktop phase (Track A)", "local HDD `D:` as fallback": the NAS target and Amendment 5 cover the desktop.
+
 ## Revisit trigger
 The vendor ends security updates for the NAS operating system (dates in the local site file), either backup volume or the workstation folder quota goes above 80 %, or a co-hosted workload breaks its memory trigger.

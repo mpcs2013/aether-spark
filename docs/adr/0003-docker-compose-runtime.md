@@ -5,6 +5,7 @@ Docker Compose (v2) on DGX OS with NVIDIA Container Toolkit. Compose files gener
 
 *Note (2026-10-23):* a further profile, **`egress-ops`**, runs the ops egress proxy only while an owner-started job runs (ADR-0012 amendment 2026-10-23). It is a separate name because `ops` (observability, restic) runs all the time, and starting it must never open the ops allowlist.
 *Note (2026-11-04, accepted 2026-11-04), with WP3.1:* the Compose files are a hand-written infrastructure file (`deploy/compose/stack/compose.yaml`), from P4a the file `aspire publish` generates for the services built here, and the checked-in overlays, the egress overlay included. `postgres-auth` (Keycloak's own database) is in `core`: sign-in needs it; the `data` profile starts with the data Postgres in P4a ([compose-base.md](../architecture/compose-base.md)).
+*Note (2026-11-11, accepted 2026-11-11), with WP3.4 ([backup-job.md](../architecture/backup-job.md)):* the restic backup job is a one-shot service in a profile of its own, **`backup`**, started once a day by `just up` and by `just backup`; it never runs as a standing service. *Replaces*, in the note of 2026-10-23, "`ops` (observability, restic)" with "`ops` (observability)".
 ## Consequences
 Low overhead, simple ops; no self-healing across nodes, no rolling updates (acceptable for single user).
 ## Alternatives considered

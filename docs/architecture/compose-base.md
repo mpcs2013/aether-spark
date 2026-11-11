@@ -19,7 +19,7 @@
 `just up` starts, from a clean desktop, an internal certificate authority, a reverse proxy that is the only way in, Keycloak with its own database, and a test page that signs in through Keycloak. All run on the networks of the egress matrix, speak verified TLS to each other (NFR-SEC-05) and read their secrets from in-memory files (ADR-0010).
 
 - **In scope:** step-ca, Traefik, Keycloak, `postgres-auth`, the certificate renewers, the forward-auth test relying party; the secrets mechanism (WP3.3) they need; `just up` / `just down`; the same files on the desktop, in CI and on the Spark.
-- **Out of scope:** the data Postgres with pgvector, which joins with its first user in P4a, like Redis; ClickHouse (P4a); the services this repository builds (P4a on); observability (WP3.2); the backup job (WP3.4); the Spark's deployment unit (WP6.4); the NAS certificate (WP6.6).
+- **Out of scope:** the data Postgres with pgvector, which joins with its first user in P4a, like Redis; ClickHouse (P4a); the services this repository builds (P4a on); observability (WP3.2); the backup job (WP3.4, [backup-job.md](backup-job.md)); the Spark's deployment unit (WP6.4); the NAS certificate (WP6.6).
 
 ## Decisions
 - **Hand-written infrastructure Compose** (decision 1): `deploy/compose/stack/compose.yaml` holds the services with digest pins, the hardening the Compose lint requires (L1) and only the matrix's networks. The egress overlay joins as a second file. From P4a, `aspire publish`'s output for built services is a third file, and the overlay removes its default network as the egress design says.
