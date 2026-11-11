@@ -8,7 +8,7 @@ ARG RESTIC_VERSION=0.19.1
 ARG RESTIC_SHA256=bb9b1a19040744d26d8a79be029d4e6b189c45ccc9d8831d7fe367d3c33df725
 # Modules with fixed advisories, raised to the scan's fix versions, only upwards; the build fails if
 # one stays below its target
-ARG RAISE="golang.org/x/net@v0.62.0 golang.org/x/text@v0.39.0 github.com/klauspost/compress@v1.20.2 google.golang.org/grpc@v1.83.2"
+ARG RAISE="golang.org/x/net@v0.62.0 golang.org/x/text@v0.39.0 github.com/klauspost/compress@v1.20.2 google.golang.org/grpc@v1.83.2 github.com/go-jose/go-jose/v4@v4.1.6"
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local
 RUN set -eu; \
     at_least() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }; \

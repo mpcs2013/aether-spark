@@ -862,6 +862,7 @@ bk() { bash "$repo/deploy/backup/backup.sh" "$@" "${overlay[@]}"; }
 # The job's containers mount the staging folder, which must exist (Docker may not create it); the
 # test's own restic calls make it as backup.sh does, and backup.sh's next run removes it
 bk_staging="$(dirname "$AETHERSPARK_SECRETS_DIR")/backup"
+export AETHERSPARK_BACKUP_DIR="$bk_staging"
 t_stage() { mkdir -p "$bk_staging/sealed" && chmod 0700 "$bk_staging"; }
 restic_t() { t_stage && dc --profile backup run --rm --no-deps -T backup "$@"; }
 export AETHERSPARK_BACKUP_MARKER="$work/backup-last"
