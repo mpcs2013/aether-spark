@@ -296,7 +296,7 @@ PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the real
      - CI's .NET jobs get `packages: read` and pass the job's token to NuGet in that step only (into the dev container as one variable of its run);
      - locally, the owner's read-only token lives in Windows Credential Manager, and `just ostium-feed restore` hands it to one restore;
      - Ostium's signer line is pinned in `.github/allowed-signers/ostium` (O-010); the owner's consumer check of 0.5.0 is recorded in the PR.
-  4. **Left for later:** the running-realm checks (`CheckRunningRealmAsync`, with a realm account holding only `view-realm` and `view-clients`) and Ostium's live protocol flows, which need a test user and a throw-away Keycloak; the local folder feed of pinned packages with the backup (WP3.5).
+  4. **Left for later:** the running-realm checks (`CheckRunningRealmAsync`, with a realm account holding only `view-realm` and `view-clients`) and Ostium's live protocol flows, which need a test user and a throw-away Keycloak. The local folder feed of pinned packages, with the backup, came with WP3.5 (ostium-packages.md step 4).
 
 ## Certificate expiry and recovery
 Two different situations, documented in `docs/runbooks/certificates.md` and tested separately (C9a, C9b):

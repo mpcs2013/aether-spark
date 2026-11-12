@@ -60,7 +60,7 @@ A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark
    chmod 0600 ~/.aetherspark/keys/dev.key
    ```
 4. **The backup login** again: the four `just secrets enter` commands of step 2a, with the real values.
-5. **The sealed store**, opened with the repository's original password (restic asks, twice):
+5. **The sealed store and the local package feed**, opened with the repository's original password (restic asks, twice):
    ```bash
    export COMPOSE_PROJECT_NAME=aetherspark-drill
    just backup restore-secrets

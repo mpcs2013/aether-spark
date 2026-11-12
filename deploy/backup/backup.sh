@@ -13,8 +13,8 @@
 #   prove-append-only one HTTP DELETE of the newest snapshot of this host and tag: must be refused
 #   restore-secrets [--snapshot ID]
 #                     a machine without its sealed store: brings it back from a snapshot, opened
-#                     with the repository's original password (restic asks); files already in the
-#                     store (the login just entered) are kept
+#                     with the repository's original password (restic asks), and the local folder
+#                     feed with it; files already there (the login just entered) are kept
 #   restore [--snapshot ID] [--replace] [--expect-root FINGERPRINT]
 #                     the stack down: the CA volume and Keycloak's database from a snapshot (the
 #                     newest of this host and tag, never one dated in the future; after an incident
@@ -48,6 +48,8 @@ dc() { docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${extra[@]}"
 export AETHERSPARK_UID="${AETHERSPARK_UID:-$(id -u)}" AETHERSPARK_GID="${AETHERSPARK_GID:-$(id -g)}"
 secrets_dir="${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/aetherspark/secrets}"
 export AETHERSPARK_SECRETS_STORE="${AETHERSPARK_SECRETS_STORE:-$HOME/.aetherspark/secrets/dev}"
+# The local folder feed of Ostium's packages (WP3.5; just ostium-feed local-sync fills it)
+export AETHERSPARK_PACKAGE_FEED="${AETHERSPARK_PACKAGE_FEED:-$HOME/.aetherspark/packages}"
 export AETHERSPARK_BACKUP_DIR="${AETHERSPARK_BACKUP_DIR:-$(dirname "$secrets_dir")/backup}"
 host="${AETHERSPARK_BACKUP_HOST:-aetherspark-desktop}"
 tag=aetherspark-stack
@@ -86,8 +88,11 @@ answers() {
 }
 
 stage() { # the in-memory staging folder, empty, 0700, on a tmpfs
+    # The feed may still be empty (no local-sync yet); it must exist, so Docker never makes it
+    mkdir -p "$AETHERSPARK_PACKAGE_FEED"
+    chmod 0700 "$AETHERSPARK_PACKAGE_FEED"
     rm -rf "$AETHERSPARK_BACKUP_DIR"
-    # sealed: the store's mount point inside (made here, so Docker never makes it as root)
+    # sealed, feed: the mount points inside (made here, so Docker never makes them as root)
     mkdir -p "$AETHERSPARK_BACKUP_DIR"
     chmod 0700 "$AETHERSPARK_BACKUP_DIR"
     mkdir "$AETHERSPARK_BACKUP_DIR"/{ca,keycloak,sealed,feed,restore}
@@ -212,9 +217,9 @@ restore_secrets() {
     python3 -I "$repo/deploy/secret-store/secret_store.py" unseal --only backup-repository >/dev/null \
         || { say "enter the backup login first (just secrets enter, docs/runbooks/restore-drill.md)" >&2; exit 1; }
     staged
-    local id store=$AETHERSPARK_SECRETS_STORE n=0 f
+    local id store=$AETHERSPARK_SECRETS_STORE feed=$AETHERSPARK_PACKAGE_FEED n=0 p=0 f
     id="$(choose owner_restic)"
-    owner_restic restore "$id" --target /backup/restore --include /backup/sealed >/dev/null
+    owner_restic restore "$id" --target /backup/restore --include /backup/sealed --include /backup/feed >/dev/null
     mkdir -p "$store"
     chmod 0700 "$store"
     for f in "$AETHERSPARK_BACKUP_DIR/restore/backup/sealed/"*.age; do
@@ -223,6 +228,13 @@ restore_secrets() {
         cp "$f" "$store/" && chmod 0600 "$store/$(basename "$f")" && n=$((n + 1))
     done
     say "snapshot ${id:0:8}: $n sealed files restored into the store (files already there kept)"
+    # The local folder feed with it: builds restore again without Ostium's private feed (WP3.5)
+    for f in "$AETHERSPARK_BACKUP_DIR/restore/backup/feed/"*.nupkg; do
+        [ -e "$f" ] || continue
+        [ -e "$feed/$(basename "$f")" ] && continue
+        cp "$f" "$feed/" && chmod 0600 "$feed/$(basename "$f")" && p=$((p + 1))
+    done
+    say "snapshot ${id:0:8}: $p packages restored into the local feed (files already there kept)"
     say "next: put the dev key's off-line copy in place, then just secrets unseal and just backup restore"
 }
 

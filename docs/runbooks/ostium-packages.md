@@ -10,6 +10,7 @@ Today one package: `Ostium.Keycloak.Realm`, in the test project `tests/dotnet/Ae
 - **The pin and its check.** Changing an `Ostium.*` version is yours alone (agent-system D15). For each change you run Ostium's consumer check (exchange O-010 point 3; its call as in O-039). It proves that what was restored is what Ostium signed: the tag's and the checksums file's signatures with the key pinned in `.github/allowed-signers/ostium`, each hash in the lock files and in the restored packages, and each package's source commit. The PR records its `RESULT: PASS` before merge.
 - **The expected fingerprint.** The check also compares the pinned key's fingerprint with a value you give it (since Ostium's `main` at `e005bc0`, exchange O-039). That value must come from outside this repository: if it came from the same place as the pinned key, a swapped key would bring its own matching value along. So you compare three independent places before every check (step 3).
 - **After the first restore** the package sits in your NuGet folder (`%USERPROFILE%\.nuget\packages`), so `just ci` restores without the token until the version changes.
+- **The local folder feed.** A plain folder that holds a copy of every `Ostium.*` package this repository has pinned, one `.nupkg` file per version. It is there in case Ostium's private feed is gone or unreachable: NuGet can restore from a folder just as from a server. It lives in WSL2 at `~/.aetherspark/packages`, next to the sealed store, and the backup job puts it into every snapshot (`/backup/feed`). A package goes in only if its hash matches the lock file. Nothing is ever deleted from it, except a version Ostium withdraws (ADR-0009 amendment 1). It holds no token and no secret.
 
 ## 1. The feed token (once; again before it expires)
 1. GitHub → your picture → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token** → **Generate new token (classic)**.
@@ -71,6 +72,28 @@ In PowerShell. The commands assume your Ostium clone next to this one; change `$
 
 Run it only on your own branch or a Dependabot PR: the restore runs the branch's build code on the machine that holds Ostium's release key. A version change in any other PR is redone on your own branch first.
 
+## 4. The local folder feed (after every pin; the first time now)
+In PowerShell, in the repository. The feed is in WSL2, so WSL2 (`Ubuntu-24.04`, or the distribution in `AETHERSPARK_WSL_DISTRO`) must be installed; the commands make the folder if it is missing.
+1. **Fill it** after the consumer check passed (step 3), on the same branch:
+   ```powershell
+   just ostium-feed local-sync
+   ```
+   Expected: `local-feed: 1 copied (ostium.keycloak.realm.0.5.0.nupkg)` the first time, `local-feed: 0 copied` when it already holds every pinned version.
+   - `... is not in ...: restore the solution first`: run `just ostium-feed restore` (step 2), then this again.
+   - `check failed: ... differs from the lock file's hash`: stop. The package on your machine, or the copy already in the feed, is not the one the lock file names. Nothing was copied or replaced. Tell Ostium in the exchange.
+2. **Check it,** then prove that a restore works from it alone:
+   ```powershell
+   just ostium-feed local-check
+   ```
+   Expected: `local-feed: every locked Ostium.* package is in the feed`, then `local-feed: a locked restore from the feed alone works (no private feed)`. The second part restores into an empty temporary package folder, with a NuGet configuration that knows only nuget.org and this folder, and with no feed token. It takes about a minute.
+3. **The backup** takes the feed along by itself: the next `just up` of the day or `just backup` puts it into the snapshot. On a machine that lost it, `just backup restore-secrets` brings it back with the sealed store (docs/runbooks/restore-drill.md).
+4. **A version Ostium withdraws** (announced in the exchange, with its replacement): take it out, here for a withdrawn `0.4.0`:
+   ```powershell
+   just ostium-feed local-remove -Package Ostium.Keycloak.Realm -Version 0.4.0
+   ```
+   Expected: `local-feed: removed: Ostium.Keycloak.Realm 0.4.0`. Older snapshots still hold it; a restore never brings a file back over the feed's own files, but it does bring back missing ones, so after a restore run this command again for every withdrawn version.
+
+CI runs the same proof on every change (`just local-feed-proof`): it fills a fresh feed from the packages its own restore fetched, then restores from that feed alone.
+
 ## What is not here yet
-- The local folder feed of the pinned packages, kept with the backup so a rebuild works without the private feed (ADR-0009 amendment 1; WP3.5, with the workstation backup).
 - The token for the production builds on the Spark, passed as a build secret (WP6.4).

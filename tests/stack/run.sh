@@ -21,6 +21,7 @@ export AETHERSPARK_CERT_WATCH_SECONDS=20
 work="$(mktemp -d)"
 cd "$work" || exit 1
 export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/key/dev.key"
+export AETHERSPARK_PACKAGE_FEED="$work/packages"
 export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NAME/secrets"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
 name=whoami.aether.localhost
@@ -863,7 +864,11 @@ bk() { bash "$repo/deploy/backup/backup.sh" "$@" "${overlay[@]}"; }
 # test's own restic calls make it as backup.sh does, and backup.sh's next run removes it
 bk_staging="$(dirname "$AETHERSPARK_SECRETS_DIR")/backup"
 export AETHERSPARK_BACKUP_DIR="$bk_staging"
-t_stage() { mkdir -p "$bk_staging/sealed" && chmod 0700 "$bk_staging"; }
+t_stage() { mkdir -p "$bk_staging/sealed" "$bk_staging/feed" "$AETHERSPARK_PACKAGE_FEED" && chmod 0700 "$bk_staging"; }
+# The local folder feed (WP3.5) with one package in it; the snapshot must carry it
+feed_pkg=ostium.stack-test.0.0.1.nupkg
+mkdir -p "$AETHERSPARK_PACKAGE_FEED"
+printf 'a stand-in package\n' >"$AETHERSPARK_PACKAGE_FEED/$feed_pkg"
 restic_t() { t_stage && dc --profile backup run --rm --no-deps -T backup "$@"; }
 export AETHERSPARK_BACKUP_MARKER="$work/backup-last"
 standin_dir="$work/standin"
@@ -917,11 +922,12 @@ bad = [p for p in paths if "-tls" in p or "/run/secrets" in p or p.endswith(".ke
 sealed = [p for p in paths if p.startswith("/backup/sealed/") and not p.endswith(".age")]
 dump = "/backup/keycloak/keycloak.dump" in paths
 ca = any(p.startswith("/backup/ca/certs/root_ca.crt") for p in paths)
-ok = tops == {"ca", "keycloak", "sealed", "feed"} and not bad and not sealed and dump and ca
-print(sorted(tops), bad[:3], sealed[:3], dump, ca) if not ok else None
-sys.exit(0 if ok else 1)'
+feed = "/backup/feed/" + sys.argv[1] in paths
+ok = tops == {"ca", "keycloak", "sealed", "feed"} and not bad and not sealed and dump and ca and feed
+print(sorted(tops), bad[:3], sealed[:3], dump, ca, feed) if not ok else None
+sys.exit(0 if ok else 1)' "$feed_pkg"
 }
-check "B1: the snapshot holds exactly ca, keycloak (the dump), sealed (*.age only) and feed" b1
+check "B1: the snapshot holds exactly ca, keycloak (the dump), sealed (*.age only) and feed (its package)" b1
 b2() { # the job's settings name files only; no secret value in its rendered Compose or its output.
     # The login's name, the address and the path are not secret (the name is part of this project's)
     local config f
@@ -1078,9 +1084,9 @@ check "B6: a fresh snapshot before the drill" bk run
 refuse "B6: just backup restore refuses while the stack runs" bk restore
 dc down -v >/dev/null 2>&1
 python3 -I "$repo/deploy/secret-store/secret_store.py" clear >/dev/null
-rm -rf "$AETHERSPARK_SECRETS_STORE"
+rm -rf "$AETHERSPARK_SECRETS_STORE" "$AETHERSPARK_PACKAGE_FEED"
 [ -n "${AETHERSPARK_STANDIN_CTL:-}" ] || dc --profile standin up -d backup-standin >/dev/null 2>&1
-check "B6: nothing left: no volume, no sealed store" bash -c "! docker volume inspect '${COMPOSE_PROJECT_NAME}_step-ca' >/dev/null 2>&1 && [ ! -e '$AETHERSPARK_SECRETS_STORE' ]"
+check "B6: nothing left: no volume, no sealed store, no local feed" bash -c "! docker volume inspect '${COMPOSE_PROJECT_NAME}_step-ca' >/dev/null 2>&1 && [ ! -e '$AETHERSPARK_SECRETS_STORE' ] && [ ! -e '$AETHERSPARK_PACKAGE_FEED' ]"
 enter_only() {
     enter backup-login-name "$bk_name" && enter backup-login-password "$bk_password" \
         && enter backup-address "$standin_address" && enter backup-repository-path "$bk_name/stack"
@@ -1092,6 +1098,7 @@ check "B6: ... every sealed secret of the manifest is there" python3 -I -c 'impo
 m = secret_store.load_manifest(); s = secret_store.store_dir()
 missing = [x.name for x in m if not x.derived and not (s / f"{x.name}.age").is_file()]
 print(missing) if missing else None; sys.exit(1 if missing else 0)' "$repo/deploy/secret-store"
+check "B6: ... and the local feed with its package" grep -qxF 'a stand-in package' "$AETHERSPARK_PACKAGE_FEED/$feed_pkg"
 restore_all() { bk restore --expect-root "$fp_before"; }
 check "B6: just backup restore brings back the CA and Keycloak's database (root fingerprint as before)" restore_all
 check "B6: just up after the restore reaches healthy" up

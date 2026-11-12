@@ -13,13 +13,18 @@ pending wp what:
     {{ error("not implemented yet: " + what + " (" + wp + ")") }}
 
 # Lint, type-check, build and test everything (Gate G2 also needs GitHub Actions, WP2.5)
-ci: dotnet-ci py-ci
+ci: dotnet-ci local-feed-proof py-ci
+
+# The local folder feed alone (WP3.5, ADR-0009 amendment 1): Ostium.* synced into a fresh feed from
+# NuGet's folder, then a locked restore with it as the only source of Ostium.* (no private feed)
+local-feed-proof:
+    {{ uv }} python -I deploy/packages/local_feed.py prove-ci
 
 # Python: lint, format check, strict type check, tests
 py-ci:
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/backup deploy/ca deploy/compose deploy/images deploy/keycloak deploy/secret-store tests/python tests/stack
+    {{ uv }} mypy src/python deploy/backup deploy/ca deploy/compose deploy/images deploy/keycloak deploy/packages deploy/secret-store tests/python tests/stack
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -29,6 +34,7 @@ dotnet-ci:
     dotnet test --solution AetherSpark.slnx --no-build
 
 # Ostium's private feed on Windows (docs/runbooks/ostium-packages.md): save | restore [-Pin] | forget
+# | local-sync | local-check | local-remove -Package ID -Version V (the local folder feed in WSL2)
 [windows]
 ostium-feed *args:
     powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/ostium-feed.ps1 {{ args }}
