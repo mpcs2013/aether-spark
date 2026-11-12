@@ -166,3 +166,18 @@ def test_volume_names_follow_the_compose_project(monkeypatch: pytest.MonkeyPatch
     assert ca.volume_name("step-ca") == "aetherspark_step-ca"
     monkeypatch.setenv("COMPOSE_PROJECT_NAME", "as-test")
     assert ca.volume_name("step-ca") == "as-test_step-ca"
+
+
+def test_volumes_only_makes_the_volumes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`ca.py volumes` once fell through to renew-intermediate; a restore calls it before the CA's
+    files are back (backup.sh restore, found by the drill on 2026-11-12)."""
+    made: list[list[str]] = []
+    monkeypatch.setattr(ca, "own_volumes", lambda volumes: made.append(list(volumes)))
+
+    def must_not_run(*_: object) -> None:
+        raise AssertionError("volumes must not touch the CA")
+
+    for name in ("renew_intermediate", "init", "configure", "_restart"):
+        monkeypatch.setattr(ca, name, must_not_run)
+    assert ca.main(["volumes"]) == 0
+    assert made and "step-ca" in made[0]
