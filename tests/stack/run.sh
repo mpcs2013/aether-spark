@@ -876,7 +876,7 @@ else
     bk_name=stack-test
     bk_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
     dc --profile standin build backup-standin >/dev/null 2>&1
-    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint htpasswd aetherspark/rest-server:local -niB "$bk_name" \
+    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint bcrypt-login aetherspark/rest-server:local "$bk_name" \
         >"$standin_dir/login/.htpasswd"
     chmod 0644 "$standin_dir/login/.htpasswd"
     export AETHERSPARK_STANDIN_DIR="$standin_dir"
@@ -1065,6 +1065,56 @@ else
         printf 'SKIP  traefik: on ingress, a network with a route out; only the host rules (layer 3, CI and the Spark) stop it\n'
     fi
 fi
+
+echo "--- WP3.4: the restore drill (backup-job.md, test B6)"
+# A clean state, as after losing the machine: no volumes, no sealed store, no in-memory secrets.
+# Only the dev key stays, standing for its off-line copy. The owner enters the backup login again,
+# restores the store with the repository's original key (the test's "owner" key, a file here), then
+# everything else with AetherSpark's own. A user made before the backup must sign in after it.
+root_fp() { ca status | sed -n 's/.*root fingerprint \([0-9a-f]*\).*/\1/p'; }
+fp_before="$(root_fp)"
+rm -f "$AETHERSPARK_BACKUP_MARKER"
+check "B6: a fresh snapshot before the drill" bk run
+refuse "B6: just backup restore refuses while the stack runs" bk restore
+dc down -v >/dev/null 2>&1
+python3 -I "$repo/deploy/secret-store/secret_store.py" clear >/dev/null
+rm -rf "$AETHERSPARK_SECRETS_STORE"
+[ -n "${AETHERSPARK_STANDIN_CTL:-}" ] || dc --profile standin up -d backup-standin >/dev/null 2>&1
+check "B6: nothing left: no volume, no sealed store" bash -c "! docker volume inspect '${COMPOSE_PROJECT_NAME}_step-ca' >/dev/null 2>&1 && [ ! -e '$AETHERSPARK_SECRETS_STORE' ]"
+enter_only() {
+    enter backup-login-name "$bk_name" && enter backup-login-password "$bk_password" \
+        && enter backup-address "$standin_address" && enter backup-repository-path "$bk_name/stack"
+}
+check "B6: the owner enters the backup login again" enter_only
+store_back() { AETHERSPARK_BACKUP_OWNER_PASSWORD_FILE="$work/owner/pw" bk restore-secrets; }
+check "B6: restore-secrets brings the sealed store back with the owner's key" store_back
+check "B6: ... every sealed secret of the manifest is there" python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import secret_store
+m = secret_store.load_manifest(); s = secret_store.store_dir()
+missing = [x.name for x in m if not x.derived and not (s / f"{x.name}.age").is_file()]
+print(missing) if missing else None; sys.exit(1 if missing else 0)' "$repo/deploy/secret-store"
+restore_all() { bk restore --expect-root "$fp_before"; }
+check "B6: just backup restore brings back the CA and Keycloak's database (root fingerprint as before)" restore_all
+check "B6: just up after the restore reaches healthy" up
+check "B6: the root CA is the same" [ "$(root_fp)" = "$fp_before" ]
+check "B6: a user made before the backup signs in (password and app code)" oidc "$work/user" stack-test-user
+check "B6: keycloak apply reports the realm as the repository says" python3 -I "$repo/deploy/keycloak/admin.py" apply
+dc stop >/dev/null 2>&1
+future() { # a snapshot with a forged date, as a compromised desktop could add
+    t_stage && mkdir -p "$bk_staging/feed" \
+        && owner_restic backup --time "2099-01-01 00:00:00" --host aetherspark-desktop --tag aetherspark-stack /backup/feed --json \
+        | python3 -I -c 'import json, sys
+ids = [m["snapshot_id"] for m in map(json.loads, filter(None, sys.stdin.read().splitlines())) if m.get("message_type") == "summary"]
+print(ids[-1] if ids else "")'
+}
+future_id="$(future)"
+check "B6: a snapshot dated 2099 is made (the forgery to refuse)" [ -n "$future_id" ]
+refuse "B6: a snapshot dated in the future is refused by name" bk restore --snapshot "$future_id"
+not_over_live() {
+    local out
+    out="$(bk restore 2>&1)" && { echo "the restore ran over live volumes:"; printf '%s\n' "$out" | tail -8; return 1; }
+    grep 'is not empty' <<<"$out" >/dev/null || { printf '%s\n' "$out" | tail -8; return 1; }
+}
+check "B6: ... and by default the newest real one is chosen, but never over live volumes" not_over_live
 
 echo "stack-test: $fails failed"
 [ "$fails" -eq 0 ]

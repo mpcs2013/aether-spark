@@ -509,6 +509,10 @@ def main(argv: list[str] | None = None) -> int:
             volumes = [VOLUME, *(f"{s}-tls" for s in jwk_services(manifest)), *DATA_VOLUMES]
             own_volumes(volumes)
             print(f"ca: {len(volumes)} volumes owned by the stack user ({', '.join(volumes)})")
+        if args.command == "volumes":
+            # Only the volumes: a restore fills the CA's afterwards (deploy/backup/backup.sh). It
+            # used to fall through to the last branch below, renew-intermediate (found 2026-11-12)
+            return 0
         if args.command == "prepare":
             if not _initialised():
                 init()

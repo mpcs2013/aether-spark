@@ -53,7 +53,7 @@ standin_image=aetherspark/rest-server:local  # built above (tests/stack/standin)
 cid="$(docker create "$standin_image")" && docker cp -q "$cid:/usr/bin/rest-server" "$standin/rest-server" && docker rm "$cid" >/dev/null || exit 1
 standin_name=stack-test
 standin_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
-printf '%s\n' "$standin_password" | docker run --rm -i --network none --entrypoint htpasswd "$standin_image" -niB "$standin_name" \
+printf '%s\n' "$standin_password" | docker run --rm -i --network none --entrypoint bcrypt-login "$standin_image" "$standin_name" \
     >"$standin/.htpasswd" || exit 1
 ( umask 077; printf '%s\n%s\n' "$standin_name" "$standin_password" >"$standin/login" )
 mkdir -p "$standin/data"

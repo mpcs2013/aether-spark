@@ -446,3 +446,36 @@ def test_enter_seals_and_unseal_builds_the_repository_file(
     finally:
         store.clear()
         shutil.rmtree(memory, ignore_errors=True)
+
+
+@pytest.mark.skipif(shutil.which("age") is None, reason="age is not installed (CI installs it)")
+def test_unseal_only_writes_one_secret_and_what_it_is_built_from(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A machine whose store holds only the backup login: unseal --only backup-repository works
+    although every generated secret is missing (restore-secrets, backup-job.md)."""
+    tmpfs = _usable_tmpfs()
+    if tmpfs is None:
+        pytest.skip("no tmpfs on this machine")
+    memory = tmpfs / f"aetherspark-test-only-{os.getpid()}"
+    monkeypatch.setenv("AETHERSPARK_SECRETS_DIR", str(memory / "secrets"))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_STORE", str(tmp_path / "store"))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_KEY", str(tmp_path / "keys" / "dev.key"))
+    manifest = _manifest(tmp_path, GEN, DERIVED, LOGIN, LOGIN_PW, REPO)
+    try:
+        _enter_through_fd(monkeypatch, manifest, "backup-login-name", "aetherspark")
+        _enter_through_fd(monkeypatch, manifest, "backup-login-password", "a-long-password-1")
+        with pytest.raises(store.InputError, match="not in the store"):
+            store.unseal(manifest)  # db-password was never generated here
+        written = store.unseal(manifest, only={"backup-repository"})
+        assert sorted(written) == [
+            "backup-login-name",
+            "backup-login-password",
+            "backup-repository",
+        ]
+        assert not (memory / "secrets" / "db-password").exists()
+        with pytest.raises(store.InputError, match="not in the manifest"):
+            store.unseal(manifest, only={"nothing-like-it"})
+    finally:
+        store.clear()
+        shutil.rmtree(memory, ignore_errors=True)
