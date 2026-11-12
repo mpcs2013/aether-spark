@@ -6,6 +6,15 @@ developer credentials; docs/runbooks/ostium-packages.md). Run through just:
     just ostium-feed restore       a locked restore of the solution with it
     just ostium-feed restore -Pin  a version change: restore that writes the lock files
     just ostium-feed forget        removes the token from Credential Manager
+    just ostium-feed local-sync    copies the pinned Ostium.* packages into the local folder feed
+    just ostium-feed local-check   the local feed holds every one, and a locked restore works
+                                   from it alone, without the private feed
+    just ostium-feed local-remove -Package ID -Version V
+                                   takes a version Ostium withdrew out of the local feed
+
+The local folder feed (ADR-0009 amendment 1, WP3.5) is ~/.aetherspark/packages in WSL2, next to the
+sealed store, so the backup job takes it into every snapshot; Windows reaches it as
+\\wsl.localhost\<distribution>\... The local actions need no token.
 
 The token is a classic GitHub token with only read:packages and an expiry. It lives in Credential
 Manager (this user, this machine, never roaming) and, during a restore, in the environment of this
@@ -14,9 +23,11 @@ written to a file or a NuGet config, or given to services or dev agents.
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('save', 'restore', 'forget')]
+    [ValidateSet('save', 'restore', 'forget', 'local-sync', 'local-check', 'local-remove')]
     [string]$Action,
-    [switch]$Pin
+    [switch]$Pin,
+    [string]$Package,
+    [string]$Version
 )
 $ErrorActionPreference = 'Stop'
 $Target = 'aetherspark/ostium-feed'
@@ -105,7 +116,31 @@ if ($config -notmatch 'key="ostium" value="https://nuget\.pkg\.github\.com/([A-Z
 }
 $Owner = $Matches[1]
 
+# The local folder feed in WSL2, as Windows reaches it; made if missing
+function Get-LocalFeed {
+    $distro = if ($env:AETHERSPARK_WSL_DISTRO) { $env:AETHERSPARK_WSL_DISTRO } else { 'Ubuntu-24.04' }
+    $linuxHome = (& wsl.exe -d $distro -- sh -c 'mkdir -p "$HOME/.aetherspark/packages" && chmod 0700 "$HOME/.aetherspark/packages" && echo "$HOME"').Trim()
+    if (-not $linuxHome.StartsWith('/')) { throw "WSL distribution $distro did not answer" }
+    return "\\wsl.localhost\$distro" + ($linuxHome -replace '/', '\') + '\.aetherspark\packages'
+}
+function Invoke-LocalFeed([string[]]$Arguments) {
+    & python -I (Join-Path $Root 'deploy\packages\local_feed.py') @Arguments
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
 switch ($Action) {
+    'local-sync' {
+        Invoke-LocalFeed @('sync', '--feed', (Get-LocalFeed))
+    }
+    'local-check' {
+        $feed = Get-LocalFeed
+        Invoke-LocalFeed @('check', '--feed', $feed)
+        Invoke-LocalFeed @('prove', '--feed', $feed)
+    }
+    'local-remove' {
+        if (-not $Package -or -not $Version) { throw 'local-remove needs -Package and -Version' }
+        Invoke-LocalFeed @('remove', '--feed', (Get-LocalFeed), $Package, $Version)
+    }
     'save' {
         $secure = Read-Host 'Ostium feed token (classic, read:packages only, with an expiry)' -AsSecureString
         $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)

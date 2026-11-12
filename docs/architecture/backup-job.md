@@ -7,7 +7,7 @@ Once a day, when you start the stack, AetherSpark copies what cannot be rebuilt 
 
 ## Goal and scope
 - **In scope (desktop phase):** the job, its secrets, `just backup`, the daily run from `just up`, `just restore`, the restore drill in CI on every stack test and by the owner from the NAS, the runbook `docs/runbooks/restore-drill.md`. Gate G3's "restore drill passes".
-- **Later:** the Spark's nightly timer and its own repository (cutover, WP6.4/6.6); TLS to the backup target (WP6.6); the local folder feed of pinned `Ostium.*` packages fills its path with WP3.5; the data Postgres and ClickHouse with P4a.
+- **Later:** the Spark's nightly timer and its own repository (cutover, WP6.4/6.6); TLS to the backup target (WP6.6); the data Postgres and ClickHouse with P4a.
 - **Not AetherSpark's:** retention, checks, the offline copies and the freshness alert run on the NAS (the home infrastructure, A-012, A-015).
 
 ## Owner's decisions (2026-11-11)
@@ -24,7 +24,7 @@ Every snapshot has the same four paths from the first one on (A-015, condition c
 | `/backup/ca` | The CA volume (`step-ca`): the intermediate key (encrypted), the CA's configuration and its database of issued certificates. A restore keeps the trusted root (ADR-0013 amendment 8) | step-ca is stopped only while its volume is **copied into the in-memory staging folder** (its database, BadgerDB, is not safe to copy while it writes), then started again and checked healthy before the upload begins |
 | `/backup/keycloak` | Keycloak's database | `pg_dump` (custom format) run **inside the running `postgres-auth` container** (`docker compose exec`): it connects as the `keycloak` role over TLS to its own address on `db-auth`, as `pg_hba` already allows, with the password it already holds. The dump streams to the staging folder. No other container joins `db-auth` and no secret gets a new consumer |
 | `/backup/sealed` | The sealed secrets store (ADR-0010): every generated and entered secret, age-encrypted | Files, read-only. Never the in-memory secrets folder, never an age key |
-| `/backup/feed` | The local folder feed of pinned `Ostium.*` packages (ADR-0009 amendment 1) | Empty until WP3.5 fills it |
+| `/backup/feed` | The local folder feed of pinned `Ostium.*` packages (ADR-0009 amendment 1; WP3.5, [ostium-packages.md](../runbooks/ostium-packages.md) step 4) | Files, read-only, from `~/.aetherspark/packages` (`AETHERSPARK_PACKAGE_FEED`); `just ostium-feed local-sync` fills it. The job makes the folder if it is missing, so a machine without packages yet backs up an empty one |
 
 - **The staging folder** is in memory, next to the secrets folder (desktop `$XDG_RUNTIME_DIR/aetherspark/backup/`, Spark `/run/aetherspark/backup/`), mode 0700, checked to be a tmpfs like the secrets folder, and removed when the job ends, however it ends. It is a folder of the host's memory, bind-mounted, as the secrets folder is (proven memory-backed in Docker Desktop, compose-base.md); a Docker tmpfs volume would be emptied as soon as the container that filled it exits.
 - **Not backed up** (ADR-0013 amendment 8): Traefik's ACME store and every `*-tls` volume (re-issued at `just up`), Keycloak's own data folder (a tmpfs), the images (rebuilt from the repository).
@@ -94,6 +94,11 @@ Every snapshot has the same four paths from the first one on (A-015, condition c
   - **`just backup init`** (the scratch repository, with AetherSpark's key as its first) and **`just backup keys`** (the key IDs for A-015).
   - **Test B6** at the end of the stack test, as decided: volumes, store and secrets folder removed, the login entered again, `restore-secrets` with the test's "owner" key, `restore` with the expected root, `just up`, the same root, a user from before the backup signing in with password and app code, `keycloak apply` clean; then the refusals (the stack running, a snapshot dated 2099, live volumes).
   - **The runbook** [restore-drill.md](../runbooks/restore-drill.md): the owner's off-line items, the first snapshots, the drill in a fresh WSL distribution under its own Compose project name (Docker Desktop has one engine for every distribution, so the live volumes would otherwise be the drill's).
+
+- **WP3.5 (2026-11-12), the package feed:**
+  - **The `backup` service** binds the local folder feed read-only at `/backup/feed` (`create_host_path: false`; backup.sh makes it with mode 0700 before any container starts).
+  - **`just backup restore-secrets`** brings the feed's packages back with the sealed store, keeping files already there.
+  - **Tests:** B1 checks a package of the test's feed in the snapshot; B6 removes the feed with the store and checks the package comes back.
 
 ## Document changes (in this note's pull request)
 - **ADR-0003, a dated note:** the restic job is a one-shot service in its own profile, `backup`, started once a day by `just up` and by `just backup`. *Replaces*, in the note of 2026-10-23, "`ops` (observability, restic)" with "`ops` (observability)".

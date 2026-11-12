@@ -424,9 +424,11 @@ services:
   # On `backup` only, the one network with a way out to the backup target; the target by its
   # address, so no name lookups. The repository's address with the login, and AetherSpark's key's
   # password, come from files only. The in-memory staging folder holds the CA copy and the
-  # Keycloak dump; the sealed store is read-only. The paths inside are fixed (A-015, condition c).
+  # Keycloak dump; the sealed store and the local folder feed of Ostium's packages (WP3.5,
+  # ostium-packages.md) are read-only. The paths inside are fixed (A-015, condition c).
   # restic is built here from its source (deploy/backup/Dockerfile: the release image's libraries are
-  # old). The staging folder must exist (backup.sh makes it): Docker would create it as root.
+  # old). The staging folder and the feed must exist (backup.sh makes them): Docker would create
+  # them as root.
   backup:
     <<: [*no-restart, *hardening]
     build: ../../backup
@@ -450,6 +452,11 @@ services:
       - type: bind
         source: "${AETHERSPARK_SECRETS_STORE:-/srv/aetherspark/secrets}"
         target: /backup/sealed
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: "${AETHERSPARK_PACKAGE_FEED:-/srv/aetherspark/packages}"
+        target: /backup/feed
         read_only: true
         bind: { create_host_path: false }
     mem_limit: 512m

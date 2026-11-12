@@ -12,7 +12,7 @@ Once per machine, before the first `just ci`. The Windows 11 host runs the dev l
 
 uv fetches Python itself (the 3.12 floor is in `.python-version`); no system Python is needed. Open a new terminal after a winget install so the PATH change applies.
 
-NuGet: the repo `nuget.config` clears inherited package sources and maps everything to nuget.org, so machine-level feeds (for example a private one for another project) do not take part in restore. The `Ostium.*` mapping follows in WP3.5.
+NuGet: the repo `nuget.config` clears inherited package sources and maps everything to nuget.org, except `Ostium.*`, which comes from Ostium's private feed only, so machine-level feeds (for example a private one for another project) do not take part in restore. The feed's token and the local folder feed: [ostium-packages.md](ostium-packages.md).
 
 ## Turn on the git hooks
 Once per clone: `just hooks`. It points git at `.githooks/`, whose `pre-commit` runs gitleaks on the staged changes and stops a commit that adds a secret (ADR-0004, ADR-0010). The hook refuses to run with a gitleaks version other than CI's, so a local pass means a CI pass. When CI's gitleaks pin changes, the hook's `expected` value and the version above change in the same pull request.

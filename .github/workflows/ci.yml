@@ -115,6 +115,9 @@ jobs:
           NuGetPackageSourceCredentials_ostium: "Username=${{ github.actor }};Password=${{ secrets.GITHUB_TOKEN }}"
         run: just dotnet-ci
 
+      # The local folder feed alone (WP3.5): no feed credential in this step
+      - run: just local-feed-proof
+
       - run: just py-ci
 
   # The dev container builds and passes `just ci` on both architectures (WP2.4; arm64 = the Spark)
