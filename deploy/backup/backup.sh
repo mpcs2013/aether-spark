@@ -181,11 +181,15 @@ if when(pick) > late:
 print(pick["id"])' "$snapshot"
 }
 
-volume_empty() { # volume suffix: true when it does not exist or holds nothing
-    local v
+volume_empty() { # volume suffix: true when it does not exist or holds nothing. Fails closed: a volume
+    # that cannot be read stops the restore, never counts as empty
+    local v out
     v="$(project)_$1"
     docker volume inspect "$v" >/dev/null 2>&1 || return 0
-    [ -z "$(docker run --rm --network none -v "$v:/v:ro" --entrypoint sh aetherspark/restic:local -c 'find /v -mindepth 1 | head -1')" ]
+    out="$(docker run --rm --network none -v "$v:/v:ro" --entrypoint sh aetherspark/restic:local \
+        -c 'if [ -n "$(ls -A /v)" ]; then echo full; else echo empty; fi')" \
+        || { say "the volume $v cannot be read: stopped, nothing restored" >&2; exit 1; }
+    [ "$out" = empty ]
 }
 
 set_aside() { # volume suffix: copied to <volume>-before-restore, then removed

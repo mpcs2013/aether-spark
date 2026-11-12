@@ -1109,7 +1109,11 @@ print(ids[-1] if ids else "")'
 future_id="$(future)"
 check "B6: a snapshot dated 2099 is made (the forgery to refuse)" [ -n "$future_id" ]
 refuse "B6: a snapshot dated in the future is refused by name" bk restore --snapshot "$future_id"
-not_over_live() { bk restore 2>&1 | grep 'is not empty' >/dev/null; }
+not_over_live() {
+    local out
+    out="$(bk restore 2>&1)" && { echo "the restore ran over live volumes:"; printf '%s\n' "$out" | tail -8; return 1; }
+    grep 'is not empty' <<<"$out" >/dev/null || { printf '%s\n' "$out" | tail -8; return 1; }
+}
 check "B6: ... and by default the newest real one is chosen, but never over live volumes" not_over_live
 
 echo "stack-test: $fails failed"
