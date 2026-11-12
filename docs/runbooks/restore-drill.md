@@ -15,8 +15,9 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
 1. **The root fingerprint.** In PowerShell, in the repository: `just ca status`. Copy the 64 characters after `root fingerprint` into an entry of your password manager.
 2. **The dev key.** In PowerShell:
    ```powershell
-   wsl -d Ubuntu-24.04 -- cat ~/.aetherspark/keys/dev.key
+   wsl -d Ubuntu-24.04 -- sh -c 'cat "$HOME/.aetherspark/keys/dev.key"'
    ```
+   (The single quotes keep PowerShell from turning `~` or `$HOME` into your Windows folder.)
    It shows three lines; the last starts with `AGE-SECRET-KEY-`. Store all three lines in a secure note of your password manager, and add the `AGE-SECRET-KEY-…` line to the printed recovery sheet that is kept away from home. Then clear the terminal (`Clear-Host`). Never paste it into a chat, a ticket or a file in a repository.
 3. **The backup login, address and path** come from the home infrastructure (exchange A-015); keep them in your password manager, as for every other login.
 

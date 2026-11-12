@@ -876,7 +876,7 @@ else
     bk_name=stack-test
     bk_password="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
     dc --profile standin build backup-standin >/dev/null 2>&1
-    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint htpasswd aetherspark/rest-server:local -niB "$bk_name" \
+    printf '%s\n' "$bk_password" | docker run --rm -i --network none --entrypoint bcrypt-login aetherspark/rest-server:local "$bk_name" \
         >"$standin_dir/login/.htpasswd"
     chmod 0644 "$standin_dir/login/.htpasswd"
     export AETHERSPARK_STANDIN_DIR="$standin_dir"
