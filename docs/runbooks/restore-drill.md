@@ -4,7 +4,7 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
 ## Concepts
 - **The repository** on the NAS holds AetherSpark's snapshots. The NAS accepts new ones and refuses to delete any (append-only). Old ones are thinned out by the NAS itself, never by AetherSpark.
 - **Two keys open it.** The repository's original password is yours, in your password manager: the recovery key. AetherSpark's own key is generated and sealed with its other secrets: the job uses that one every day.
-- **What a snapshot holds:** the certificate authority's volume, a dump of Keycloak's database, the sealed secrets store, and (later) the pinned Ostium packages. Everything else is rebuilt by `just up`.
+- **What a snapshot holds:** the certificate authority's volume, a dump of Keycloak's database, the sealed secrets store, and the local folder feed of pinned Ostium packages. Everything else is rebuilt by `just up`.
 - **Your off-line items.** If the desktop is lost, the NAS copy alone is not enough: the sealed store inside it opens only with the dev key. So you keep, away from the desktop:
   - the **dev key's off-line copy** (with the recovery sheet);
   - the **backup login** (name and password), the **repository's address and path**, and the **repository's original password**, in your password manager;
@@ -45,13 +45,22 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
 ## 3. The drill (now for Gate G3, then every quarter)
 A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark but what you bring. It uses its own Compose project name, so it never touches the live stack's volumes.
 
-**Before:** `just down` (the drill uses the same port 443).
+**Needs:** sections 1 and 2b done: your off-line items, and at least one snapshot in the real repository (`just backup snapshots` lists it). Without a snapshot there is nothing to restore, and step 5 fails.
 
-1. **A fresh distribution** (PowerShell, as yourself):
+**Before:** `just down` in your normal distribution. The drill uses the same port 443, and step 1 changes Docker Desktop's settings, which restarts Docker: a stack still up then would leave Docker-made folders behind (secrets.md, "When something is wrong").
+
+1. **A fresh distribution** (PowerShell, as yourself; no administrator window needed):
    ```powershell
    wsl --install Ubuntu-24.04 --name aetherspark-drill
    ```
-   Create its user, then in Docker Desktop → Settings → Resources → WSL integration, switch on `aetherspark-drill`.
+   Create its user when asked: any name, and a new password (`sudo` asks for it in step 2). Then check, in the new distribution:
+   ```bash
+   id -u
+   echo "$XDG_RUNTIME_DIR"
+   ```
+   Expected: `1000` and `/run/user/1000`. The stack runs as this number and restores files owned by it, and the in-memory folders live in the second. If either differs, stop: `wsl --unregister aetherspark-drill` and ask before trying again.
+
+   Then in Docker Desktop → Settings → Resources → WSL integration, switch on `aetherspark-drill`. If the window closes during setup, `wsl --unregister aetherspark-drill` and start this step again.
 2. **Tools and the repository**, in the new distribution (dev-setup.md, "One-time setup in WSL2"): `age`, `just`, Python 3, then clone the repository and `cd` into it.
 3. **The dev key** from your password manager:
    ```bash
