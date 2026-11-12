@@ -369,8 +369,21 @@ def _refuse_docker_made(target: Path, then: str) -> None:
     )
 
 
-def unseal(manifest: list[Secret], mountinfo: str | None = None) -> list[str]:
-    """Decrypts every secret into the in-memory folder, which must be a tmpfs; returns the names."""
+def unseal(
+    manifest: list[Secret], mountinfo: str | None = None, only: set[str] | None = None
+) -> list[str]:
+    """Decrypts every secret into the in-memory folder, which must be a tmpfs; returns the names.
+    With `only`: just those secrets and what a derived one is built from, nothing else touched (a
+    machine whose store holds only the backup login, before its store is restored)."""
+    if only is not None:
+        unknown = only - {s.name for s in manifest}
+        if unknown:
+            raise InputError(f"not in the manifest: {', '.join(sorted(unknown))}")
+        wanted = set(only)
+        for s in manifest:
+            if s.name in only:
+                wanted |= references(s.derived)
+        manifest = [s for s in manifest if s.name in wanted]
     target = secret_dir()
     _refuse_docker_made(target, "run `just up` again")
     _private_dir(target)
@@ -453,8 +466,10 @@ def check(manifest: list[Secret], rendered: list[dict[str, Any]]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("generate", "unseal", "clear"):
+    for command in ("generate", "clear"):
         sub.add_parser(command)
+    uns = sub.add_parser("unseal")
+    uns.add_argument("--only", action="append", help="only this secret (repeatable)")
     rot = sub.add_parser("rotate")
     rot.add_argument("name")
     ent = sub.add_parser("enter")
@@ -478,7 +493,12 @@ def main(argv: list[str] | None = None) -> int:
             enter(manifest, args.name)
             print(f"secrets: {args.name} entered and sealed; run unseal to use it")
         elif args.command == "unseal":
-            print(f"secrets: {len(unseal(manifest))} unsealed into {secret_dir()}")
+            only = set(args.only) if args.only else None
+            written = unseal(manifest, only=only)
+            left = sorted(only - set(written)) if only is not None else []
+            if left:
+                raise InputError(f"not unsealed, an entered value is missing: {', '.join(left)}")
+            print(f"secrets: {len(written)} unsealed into {secret_dir()}")
             waiting = not_entered(manifest)
             if waiting:
                 print(

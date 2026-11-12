@@ -456,6 +456,31 @@ services:
     pids_limit: 100
     networks: [backup]
 
+  # The job as the repository's owner, for a machine that has lost its sealed store (backup.sh
+  # restore-secrets): no key of AetherSpark's mounted, so restic asks for the repository's original
+  # password on the terminal (the owner's, from the password manager)
+  backup-owner:
+    <<: [*no-restart, *hardening]
+    image: aetherspark/restic:local
+    labels: { aetherspark.role: restic }
+    profiles: [backup]
+    user: "${AETHERSPARK_UID:-1000}:${AETHERSPARK_GID:-1000}"
+    environment:
+      RESTIC_REPOSITORY_FILE: /run/secrets/backup-repository
+      RESTIC_CACHE_DIR: /cache
+    secrets: [backup-repository]
+    tmpfs:
+      - "/cache:uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+      - /tmp
+    volumes:
+      - type: bind
+        source: "${AETHERSPARK_BACKUP_DIR:-/run/aetherspark/backup}"
+        target: /backup
+        bind: { create_host_path: false }
+    mem_limit: 512m
+    pids_limit: 100
+    networks: [backup]
+
   # Copies the CA volume to and from the staging folder (step-ca stopped meanwhile); no network
   backup-files:
     <<: [*no-restart, *hardening]
