@@ -178,10 +178,16 @@ egress-lint:
 # Generate or check shared types from contracts/ (ADR-0002)
 contracts *args: (pending "WP2.2/2.3" "contracts")
 
-# Secrets (ADR-0010, docs/runbooks/secrets.md): generate | enter NAME | unseal | clear | check RENDERED...
-# generate and unseal run in WSL2 (or on the Spark); the folder they write must be a tmpfs
+# Secrets (ADR-0010, docs/runbooks/secrets.md): generate | enter NAME | rotate NAME | unseal | clear
+# | check RENDERED... The sealed store, the dev key and the in-memory folder live in WSL2 (or on the Spark)
+[unix]
 secrets *args:
-    {{ if os() == "windows" { "python" } else { "python3" } }} -I deploy/secret-store/secret_store.py {{ args }}
+    python3 -I deploy/secret-store/secret_store.py {{ args }}
+
+# Secrets, in WSL2 (docs/runbooks/secrets.md): Windows' Python would make a second store and key
+[windows]
+secrets *args:
+    {{ wsl }} secrets {{ args }}
 
 # Stop all agent runs (ADR-0019)
 agents-off: (pending "WP5a.5" "agents-off")

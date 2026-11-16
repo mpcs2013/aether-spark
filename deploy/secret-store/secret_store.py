@@ -480,6 +480,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        # The sealed store, the dev key and the in-memory folder live in WSL2 (or on the Spark).
+        # On Windows these commands would make a second store and key in the Windows home folder.
+        if sys.platform == "win32" and args.command != "check":
+            raise InputError(
+                f"{args.command} runs in WSL2, where the sealed store and the dev key are:"
+                " `just secrets` from PowerShell forwards it there (docs/runbooks/secrets.md)"
+            )
         manifest = load_manifest()
         if args.command == "generate":
             created = generate(manifest)

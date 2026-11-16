@@ -136,7 +136,7 @@ run() {
     staged
     answers || warn_or_fail "the backup target does not answer"
     restic_ cat config >/dev/null 2>&1 \
-        || warn_or_fail "the repository does not open with AetherSpark's key (just backup key-add first)"
+        || warn_or_fail "the repository does not open with AetherSpark's key (just backup key-add first; a new, empty scratch repository: just backup init)"
     dump_keycloak || { say "the Keycloak dump failed" >&2; exit 1; }
     copy_ca
     local out id

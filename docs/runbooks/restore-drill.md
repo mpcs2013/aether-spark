@@ -22,25 +22,36 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
 3. **The backup login, address and path** come from the home infrastructure (exchange A-015); keep them in your password manager, as for every other login.
 
 ## 2. The first snapshots
+Everything here runs in a WSL shell in the repository, opened from PowerShell with:
+```powershell
+wsl -d Ubuntu-24.04 --cd "$HOME\source\repos\dev\aether-spark"
+```
+The sealed store and the dev key are in WSL; `just secrets` from PowerShell forwards there too.
+
 **a. While the job is tried out (the scratch repository).** When the home infrastructure reports its scratch repository in A-015:
 1. Enter its four values (each is asked twice and never shown):
-   ```powershell
+   ```bash
    just secrets enter backup-login-name
    just secrets enter backup-login-password
    just secrets enter backup-address
    just secrets enter backup-repository-path
    ```
-   `backup-address` is `host:port`; `backup-repository-path` is the path in the address you were given, without a leading `/`.
-2. `just up`, then `just backup init`: the scratch repository gets AetherSpark's key as its first.
-3. `just backup` as often as needed; `just backup snapshots` lists them.
+   `backup-address` is `host:port`, without `http://` and without a path; `backup-repository-path` is the path you were given, without a leading `/` (for the scratch repository: the login's name).
+2. `just up` (it warns that the repository does not open yet: expected), then `just backup init`: the scratch repository gets AetherSpark's key as its first. Its output names the repository's ID; it never shows the password.
+3. `just backup` as often as needed; `just backup snapshots` lists them; `just backup prove-append-only` checks that a delete is refused.
 
 **b. The real one (the desktop-phase repository), once the trials are done:**
 1. Enter the four real values the same way; each replaces the scratch value.
-2. `just up` (it prints that the repository does not open yet: that is expected).
-3. `just backup key-add`: restic asks for the repository's original password; type it from your password manager. AetherSpark's own key is added.
-4. `just backup`: the first real snapshot.
-5. `just backup prove-append-only`: expected `append-only: a delete of snapshot … is refused (HTTP 403)`.
-6. `just backup keys`: the key marked `*` is the one this command opened the repository with, AetherSpark's own. Its ID goes into A-015 with the end of the build.
+2. A new password for AetherSpark's key, so the real repository's key was never used in the scratch one:
+   ```bash
+   just secrets rotate backup-key-password
+   ```
+   From here on AetherSpark cannot open the scratch repository any more; the report of the build's end in A-015 (with step 7's key ID) lets the home infrastructure remove it.
+3. `just up` (it prints that the repository does not open yet: that is expected).
+4. `just backup key-add`: restic asks for the repository's original password; type it from your password manager. AetherSpark's own key is added.
+5. `just backup`: the first real snapshot.
+6. `just backup prove-append-only`: expected `append-only: a delete of snapshot … is refused (HTTP 403)`.
+7. `just backup keys`: the key marked `*` is the one this command opened the repository with, AetherSpark's own. Its ID goes into A-015 with the end of the build.
 
 ## 3. The drill (now for Gate G3, then every quarter)
 A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark but what you bring. It uses its own Compose project name, so it never touches the live stack's volumes.

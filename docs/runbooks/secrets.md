@@ -47,6 +47,8 @@ It must say `PASS  5b`. The proof never prints a secret.
 | `just secrets enter <name>` | Asks for an *entered* secret's value twice, without showing it, checks its form and seals it, replacing an earlier value. Terminal only: a pipe or a file is refused |
 | `just secrets check <rendered.json>` | CI's check: the manifest and the rendered Compose agree |
 
+From PowerShell, `just secrets …` forwards to WSL2 (the distribution in `AETHERSPARK_WSL_DISTRO`, default `Ubuntu-24.04`), as `just up` does. The tool itself refuses every command but `check` under Windows' Python: it would make a second store and dev key in the Windows home folder.
+
 `just up` and `just down` call `generate`, `unseal` and `clear` themselves (from WP3.1's first services). Until an entered secret has a value, `unseal` leaves it out, with every file built from it, and names it; the stack starts without it.
 
 **Entered secrets** (ADR-0010 note of 2026-11-11) are values another party issues, today the backup login from the home infrastructure (exchange A-015). Type them from the password manager's entry; each kind has a fixed form, and anything else is refused without the value being shown:
