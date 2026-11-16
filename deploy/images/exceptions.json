@@ -244,40 +244,13 @@
       "expires": "2026-12-08"
     },
     {
-      "id": "CVE-2026-123158",
-      "target": "host-role-test",
-      "package": "openssh-client",
-      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
-      "issue": 31,
-      "approved": "2026-11-11",
-      "expires": "2026-12-11"
-    },
-    {
-      "id": "CVE-2026-123158",
-      "target": "host-role-test",
-      "package": "openssh-server",
-      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
-      "issue": 31,
-      "approved": "2026-11-11",
-      "expires": "2026-12-11"
-    },
-    {
-      "id": "CVE-2026-123158",
-      "target": "host-role-test",
-      "package": "openssh-sftp-server",
-      "reason": "Test container for the Spark host role (CI only): its sshd serves only the role's own test inside the throwaway container, never a network the owner uses. Ubuntu 24.04 has no fixed openssh yet; the pin moves when Ubuntu ships one (weekly re-scan).",
-      "issue": 31,
-      "approved": "2026-11-11",
-      "expires": "2026-12-11"
-    },
-    {
-      "id": "CVE-2026-123158",
+      "id": "GHSA-vvf4-9x63-8xvv",
       "target": "nvcr.io/nvidia/vllm",
-      "package": "openssh-client",
-      "reason": "The LLM trial's serving image never runs ssh: the client is unused, and the container has no way out (internal network, no proxy). NVIDIA has no rebuilt image yet; the next pin bump or the expiry re-scan moves it.",
+      "package": "dnspython",
+      "reason": "CVE-2026-128089: excessive memory and CPU when dnspython's text parser reads a crafted WKS record from zone-file text. The LLM trial's model server reads no zone files: it answers the owner's chat requests only, on the internal llm network, with no port and no way out. Fixed in dnspython 2.9.2; NVIDIA has no rebuilt image yet. Ends with the image's other exceptions.",
       "issue": 31,
-      "approved": "2026-11-11",
-      "expires": "2026-12-11"
+      "approved": "2026-11-16",
+      "expires": "2026-12-08"
     },
     {
       "id": "CVE-2026-107778",
