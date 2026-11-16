@@ -179,6 +179,22 @@ def test_enter_refuses_a_pipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         store.enter(_manifest(tmp_path, GEN), "db-password")
 
 
+@pytest.mark.parametrize("argv", [["generate"], ["enter", "backup-login-name"], ["unseal"]])
+def test_store_commands_refuse_windows_and_make_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+) -> None:
+    # On Windows they would make a second store and dev key in the Windows home folder
+    monkeypatch.setenv("AETHERSPARK_SECRETS_STORE", str(tmp_path / "store"))
+    monkeypatch.setenv("AETHERSPARK_SECRETS_KEY", str(tmp_path / "key" / "dev.key"))
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert store.main(argv) == 2
+    assert "runs in WSL2" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="the in-memory folder exists only on Linux")
 def test_unseal_leaves_out_what_is_not_entered_yet(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
