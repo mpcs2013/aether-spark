@@ -103,8 +103,12 @@ sys.exit(0 if secret_store.is_tmpfs(pathlib.Path(sys.argv[2])) else 1)' "$repo/d
 }
 
 step_ca_stopped=0
+# step-ca comes back as a new container, as up.sh starts it: Docker Desktop mounts a secret file as
+# it was when the container was created, and any unseal since then wrote new files, so the old
+# container cannot start again (the desktop stack test of 2026-11-17)
+start_step_ca() { dc up -d --wait --force-recreate step-ca >/dev/null; }
 cleanup() { # however the job ends: step-ca running again, no staging folder
-    if [ "$step_ca_stopped" = 1 ]; then dc up -d --wait step-ca >/dev/null 2>&1 || say "start step-ca by hand: just up" >&2; fi
+    if [ "$step_ca_stopped" = 1 ]; then start_step_ca 2>/dev/null || say "start step-ca by hand: just up" >&2; fi
     rm -rf "$AETHERSPARK_BACKUP_DIR"
 }
 
@@ -123,7 +127,7 @@ copy_ca() { # step-ca stopped only for the copy: its database is not safe to cop
     step_ca_stopped=1
     dc stop step-ca >/dev/null
     dc --profile backup run --rm --no-deps -T --entrypoint cp backup-files -a /ca/. /backup/ca/
-    dc up -d --wait step-ca >/dev/null
+    start_step_ca
     step_ca_stopped=0
 }
 

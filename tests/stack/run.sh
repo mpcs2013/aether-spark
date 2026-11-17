@@ -456,10 +456,12 @@ check "no secret value in Keycloak's process environments, inspect output or log
 kc_db_foreign_root() { # Keycloak with a foreign root for its database refuses to start
     dc stop keycloak >/dev/null 2>&1
     local out rc
-    out="$(timeout 240 docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${overlay[@]}" run --rm --no-deps \
+    # -T and no input: run from a terminal, compose would read it, and under `timeout` (not in the
+    # terminal's foreground) the system stops it until the timeout (the desktop run of 2026-11-17)
+    out="$(timeout 240 docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${overlay[@]}" run --rm --no-deps -T \
         -v "$work/pg/foreign.crt:/test/foreign.crt:ro" \
         -e "KC_DB_URL=jdbc:postgresql://$pg:5432/keycloak?sslmode=verify-full&sslrootcert=/test/foreign.crt" \
-        keycloak 2>&1)"
+        keycloak 2>&1 </dev/null)"
     rc=$?
     dc up -d --wait keycloak >/dev/null 2>&1
     [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && printf '%s' "$out" | grep -qiE 'PKIX|certificat|SSL' \
