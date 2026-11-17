@@ -47,7 +47,7 @@ The sealed store and the dev key are in WSL; `just secrets` from PowerShell forw
    just secrets rotate backup-key-password
    ```
    From here on AetherSpark cannot open the scratch repository any more; the report of the build's end in A-015 (with step 7's key ID) lets the home infrastructure remove it.
-3. `just up` (it prints that the repository does not open yet: that is expected).
+3. `just up`. On a day without a snapshot yet it prints that the repository does not open yet: that is expected. On a day that already has one (from the scratch trial, say) it prints nothing about the backup.
 4. `just backup key-add`: restic asks for the repository's original password; type it from your password manager. AetherSpark's own key is added.
 5. `just backup`: the first real snapshot.
 6. `just backup prove-append-only`: expected `append-only: a delete of snapshot … is refused (HTTP 403)`.
@@ -64,39 +64,64 @@ A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark
    ```powershell
    wsl --install Ubuntu-24.04 --name aetherspark-drill
    ```
-   Create its user when asked: any name, and a new password (`sudo` asks for it in step 2). Then check, in the new distribution:
+   Create its user when asked: any name, and a new password (`sudo` asks for it later). Then check, in the new distribution:
    ```bash
    id -u
    echo "$XDG_RUNTIME_DIR"
    ```
-   Expected: `1000` and `/run/user/1000`. The stack runs as this number and restores files owned by it, and the in-memory folders live in the second. If either differs, stop: `wsl --unregister aetherspark-drill` and ask before trying again.
+   Expected: `1000` and `/run/user/1000` (a trailing `/` does no harm; step 2 removes it). The stack runs as this number and restores files owned by it, and the in-memory folders live in the second. If either differs, stop: `wsl --unregister aetherspark-drill` and ask before trying again.
 
-   Then in Docker Desktop → Settings → Resources → WSL integration, switch on `aetherspark-drill`. If the window closes during setup, `wsl --unregister aetherspark-drill` and start this step again.
-2. **Tools and the repository**, in the new distribution (dev-setup.md, "One-time setup in WSL2"): `age`, `just`, Python 3, then clone the repository and `cd` into it.
+   Then switch on Docker for it: Docker Desktop → Settings → Resources → WSL integration → `aetherspark-drill` on, **Apply & restart**. Settings' new design may show only the default distribution there; **Go to classic Settings** (top right) shows the list. If the window closes during setup, `wsl --unregister aetherspark-drill` and start this step again.
+2. **Docker access, the drill's settings, tools and the repository**, in the new distribution. Docker's socket is open only to the `docker` group, and a new distribution's user is not in it yet:
+   ```bash
+   sudo usermod -aG docker "$USER"
+   exit
+   ```
+   Then in PowerShell `wsl --terminate aetherspark-drill` and `wsl -d aetherspark-drill`, so the group counts. In the distribution again:
+   ```bash
+   cd ~
+   docker ps                              # an empty table, no "permission denied"
+   cat >> ~/.bashrc <<'EOF'
+   # AetherSpark restore drill: own Compose project, same runtime path as the normal distribution
+   export XDG_RUNTIME_DIR=/run/user/1000
+   export COMPOSE_PROJECT_NAME=aetherspark-drill
+   EOF
+   source ~/.bashrc
+   sudo apt-get update && sudo apt-get install -y age just git python3
+   git clone https://github.com/mpcs2013/aether-spark.git ~/aether-spark
+   cd ~/aether-spark
+   ```
+   The project name sits in `~/.bashrc`, so every later window of this distribution uses the drill's own volumes, never the live ones. Start in `~`, not in the folder the window opened in: that is your Windows copy of the repository, which a new machine would not have.
 3. **The dev key** from your password manager:
    ```bash
    install -d -m 0700 ~/.aetherspark/keys
    nano ~/.aetherspark/keys/dev.key      # paste the three lines, save
    chmod 0600 ~/.aetherspark/keys/dev.key
+   age-keygen -y ~/.aetherspark/keys/dev.key
+   clear
    ```
+   `age-keygen -y` prints the key's public half (`age1…`): it must be the one in your secure note. An error means a line was cut or joined while pasting.
 4. **The backup login** again: the four `just secrets enter` commands of step 2a, with the real values.
-5. **The sealed store and the local package feed**, opened with the repository's original password (restic asks, twice):
+5. **The sealed store and the local package feed**, opened with the repository's original password. restic asks twice; its prompt shows as a blank line, so paste the password and press Enter each time:
    ```bash
-   export COMPOSE_PROJECT_NAME=aetherspark-drill
    just backup restore-secrets
    ```
-6. **The CA and Keycloak**, with your written-down fingerprint:
+   Expected: `… sealed files restored into the store` and `1 packages restored into the local feed`. `ls ~/.aetherspark/secrets/dev/` then lists the same names as in your normal distribution.
+6. **The CA and Keycloak**, with the fingerprint from your password manager. No password is asked: AetherSpark's own key is in the restored store.
    ```bash
    just backup restore --expect-root <the fingerprint from your password manager>
    just up
    ```
-7. **Sign in** at `https://whoami.aether.localhost` in Firefox with your everyday user and your security key. The browser trusts the page without any new step: it is the same root.
+   Expected: `the root fingerprint matches the expected one`, every service healthy, `the aetherspark realm matches the repository`, and no `backup: snapshot` line: the restore counts as the day's snapshot, so the drill writes nothing into the repository.
+7. **Sign in** at `https://whoami.aether.localhost` in a Firefox **private window** (Ctrl+Shift+P), with your everyday user and your security key. A private window holds no sign-in from your normal stack, so Keycloak must ask. The browser trusts the page without any new step: it is the same root. Paste nothing from the page: it shows your user name and a session cookie.
 8. **Record** the date, the snapshot it took, and the result in the table below; then tidy up:
    ```bash
    just down
+   docker volume ls -q --filter name=aetherspark-drill_       # only aetherspark-drill_… names
    docker volume ls -q --filter name=aetherspark-drill_ | xargs -r docker volume rm
+   exit
    ```
-   and in PowerShell `wsl --unregister aetherspark-drill`. Then `just up` in your normal distribution.
+   and in PowerShell `wsl --unregister aetherspark-drill`, which removes the drill's copy of the dev key and the store with it. Then `just up` in your normal distribution when you need the stack.
 
 **If a step fails, stop and keep the state**: nothing of the live stack is touched by the drill.
 
@@ -105,4 +130,4 @@ A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark
 ## Record
 | Date | Kind | Snapshot | Result |
 |---|---|---|---|
-| | first drill (Gate G3) | | |
+| 2026-11-17 | first drill (Gate G3) | `3027c734` (2026-11-17) | **Passed.** Fresh distribution; the sealed store (the same 17 files as the desktop's) and the feed with the owner's key, the CA and Keycloak with AetherSpark's; root fingerprint as recorded; stack healthy; signed in with the security key. Found: the `docker` group, the hidden password prompt, the drill's own snapshot (all fixed in this runbook and the job) |

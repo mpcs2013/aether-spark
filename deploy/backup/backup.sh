@@ -19,7 +19,8 @@
 #                     the stack down: the CA volume and Keycloak's database from a snapshot (the
 #                     newest of this host and tag, never one dated in the future; after an incident
 #                     name one from before it). Refuses volumes that are not empty; --replace keeps
-#                     them aside as <volume>-before-restore. Then `just up`.
+#                     them aside as <volume>-before-restore. Counts as the day's snapshot, so
+#                     the `just up` that follows adds none. Then `just up`.
 #
 # Other arguments are added to every Compose call, as up.sh does (the tests add their overlay with
 # -f, relative to the repository). Every value comes from a file in the in-memory secrets folder;
@@ -218,6 +219,11 @@ restore_secrets() {
         || { say "enter the backup login first (just secrets enter, docs/runbooks/restore-drill.md)" >&2; exit 1; }
     staged
     local id store=$AETHERSPARK_SECRETS_STORE feed=$AETHERSPARK_PACKAGE_FEED n=0 p=0 f
+    # restic's own prompt goes into the output read below, so on the terminal it is a blank line
+    # (the owner's drill of 2026-11-17)
+    [ -n "${AETHERSPARK_BACKUP_OWNER_PASSWORD_FILE:-}" ] \
+        || say "restic asks twice for the repository's original password (the owner's recovery" \
+            "key): its prompt shows as a blank line; paste the password and press Enter each time" >&2
     id="$(choose owner_restic)"
     owner_restic restore "$id" --target /backup/restore --include /backup/sealed --include /backup/feed >/dev/null
     mkdir -p "$store"
@@ -281,6 +287,10 @@ restore() {
     else
         say "root fingerprint $fingerprint: compare it with your record before you trust it"
     fi
+    # The restored state is the snapshot's: today's `just up` adds none (a drill on a fresh machine
+    # would otherwise write its copy into the real repository)
+    mkdir -p "$(dirname "$marker")"
+    date -u +%F > "$marker"
     say "next: just up"
 }
 
