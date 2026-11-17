@@ -1100,7 +1100,9 @@ missing = [x.name for x in m if not x.derived and not (s / f"{x.name}.age").is_f
 print(missing) if missing else None; sys.exit(1 if missing else 0)' "$repo/deploy/secret-store"
 check "B6: ... and the local feed with its package" grep -qxF 'a stand-in package' "$AETHERSPARK_PACKAGE_FEED/$feed_pkg"
 restore_all() { bk restore --expect-root "$fp_before"; }
+rm -f "$AETHERSPARK_BACKUP_MARKER"
 check "B6: just backup restore brings back the CA and Keycloak's database (root fingerprint as before)" restore_all
+check "B6: ... and counts as today's snapshot, so the just up after it adds none" [ "$(cat "$AETHERSPARK_BACKUP_MARKER" 2>/dev/null)" = "$(date -u +%F)" ]
 check "B6: just up after the restore reaches healthy" up
 check "B6: the root CA is the same" [ "$(root_fp)" = "$fp_before" ]
 check "B6: a user made before the backup signs in (password and app code)" oidc "$work/user" stack-test-user

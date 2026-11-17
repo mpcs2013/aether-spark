@@ -99,6 +99,9 @@ Every snapshot has the same four paths from the first one on (A-015, condition c
   - **The `backup` service** binds the local folder feed read-only at `/backup/feed` (`create_host_path: false`; backup.sh makes it with mode 0700 before any container starts).
   - **`just backup restore-secrets`** brings the feed's packages back with the sealed store, keeping files already there.
   - **Tests:** B1 checks a package of the test's feed in the snapshot; B6 removes the feed with the store and checks the package comes back.
+- **The first runs (2026-11-16/17, A-015):** AetherSpark's key added to the desktop-phase repository (the third, beside the owner's recovery key and the NAS's maintenance key); the acceptance snapshot and the refused delete; the first scheduled run from `just up`, after which the NAS's 7-day freshness check started; the owner's first drill from the NAS passed (restore-drill.md, Record). The drill found two things in the job:
+  - **`just backup restore` counts as the day's snapshot** (it writes the daily marker), so the `just up` that follows adds none: a drill on a fresh machine has no marker and would otherwise write its copy into the real repository. B6 checks it.
+  - **restic's password prompt in `restore-secrets` shows as a blank line** (its output is read by the script), so the job now says beforehand that restic asks twice.
 
 ## Document changes (in this note's pull request)
 - **ADR-0003, a dated note:** the restic job is a one-shot service in its own profile, `backup`, started once a day by `just up` and by `just backup`. *Replaces*, in the note of 2026-10-23, "`ops` (observability, restic)" with "`ops` (observability)".
