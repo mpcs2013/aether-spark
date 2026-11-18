@@ -254,7 +254,12 @@ restore() {
     python3 -I "$repo/deploy/secret-store/secret_store.py" unseal >/dev/null \
         || { say "the secrets do not unseal: on a machine without its store, restore-secrets first" >&2; exit 1; }
     ready || { say "no backup login, or no AetherSpark key in the store (restore-secrets first)" >&2; exit 1; }
-    [ -z "$(dc ps -q 2>/dev/null)" ] || { say "the stack is running: just down first" >&2; exit 1; }
+    # Any running service of the stack stops the restore. The stack test's stand-in backup server is
+    # not the stack: on the desktop it runs as a container of the same project, and the restore
+    # reads from it (in CI it is a process outside Docker)
+    local running
+    running="$(dc ps --services 2>/dev/null | grep -vx backup-standin || true)"
+    [ -z "$running" ] || { say "the stack is running ($(printf '%s' "$running" | tr '\n' ' ')): just down first" >&2; exit 1; }
     staged
     local id v
     id="$(choose restic_)"
