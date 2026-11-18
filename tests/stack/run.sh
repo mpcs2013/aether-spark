@@ -830,7 +830,7 @@ check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
 check "just up after the stop reaches healthy" up
-check "the renewer renewed before it reported healthy" pg_renewed
+check "the certificate was renewed before the stack reported healthy (just up's bootstrap, past the renewal point)" pg_renewed
 check "keycloak's data survived the restart (the probe table is there)" pg_is 1 keycloak keycloak \
     "$pg_tls" "select count(*) from pg_tables where tablename = 'stack_test_probe'"
 
