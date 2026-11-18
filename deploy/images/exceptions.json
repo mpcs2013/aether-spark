@@ -494,6 +494,960 @@
       "issue": 31,
       "approved": "2026-11-11",
       "expires": "2026-12-11"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no CMS, no AES-GCM-SIV. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-88823",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95692",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-95691",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107496",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never ssl), on throwaway CI runners and the desktop. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-125181",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125196",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125201",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125202",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125203",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125204",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125208",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125209",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125210",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125211",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125212",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125213",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125214",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125218",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125219",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125222",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125227",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125229",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125233",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125235",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125239",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125241",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125244",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125248",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125249",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125250",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125251",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125256",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125257",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125259",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125260",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125262",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125267",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-125269",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Five of these are fixed in ffmpeg 8.1.3 and 9.0.2, the others have no fix; the image moves when NVIDIA ships one with the fixes. The trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
     }
   ]
 }
