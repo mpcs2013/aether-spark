@@ -1448,6 +1448,51 @@
       "issue": 31,
       "approved": "2026-11-18",
       "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-114938",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "Remote code execution in the JVM through crafted input, only on x86-64 CPUs with AVX-512 VBMI (Red Hat, 2026-11-17; ARM64 not known to be affected). The desktop's CPU (Intel Core i7-9700) has no AVX-512 at all, and the Spark is ARM64. This exception holds only while the stack runs on no CPU with AVX-512 VBMI (Intel Ice Lake or later, AMD Zen 4 or later). Two weeks, not four: Red Hat's analysis is still preliminary. No fixed Red Hat package yet; a fixed Keycloak image comes through Ostium's notice (ADR-0009 amendment 3, security-first rule).",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-02"
+    },
+    {
+      "id": "CVE-2026-114939",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "Java's Kerberos acceptor mishandles cross-realm tickets. Keycloak here accepts no Kerberos tickets: no Kerberos user federation, and both realms sign in with their own flows (browser-security-key, browser-2fa), which have no Kerberos step. No fixed Red Hat package yet; a fixed Keycloak image comes through Ostium's notice (ADR-0009 amendment 3, security-first rule).",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-114940",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "Java's TLS client completes a handshake with a server that sends no certificate (needs a man in the middle). Keycloak's only TLS client connection is JDBC to postgres-auth on the internal db-auth network, which only postgres-auth and Keycloak join. No fixed Red Hat package yet; a fixed Keycloak image comes through Ostium's notice (ADR-0009 amendment 3, security-first rule).",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-114941",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "C2 JIT miscomputes integer-compression ranges (out-of-bounds access); exploiting it needs untrusted bytecode or steered compiled code. Keycloak runs only its own code, no scripts or providers from users. No fixed Red Hat package yet; a fixed Keycloak image comes through Ostium's notice (ADR-0009 amendment 3, security-first rule).",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-114942",
+      "target": "keycloak",
+      "package": "java-21-openjdk-headless",
+      "reason": "The Vector API's mask index check narrows large offsets (out-of-bounds access); exploiting it needs untrusted offsets passed into vector code. Keycloak runs only its own code. No fixed Red Hat package yet; a fixed Keycloak image comes through Ostium's notice (ADR-0009 amendment 3, security-first rule).",
+      "issue": 31,
+      "approved": "2026-11-18",
+      "expires": "2026-12-08"
     }
   ]
 }
