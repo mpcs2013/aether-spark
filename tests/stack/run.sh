@@ -463,7 +463,7 @@ kc_db_foreign_root() { # Keycloak with a foreign root for its database refuses t
         -e "KC_DB_URL=jdbc:postgresql://$pg:5432/keycloak?sslmode=verify-full&sslrootcert=/test/foreign.crt" \
         keycloak 2>&1 </dev/null)"
     rc=$?
-    dc up -d --wait keycloak >/dev/null 2>&1
+    dc up -d --wait --force-recreate keycloak >/dev/null 2>&1
     [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && printf '%s' "$out" | grep -qiE 'PKIX|certificat|SSL' \
         || { echo "exit $rc"; printf '%s\n' "$out" | grep -iE 'error|exception' | tail -3; return 1; }
 }
@@ -966,7 +966,9 @@ dc stop postgres-auth >/dev/null 2>&1
 dump_fails() { ! bk run >/dev/null 2>&1 && [ ! -e "$(dirname "$AETHERSPARK_SECRETS_DIR")/backup" ]; }
 check "B5: a failed job (the dump) leaves no staging folder" dump_fails
 check "B5: ... and step-ca running" [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q step-ca)")" = healthy ]
-dc up -d --wait postgres-auth >/dev/null 2>&1
+# A new container, as up.sh starts one: the B tests unsealed again since postgres-auth was created,
+# and Docker Desktop keeps a secret file as it was at creation (the desktop run of 2026-11-17)
+check "B5: postgres-auth is back after the failed job" dc up -d --wait --force-recreate postgres-auth
 if [ -n "$layer3" ]; then
     b7() { # the job's network reaches the target and nothing else; the drop is logged
         local mark out
