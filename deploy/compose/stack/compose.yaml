@@ -61,8 +61,9 @@ services:
       start_period: 30s
       start_interval: 1s
 
-  # One-shot, run by `just up` before the services: a certificate for each service that has none
-  # or an expired one, with that service's JWK provisioner (its password is read here only)
+  # One-shot, run by `just up` before the services: a certificate for each service that has none,
+  # an expired one or one past its renewal point, with that service's JWK provisioner (its password
+  # is read here only)
   cert-bootstrap:
     <<: *step
     profiles: [bootstrap]

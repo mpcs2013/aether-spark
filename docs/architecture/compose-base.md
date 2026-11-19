@@ -350,7 +350,7 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
 - **`just up`:**
   1. decrypt the secrets into the tmpfs folder (create the dev key and missing secrets on a clean desktop);
   2. `just ca init` if the CA does not exist yet;
-  3. bootstrap missing or expired certificates;
+  3. bootstrap missing or expired certificates, and (since 2026-11-18) those past their renewal point: one that expires before its renewer starts can no longer be renewed;
   4. start both Compose files in profile `core`;
   5. wait until every service is healthy.
 - **`just down`:** stops the stack and empties the tmpfs folder; volumes stay.

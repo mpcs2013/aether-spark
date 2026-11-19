@@ -23,7 +23,7 @@ In PowerShell or in WSL2: from PowerShell, these `just` commands run in WSL2 by 
 
 | Command | What it does |
 |---|---|
-| `just up` | Opens the secrets into memory, creates the CA on first use, gives each service a certificate if it has none or an expired one, starts everything and waits until healthy |
+| `just up` | Opens the secrets into memory, creates the CA on first use, gives each service a certificate if it has none, an expired one or one past its renewal point, starts everything and waits until healthy |
 | `just down` | Stops the stack and empties the in-memory secrets folder. Volumes, so the CA, stay |
 | `just ca status` | The intermediate's remaining days and the root's fingerprint; exit 1 below 60 days |
 | `just ca root` | Prints the root certificate (for the trust steps below) |

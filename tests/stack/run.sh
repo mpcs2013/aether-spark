@@ -456,12 +456,14 @@ check "no secret value in Keycloak's process environments, inspect output or log
 kc_db_foreign_root() { # Keycloak with a foreign root for its database refuses to start
     dc stop keycloak >/dev/null 2>&1
     local out rc
-    out="$(timeout 240 docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${overlay[@]}" run --rm --no-deps \
+    # -T and no input: run from a terminal, compose would read it, and under `timeout` (not in the
+    # terminal's foreground) the system stops it until the timeout (the desktop run of 2026-11-17)
+    out="$(timeout 240 docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${overlay[@]}" run --rm --no-deps -T \
         -v "$work/pg/foreign.crt:/test/foreign.crt:ro" \
         -e "KC_DB_URL=jdbc:postgresql://$pg:5432/keycloak?sslmode=verify-full&sslrootcert=/test/foreign.crt" \
-        keycloak 2>&1)"
+        keycloak 2>&1 </dev/null)"
     rc=$?
-    dc up -d --wait keycloak >/dev/null 2>&1
+    dc up -d --wait --force-recreate keycloak >/dev/null 2>&1
     [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && printf '%s' "$out" | grep -qiE 'PKIX|certificat|SSL' \
         || { echo "exit $rc"; printf '%s\n' "$out" | grep -iE 'error|exception' | tail -3; return 1; }
 }
@@ -828,7 +830,7 @@ check "after the stop the certificate is past its renewal point" overdue
 check "... and not expired" pg_valid
 pg_first="$(pg_serial)"
 check "just up after the stop reaches healthy" up
-check "the renewer renewed before it reported healthy" pg_renewed
+check "the certificate was renewed before the stack reported healthy (just up's bootstrap, past the renewal point)" pg_renewed
 check "keycloak's data survived the restart (the probe table is there)" pg_is 1 keycloak keycloak \
     "$pg_tls" "select count(*) from pg_tables where tablename = 'stack_test_probe'"
 
@@ -964,7 +966,9 @@ dc stop postgres-auth >/dev/null 2>&1
 dump_fails() { ! bk run >/dev/null 2>&1 && [ ! -e "$(dirname "$AETHERSPARK_SECRETS_DIR")/backup" ]; }
 check "B5: a failed job (the dump) leaves no staging folder" dump_fails
 check "B5: ... and step-ca running" [ "$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q step-ca)")" = healthy ]
-dc up -d --wait postgres-auth >/dev/null 2>&1
+# A new container, as up.sh starts one: the B tests unsealed again since postgres-auth was created,
+# and Docker Desktop keeps a secret file as it was at creation (the desktop run of 2026-11-17)
+check "B5: postgres-auth is back after the failed job" dc up -d --wait --force-recreate postgres-auth
 if [ -n "$layer3" ]; then
     b7() { # the job's network reaches the target and nothing else; the drop is logged
         local mark out

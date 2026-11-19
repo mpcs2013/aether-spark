@@ -1,17 +1,21 @@
 #!/bin/sh
 # One-shot at `just up` (compose-base.md, "Bootstrap and renewal"): for each service in $SERVICES,
-# a certificate for <service>.svc.aether.$PLACE in /tls/<service>/ unless a valid one is there.
+# a certificate for <service>.svc.aether.$PLACE in /tls/<service>/ unless a usable one is there.
 # Its JWK provisioner's password is read from /run/secrets/step-ca-provisioner-<service> by step
 # itself; nothing here prints or holds it. Runs in the step-ca image (deploy/compose/stack/).
 set -eu
 umask 077
 root=/ca-certs/root_ca.crt
+# Less than 75 % of the lifetime has passed: the renewers' health threshold (compose.yaml). A
+# certificate past it may expire before its renewer starts, and an expired one cannot be renewed
+# (the renewal authenticates with it): the renewer would stay unhealthy (desktop, 2026-11-18)
+fresh() { step certificate needs-renewal "$1" --expires-in 75% >/dev/null 2>&1; [ $? -eq 1 ]; }
 for service in $SERVICES; do
     name="$service.svc.aether.$PLACE"
     dir="/tls/$service"
-    # Valid means: chains to this CA's root, names the service, not expired
+    # Usable means: chains to this CA's root, names the service, not past the renewal point
     if [ -f "$dir/tls.crt" ] && step certificate verify "$dir/tls.crt" --roots "$root" \
-        --host "$name" >/dev/null 2>&1; then
+        --host "$name" >/dev/null 2>&1 && fresh "$dir/tls.crt"; then
         echo "cert-bootstrap: $service has a valid certificate"
         continue
     fi
