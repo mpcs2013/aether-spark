@@ -1,5 +1,6 @@
-# Egress proxies and their networks (docs/architecture/egress.md, WP3n.3). Joins the stack overlay in
-# P3a; until then it runs on its own for the egress tests (tests/egress/).
+# Egress proxies and their networks (docs/architecture/egress.md, WP3n.3). The stack's Compose file
+# includes this file (since P4a), so the runtime proxy starts with every `just up`; the egress tests
+# (tests/egress/) and `just egress-ops` still run it on its own, under this name.
 name: aetherspark-egress
 
 x-proxy: &proxy

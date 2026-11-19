@@ -553,6 +553,33 @@ ch_reloaded() { # within two reload periods
 }
 check "clickhouse serves the certificate in its volume after its reloads" ch_reloaded
 
+echo "--- the runtime egress proxy: part of the stack, the SEC hosts only (egress.md; data-plane.md section 7)"
+# A client on egress-runtime, as the ingester will be: through the proxy to an allowed host, and
+# refused elsewhere. The egress tests (tests/egress/run.sh, E1-E10) cover the proxy's rules in depth;
+# here only that the stack's own proxy is there and works. One request to the SEC per run.
+rt_proxy=http://172.30.10.2:3128
+rt_curl_image="$(sed -n 's/^ *image: *\(curlimages\/curl:[^ ]*\) *$/\1/p' "$repo/tests/egress/compose.test.yaml" | head -1)"
+on_runtime() { # curl's arguments, from a throw-away client on egress-runtime
+    docker run --rm --network "${COMPOSE_PROJECT_NAME}_egress-runtime" --read-only --cap-drop ALL \
+        --user "$AETHERSPARK_UID:$AETHERSPARK_GID" "$rt_curl_image" "$@"
+}
+check "the runtime proxy runs in the stack's own project" test -n "$(dc ps -q egress-runtime)"
+# The tunnel's status (200) is the proxy's answer; the SEC's own status is not checked, since the SEC
+# refuses (403) a request without a declared contact in its User-Agent, and that contact is the
+# ingester's entered secret (PR 3b). Any SEC answer over the tunnel means the client checked the TLS.
+sec_through_proxy() {
+    local codes
+    codes="$(on_runtime -s -o /dev/null -m 15 -w '%{http_connect} %{http_code}' --proxy "$rt_proxy" https://www.sec.gov/)"
+    case "$codes" in
+        "200 000" | "200 ") echo "tunnel open, no answer over TLS: $codes"; return 1 ;;
+        "200 "*) return 0 ;;
+        *) echo "tunnel and answer: $codes"; return 1 ;;
+    esac
+}
+check "a client on egress-runtime reaches www.sec.gov through the proxy (TLS checked by the client)" sec_through_proxy
+refuse "a host not on the runtime list is refused" on_runtime -s -o /dev/null -m 15 --proxy "$rt_proxy" https://www.example.com/
+refuse "without the proxy, egress-runtime has no way out" on_runtime -s -o /dev/null -m 10 https://www.sec.gov/
+
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost
 via() { # name, path, curl options...: prints the status code; the body goes to $work/kc.body

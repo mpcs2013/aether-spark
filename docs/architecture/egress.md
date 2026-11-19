@@ -147,7 +147,7 @@ A report can carry text from an injected filing. If the browser rendered a remot
 - NFR-SEC-01's check reads both logs.
 
 ## Where it lives
-- `deploy/compose/egress/`: both Squid configs and allowlists, the overlay with all networks of the matrix, profiles `core` and `egress-ops`.
+- `deploy/compose/egress/`: both Squid configs and allowlists, the overlay with all networks of the matrix, profiles `core` and `egress-ops`. *Since P4a (2026-11-19):* the stack's Compose file includes this file, so the runtime proxy starts with every `just up` in the stack's project; the egress tests still run it on its own, so they need `just down` first (both use the same bridge names), like the stack test.
 - `deploy/host/`: the rule script (`DOCKER-USER`, `INPUT`, IPv6, and the Spark's host mode; `baseline`, `apply`, `check`, `remove`, `lint`), the systemd unit, the check timer, the `docker.service` drop-in, `install.sh` (also sets `"dns"` in `daemon.json`) and an example settings file; the Spark's host `INPUT` and `OUTPUT` rules, the rest of the `daemon.json` fragment and the resolver settings follow with the host role (WP6.2, [spark-host.md](spark-host.md)). Applied by the host role on the Spark and by the CI job.
 - `deploy/compose/`: `policy.json` (the matrix and Compose rules as data) and `lint.py` (L1, L2) with its fixture tests.
 - `tests/egress/`: the tests below (`just egress-test`), the lint runner (`just egress-lint`) and the Spark host lab (`just host-lab`, [spark-host.md](spark-host.md)).

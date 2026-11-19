@@ -82,6 +82,27 @@ def host_path_hit(source: str, forbidden: Iterable[str]) -> str | None:
     return None
 
 
+def _raw_findings(
+    where: str,
+    role: str | None,
+    source: str,
+    raw_dir: str,
+    volume: dict[str, Any],
+    raw: dict[str, Any],
+) -> list[str]:
+    """A bind mount that reaches the raw folder: the folder itself, by its writers, or read-only by
+    its readers (data-plane.md, decision 9)."""
+    if posixpath.normpath(source) != source or source != raw_dir:
+        return [f"{where}: mount of {source} reaches the raw folder {raw_dir}; bind it exactly"]
+    if role in raw["writers"]:
+        return []
+    if role in raw["readers"]:
+        if volume.get("read_only"):
+            return []
+        return [f"{where}: role {role} mounts the raw folder read-only only"]
+    return [f"{where}: role {role} may not mount the raw folder"]
+
+
 def image_matches(image: str, bound: str) -> bool:
     """`bound` is an exact reference (a local build), or a repository alone: then any tag of that
     repository, pinned by digest, so a version bump needs no policy change."""
@@ -128,6 +149,7 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
         if bool(net.get("internal", False)) != rule["internal"]:
             findings.append(f"{where}: internal must be {str(rule['internal']).lower()}")
 
+    raw: dict[str, Any] = policy.get("raw_dirs") or {"dirs": [], "writers": [], "readers": []}
     # Host paths behind a named volume or a config are mounted like a bind mount
     for kind, field in (("volumes", "device"), ("configs", "file")):
         for key, item in (rendered.get(kind) or {}).items():
@@ -137,6 +159,12 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             hit = host_path_hit(source, forbidden_paths)
             if hit:
                 findings.append(f"{kind} {key}: host path {source} reaches {hit}")
+            # The raw folder only as a bind, where its roles are checked below
+            raw_hit = host_path_hit(source, raw["dirs"])
+            if raw_hit:
+                findings.append(
+                    f"{kind} {key}: host path {source} reaches the raw folder {raw_hit}"
+                )
     # A secret comes only from a file directly in the in-memory secrets folder (compose-base.md)
     source_dirs = [re.compile(p) for p in policy["secret_source_dirs"]]
     for key, item in (rendered.get("secrets") or {}).items():
@@ -233,6 +261,9 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
                 and role not in model_store["writers"]
             ):
                 findings.append(f"{where}: writable model-store mount outside a pull job")
+            raw_hit = host_path_hit(source, raw["dirs"]) if volume.get("type") == "bind" else None
+            if raw_hit:
+                findings.extend(_raw_findings(where, role, source, raw_hit, volume, raw))
 
         if mode is None:
             nets = _service_networks(service)
