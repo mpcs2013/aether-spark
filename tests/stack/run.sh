@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # step-ca, Traefik and postgres-auth end to end (docs/architecture/compose-base.md, tests C3, C3b,
-# C5 for postgres-auth, C6, C9a, C9b, C11), and the data Postgres (docs/architecture/data-plane.md,
-# D8 and D10 for it). C6's host-rule checks need tests/stack/layer3.sh (CI).
+# C5 for postgres-auth, C6, C9a, C9b, C11), and the data stores, the data Postgres and ClickHouse
+# (docs/architecture/data-plane.md, D8 and D10 for them). C6's host-rule checks need
+# tests/stack/layer3.sh (CI).
 # Needs Docker, age, python3, curl and openssl; runs in WSL2 and in CI (about 13 minutes).
 # Everything is throw-away: its own Compose project, store, dev key and in-memory folder, and
 # 3-minute certificates so that renewal and expiry happen within the run. Prints PASS/FAIL lines;
@@ -17,6 +18,8 @@ export AETHERSPARK_CA_LEAF_LIFETIME=3m AETHERSPARK_TRAEFIK_CERT_HOURS=1
 # postgres-auth re-reads its certificate files every 20 s instead of every hour, Keycloak every 35 s
 # (its minimum is above 30 s)
 export AETHERSPARK_PG_RELOAD_SECONDS=20 AETHERSPARK_KC_RELOAD_PERIOD=35s
+# ClickHouse reloads its configuration, and so its certificate files, every 20 s too
+export AETHERSPARK_CH_RELOAD_SECONDS=20
 # forward-auth and the test page restart on a new certificate (cert-watch.sh): checked every 20 s
 export AETHERSPARK_CERT_WATCH_SECONDS=20
 work="$(mktemp -d)"
@@ -449,6 +452,106 @@ pgd_reloaded() { # within two reload periods
     tls_py ingest postgres-data-tls "$pgd" 5432 yes -
 }
 check "postgres-data serves the certificate in its volume" pgd_reloaded
+
+echo "--- clickhouse: TLS ports only, no default user, the pipeline's rows only, no table functions (C3, C3b, C5, D8, D10)"
+# A client on ingest: clickhouse-client in ClickHouse's own image and service definition, as on_data
+# for postgres-data. It checks the chain against the CA's root, but not the name (clickhouse-client
+# does not), so the name and address checks use tls.py. The password sources: pipeline, owner, or a
+# wrong one; the password goes through a client file in the container's in-memory /tmp.
+ch=clickhouse.svc.aether.localhost
+cat >"$work/pg/client-ch.sh" <<'EOF'
+set -euo pipefail
+user=$1 source=$2 sql=$3
+{
+    printf '<clickhouse><user>%s</user><password>' "$user"
+    case $source in
+        pipeline|owner) cat "/run/secrets/clickhouse-$source-password" ;;
+        *) printf 'not-the-password' ;;
+    esac
+    printf '</password><openSSL><client><loadDefaultCAFile>false</loadDefaultCAFile>'
+    printf '<caConfig>/test/root.crt</caConfig><verificationMode>strict</verificationMode></client></openSSL></clickhouse>'
+} >/tmp/client.xml
+clickhouse-client --config-file /tmp/client.xml --host clickhouse.svc.aether.localhost --port 9440 --secure -q "$sql"
+EOF
+chc() { dc run --rm --no-deps -T --entrypoint bash -v "$work/pg:/test:ro" clickhouse /test/client-ch.sh "$@"; }
+chc_is() { # expected output, then chc's arguments
+    local want=$1 got
+    shift
+    got="$(chc "$@")" || return 1
+    [ "$got" = "$want" ] || { echo "got: $got"; return 1; }
+}
+# The migration owner, from the server's own loopback (as run.sh and migrate.sh sign in)
+owner_ch() { docker exec "$(dc ps -q clickhouse)" clickhouse-client --config-file /tmp/clickhouse/owner-client.xml -q "$1"; }
+check "pipeline signs in over TLS (native protocol), checked with the CA's root" \
+    chc_is pipeline pipeline pipeline "SELECT currentUser()"
+check "the native TLS port serves the certificate in its volume, chain and name checked" \
+    tls_py ingest clickhouse-tls "$ch" 9440 no /test/root.crt
+check "the HTTPS port serves the certificate in its volume, chain and name checked" \
+    tls_py ingest clickhouse-tls "$ch" 8443 no /test/root.crt
+refuse "a client refuses clickhouse under a foreign root" tls_py ingest clickhouse-tls "$ch" 9440 no /test/foreign.crt
+ch_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$(dc ps -q clickhouse)" | awk '{print $1}')"
+refuse "a client refuses clickhouse by address (not its name)" tls_py ingest clickhouse-tls "$ch_ip" 9440 no /test/root.crt
+ch_listens() { # 8443 and 9440 only (Docker's resolver on 127.0.0.11 is not the server's)
+    local got
+    got="$(docker exec "$(dc ps -q clickhouse)" sh -c 'cat /proc/net/tcp /proc/net/tcp6 2>/dev/null' |
+        awk '$4 == "0A" && $2 !~ /^0B00007F:/ {split($2, a, ":"); print a[2]}' | sort -u | tr '\n' ' ')"
+    [ "$got" = "20FB 24E0 " ] || { echo "listening (hex ports): $got"; return 1; }
+}
+check "nothing listens but 8443 (HTTPS) and 9440 (native TLS)" ch_listens
+ch_plain_closed() { # the upstream image's plaintext, MySQL, PostgreSQL, interserver and gRPC ports
+    dc run --rm --no-deps -T --entrypoint bash clickhouse -c '
+        for p in 8123 9000 9004 9005 9009 9100 9363; do
+            if (echo >"/dev/tcp/clickhouse.svc.aether.localhost/$p") 2>/dev/null; then echo "$p open"; exit 1; fi
+        done'
+}
+check "the plaintext, MySQL, PostgreSQL, interserver and gRPC ports are closed" ch_plain_closed
+refuse "a wrong password is refused" chc pipeline wrong "SELECT 1"
+refuse "there is no default user" chc default wrong "SELECT 1"
+refuse "the migration owner cannot sign in over the network, even with its password" chc data_owner owner "SELECT 1"
+users_match() { # users.xml admits the pipeline from exactly the ingest network's subnet
+    local net ips
+    net="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${COMPOSE_PROJECT_NAME}_ingest")"
+    ips="$(sed -n '/<pipeline>/,/<\/pipeline>/s/.*<ip>\(.*\)<\/ip>.*/\1/p' "$repo/deploy/compose/stack/clickhouse/users.xml")"
+    [ -n "$net" ] && [ "$ips" = "$net" ] || { echo "ingest $net, users.xml: $ips"; return 1; }
+}
+check "users.xml admits the pipeline from the ingest network's subnet, nothing wider" users_match
+check "the migrations are applied and recorded with their SHA-256" \
+    owner_ch "SELECT throwIf(count() != 1) FROM meta.migrations WHERE name = '0001_facts.sql' AND length(sha256) = 64"
+# D8: the pipeline gets rows of facts, never tables, other databases or the outside world
+check "the pipeline inserts and reads a fact" chc_is 1 pipeline pipeline \
+    "INSERT INTO research.facts (cik, value, period_start, period_end, known_at, filed_date, fiscal_year, fact_hash) VALUES (4294967295, 1.5, '2024-01-01', '2024-12-31', now64(3), today(), 2024, repeat('0', 64)); SELECT count() FROM research.facts WHERE cik = 4294967295"
+refuse "the pipeline cannot drop the facts table" chc pipeline pipeline "DROP TABLE research.facts"
+refuse "the pipeline cannot create a table" chc pipeline pipeline "CREATE TABLE research.stack_test_new (a Int8) ENGINE = Memory"
+refuse "the pipeline cannot delete facts (append-only)" chc pipeline pipeline "ALTER TABLE research.facts DELETE WHERE cik = 4294967295"
+refuse "the pipeline cannot truncate the facts table" chc pipeline pipeline "TRUNCATE TABLE research.facts"
+refuse "the pipeline cannot read the migrations' record" chc pipeline pipeline "SELECT count() FROM meta.migrations"
+refuse "the pipeline cannot list the users" chc pipeline pipeline "SELECT name FROM system.users"
+refuse "url() is refused" chc pipeline pipeline "SELECT * FROM url('https://www.sec.gov/', CSV, 'a String')"
+refuse "file() is refused" chc pipeline pipeline "SELECT * FROM file('a.csv', CSV, 'a String')"
+refuse "remote() is refused" chc pipeline pipeline "SELECT * FROM remote('postgres-data.svc.aether.localhost', system.one)"
+refuse "s3() is refused" chc pipeline pipeline "SELECT * FROM s3('https://www.sec.gov/bucket/key.csv', CSV, 'a String')"
+refuse "executable() is refused" chc pipeline pipeline "SELECT * FROM executable('x.sh', TSV, 'a String')"
+refuse "postgresql() is refused" chc pipeline pipeline "SELECT * FROM postgresql('postgres-data.svc.aether.localhost:5432', 'research', 't', 'u', 'p')"
+ch_secrets_hidden() { # in no process environment of the container, not in inspect, not in its log
+    local id s
+    id="$(dc ps -q clickhouse)"
+    docker exec "$id" bash -c '
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in clickhouse-owner-password clickhouse-pipeline-password; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+}
+check "no secret value in clickhouse's process environments, inspect output or log (C5)" ch_secrets_hidden
+ch_reloaded() { # within two reload periods
+    for _ in $(seq 1 9); do tls_py ingest clickhouse-tls "$ch" 9440 no - >/dev/null 2>&1 && return 0; sleep 5; done
+    tls_py ingest clickhouse-tls "$ch" 9440 no -
+}
+check "clickhouse serves the certificate in its volume after its reloads" ch_reloaded
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost
@@ -1168,6 +1271,7 @@ else
     c6 postgres-auth-renewer step-ca "$(gw 172.30.50.1)"
     c6 postgres-auth keycloak "$(gw 172.30.60.1)"
     c6 postgres-data "$pgd" "$(gw 172.30.70.1)"
+    c6 clickhouse "$ch" "$(gw 172.30.70.1)"
     c6 keycloak traefik "$(gw 172.30.61.1)"
     c6 forward-auth traefik "$(gw 172.30.63.1)"
     c6 whoami traefik "$(gw 172.30.63.1)"

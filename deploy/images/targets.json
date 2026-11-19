@@ -5,6 +5,7 @@
     { "name": "step-ca", "context": "deploy/compose/stack/step-ca" },
     { "name": "postgres-auth", "context": "deploy/compose/stack/postgres-auth" },
     { "name": "postgres-data", "context": "deploy/compose/stack/postgres-data" },
+    { "name": "clickhouse", "context": "deploy/compose/stack/clickhouse" },
     { "name": "keycloak", "context": "deploy/keycloak" },
     { "name": "forward-auth", "context": "deploy/compose/stack/forward-auth" },
     { "name": "whoami", "context": "deploy/compose/stack/whoami" },
@@ -13,7 +14,7 @@
     { "name": "egress-lab", "context": "tests/egress/lab" },
     { "name": "host-role-test", "context": "tests/host-role" }
   ],
-  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local", "aetherspark/postgres-data:local","aetherspark/keycloak:local", "aetherspark/forward-auth:local", "aetherspark/whoami:local", "aetherspark/restic:local", "aetherspark/rest-server:local"],
+  "local_images": ["aetherspark/egress-proxy:local", "aetherspark/step-ca:local", "aetherspark/postgres-auth:local", "aetherspark/postgres-data:local", "aetherspark/clickhouse:local", "aetherspark/keycloak:local", "aetherspark/forward-auth:local", "aetherspark/whoami:local", "aetherspark/restic:local", "aetherspark/rest-server:local"],
   "exclude": {
     "deploy/images/grype.Dockerfile": "the scanner's own pin, read by scan.sh; nothing builds it"
   }

@@ -100,7 +100,8 @@ while :; do
     wait -n "$server" "$nap" || code=$?
     if [ "$stopping" = 1 ] || ! kill -0 "$server" 2>/dev/null; then
         kill "$nap" 2>/dev/null || true
-        if [ "$stopping" = 1 ]; then wait "$server" || code=$?; fi
+        # After TERM, `wait -n` returned for the signal, not for the server: wait for the server
+        if [ "$stopping" = 1 ]; then code=0; wait "$server" || code=$?; fi
         log "server stopped (exit $code)"
         exit "$code"
     fi

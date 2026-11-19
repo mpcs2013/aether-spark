@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!-- ClickHouse's users and their rights (docs/architecture/data-plane.md, decision 7), a template:
+     run.sh replaces each @...@ with the SHA-256 of that user's secret file and writes the result
+     into the container's in-memory /tmp at every start, so a rotation applies at the next start.
+     - data_owner: the migration owner, the only user that creates, alters or drops; it signs in
+       only from this container's loopback (run.sh and migrate.sh), never over the network.
+     - pipeline: rows only, and only from the ingest network: it reads and inserts facts.
+     - No `default` user, no ingester (it never reads ClickHouse), and nobody holds a source right
+       (URL, FILE, REMOTE, S3, …), so table functions that reach outside are refused for everyone.
+     The rights live here, not in SQL: users from this file cannot be changed through SQL. -->
+<clickhouse>
+    <profiles>
+        <default/>
+    </profiles>
+    <users>
+        <data_owner>
+            <password_sha256_hex>@DATA_OWNER@</password_sha256_hex>
+            <networks>
+                <ip>127.0.0.1</ip>
+                <ip>::1</ip>
+            </networks>
+            <profile>default</profile>
+            <grants>
+                <query>GRANT CREATE DATABASE, CREATE TABLE, ALTER TABLE, DROP TABLE, SELECT, INSERT, OPTIMIZE ON research.*</query>
+                <query>GRANT CREATE DATABASE, CREATE TABLE, SELECT, INSERT ON meta.*</query>
+                <query>GRANT SYSTEM RELOAD CONFIG ON *.*</query>
+            </grants>
+        </data_owner>
+        <pipeline>
+            <password_sha256_hex>@PIPELINE@</password_sha256_hex>
+            <networks>
+                <ip>172.30.70.0/24</ip>
+            </networks>
+            <profile>default</profile>
+            <grants>
+                <query>GRANT SELECT, INSERT ON research.facts</query>
+            </grants>
+        </pipeline>
+    </users>
+</clickhouse>

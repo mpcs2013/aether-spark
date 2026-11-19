@@ -116,6 +116,7 @@ def _valid() -> dict[str, Any]:
         "keycloak-cert": _service("cert-renewer", "pki"),
         # The data plane's stores and its parser of untrusted filings (data-plane.md)
         "postgres-data": _service("postgres-data", "ingest"),
+        "clickhouse": _service("clickhouse", "ingest"),
         "pipeline": _service("pipeline", "ingest"),
     }
     used = sorted({n for s in services.values() for n in s["networks"]})
@@ -396,6 +397,16 @@ CASES: list[tuple[str, Mutation, str]] = [
         "the research data's Postgres on Keycloak's database network",
         _join("postgres-data", "db-auth"),
         "role postgres-data may not join db-auth",
+    ),
+    (
+        "ClickHouse on Keycloak's database network",
+        _join("clickhouse", "db-auth"),
+        "role clickhouse may not join db-auth",
+    ),
+    (
+        "ClickHouse on Keycloak's front network",
+        _join("clickhouse", "auth-front"),
+        "role clickhouse may not join auth-front",
     ),
     (
         "Keycloak's Postgres on the research data's network",

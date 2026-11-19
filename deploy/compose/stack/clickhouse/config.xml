@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!-- ClickHouse's whole server configuration (docs/architecture/data-plane.md, section 7). The
+     image's /etc/clickhouse-server is not used: run.sh starts the server with this file, so no port,
+     user or setting of the upstream defaults applies unless it is here.
+     - Only the two TLS ports listen: HTTPS (8443) and the native protocol over TLS (9440). The
+       plaintext HTTP and native ports, the MySQL and PostgreSQL wire ports, the interserver port,
+       gRPC and Prometheus are absent, so off.
+     - The users come from users.xml, which run.sh writes into the in-memory /tmp at every start
+       with each password's SHA-256 from its secret file; there is no `default` user.
+     - The certificate comes from the renewer's volume; run.sh's hourly `SYSTEM RELOAD CONFIG`
+       makes the server read the renewed files. -->
+<clickhouse>
+    <logger>
+        <level>information</level>
+        <console>1</console>
+    </logger>
+    <timezone>UTC</timezone>
+
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+    <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+    <user_scripts_path>/var/lib/clickhouse/user_scripts/</user_scripts_path>
+
+    <user_directories>
+        <users_xml>
+            <path>/tmp/clickhouse/users.xml</path>
+        </users_xml>
+    </user_directories>
+    <default_profile>default</default_profile>
+
+    <listen_host>0.0.0.0</listen_host>
+    <https_port>8443</https_port>
+    <tcp_port_secure>9440</tcp_port_secure>
+    <openSSL>
+        <server>
+            <certificateFile>/tls/tls.crt</certificateFile>
+            <privateKeyFile>/tls/tls.key</privateKeyFile>
+            <verificationMode>none</verificationMode>
+            <loadDefaultCAFile>false</loadDefaultCAFile>
+            <cacheSessions>true</cacheSessions>
+            <disableProtocols>sslv2,sslv3,tlsv1,tlsv1_1</disableProtocols>
+            <preferServerCiphers>true</preferServerCiphers>
+        </server>
+    </openSSL>
+
+    <!-- The container's memory limit is the server's RAM (cgroup); queries stop at 80 % of it -->
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+    <mark_cache_size>268435456</mark_cache_size>
+    <!-- Below compose.yaml's pids_limit (4096), so the server's own limit is reached first -->
+    <max_thread_pool_size>2000</max_thread_pool_size>
+    <mlock_executable>false</mlock_executable>
+</clickhouse>

@@ -107,7 +107,14 @@ def test_provisioners_follow_the_manifest() -> None:
 
     manifest = secret_store.load_manifest()
     services = ca.jwk_services(manifest)
-    assert services == ["postgres-auth", "keycloak", "forward-auth", "whoami", "postgres-data"]
+    assert services == [
+        "postgres-auth",
+        "keycloak",
+        "forward-auth",
+        "whoami",
+        "postgres-data",
+        "clickhouse",
+    ]
     compose = COMPOSE.read_text(encoding="utf-8")
     # The bootstrap step serves exactly these, each with its own volume and secret
     assert re.search(r"^\s+SERVICES: (.+)$", compose, re.M)[1].split() == services  # type: ignore[index]
