@@ -22,7 +22,7 @@
 - **Out of scope:** the data Postgres with pgvector, which joins with its first user in P4a, like Redis; ClickHouse (P4a); the services this repository builds (P4a on); observability (WP3.2); the backup job (WP3.4, [backup-job.md](backup-job.md)); the Spark's deployment unit (WP6.4); the NAS certificate (WP6.6).
 
 ## Decisions
-- **Hand-written infrastructure Compose** (decision 1): `deploy/compose/stack/compose.yaml` holds the services with digest pins, the hardening the Compose lint requires (L1) and only the matrix's networks. The egress overlay joins as a second file. From P4a, `aspire publish`'s output for built services is a third file, and the overlay removes its default network as the egress design says.
+- **Hand-written infrastructure Compose** (decision 1): `deploy/compose/stack/compose.yaml` holds the services with digest pins, the hardening the Compose lint requires (L1) and only the matrix's networks. The egress overlay joins as a second file. *Changed 2026-11-19 ([data-plane.md](data-plane.md) decision 4):* from P4a the services built here join this hand-written file too; `aspire publish` is not used, because it passes secrets as environment variables.
 - **Traefik without the Docker API.** Routes come from a reviewed file (file provider); the lint already refuses the Docker socket everywhere. The dashboard and API are off, there is no port 80 entrypoint, and forwarded headers from outside are not trusted.
 - **Verified TLS on every hop.** Every server certificate comes from AetherSpark's own CA, and **every client checks it**: name and issuer, never "accept any certificate". The checks are tests (C3, C3b).
 - **Production start for Keycloak.** An image built here (`deploy/keycloak/Dockerfile`, `FROM` the baseline digest of Ostium's latest notice, `kc.sh build` for Postgres and health) runs `start --optimized`, never `start-dev`.
@@ -260,7 +260,7 @@ PR 6 is built in three parts (owner's decisions of 2026-11-08): **6a**, the real
      - Users have no email, so the username stands in for it (`--oidc-email-claim=preferred_username`).
   2. **The back-channel entrypoint.** Traefik's entrypoint `backchannel` (port 9443, never published) on `auth-edge`, under the internal name `auth-backchannel.aether.<place>` (an alias on `auth-edge`; its certificate from step-ca over ACME like the public names).
      - It routes only the `aetherspark` realm's protocol endpoints and discovery, only from `auth-edge`'s subnet; everything else gets 404, other networks 403.
-     - forward-auth uses it to redeem codes and fetch keys (`--skip-oidc-discovery` with explicit URLs), while it checks that tokens name the **public** issuer. Keycloak issues them under the public name whatever address the request came in on. So the question of O-037 is settled here without Ostium's library; for .NET APIs (P4a) it stays as asked.
+     - forward-auth uses it to redeem codes and fetch keys (`--skip-oidc-discovery` with explicit URLs), while it checks that tokens name the **public** issuer. Keycloak issues them under the public name whatever address the request came in on. So the question of O-037 is settled here without Ostium's library; for .NET APIs (P5a, WP5a.1: corrected 2026-11-19, P4a has none) it stays as asked.
   3. **The realm's client.** `apply` creates or updates `forward-auth` in the `aetherspark` realm:
      - confidential, its secret `forward-auth-client-secret` from the store (also mounted into forward-auth);
      - the browser flow only, PKCE required, redirects only to the page's callback;
