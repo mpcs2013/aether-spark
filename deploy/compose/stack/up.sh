@@ -20,7 +20,7 @@ dc() { docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${extra[@]}"
 
 # The local images: step (step-ca and the step CLI, built from source; the first build takes
 # minutes), postgres-auth's and Keycloak's, the data Postgres's (pgvector compiled in)
-dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data
+dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data clickhouse
 python3 -I "$repo/deploy/secret-store/secret_store.py" generate
 python3 -I "$repo/deploy/secret-store/secret_store.py" unseal
 python3 -I "$repo/deploy/ca/ca.py" prepare

@@ -75,8 +75,8 @@ services:
       STEPPATH: /tmp/.step
       CA_URL: "https://step-ca.svc.aether.${AETHERSPARK_PLACE:-localhost}:9000"
       PLACE: "${AETHERSPARK_PLACE:-localhost}"
-      SERVICES: postgres-auth keycloak forward-auth whoami postgres-data
-    secrets: [step-ca-provisioner-postgres-auth, step-ca-provisioner-keycloak, step-ca-provisioner-forward-auth, step-ca-provisioner-whoami, step-ca-provisioner-postgres-data]
+      SERVICES: postgres-auth keycloak forward-auth whoami postgres-data clickhouse
+    secrets: [step-ca-provisioner-postgres-auth, step-ca-provisioner-keycloak, step-ca-provisioner-forward-auth, step-ca-provisioner-whoami, step-ca-provisioner-postgres-data, step-ca-provisioner-clickhouse]
     volumes:
       - ./cert-bootstrap.sh:/bootstrap.sh:ro
       - *ca-certs
@@ -85,6 +85,7 @@ services:
       - forward-auth-tls:/tls/forward-auth
       - whoami-tls:/tls/whoami
       - postgres-data-tls:/tls/postgres-data
+      - clickhouse-tls:/tls/clickhouse
     networks: [pki]
     depends_on:
       step-ca: { condition: service_healthy }
@@ -139,6 +140,13 @@ services:
     volumes:
       - *ca-certs
       - postgres-data-tls:/tls
+
+  # The same for ClickHouse's; its start script reloads the configuration hourly, which re-reads it
+  clickhouse-renewer:
+    <<: *renewer
+    volumes:
+      - *ca-certs
+      - clickhouse-tls:/tls
 
   # Keycloak's own database server (decision 5): the official image (Alpine, zlib fixed; its FROM line
   # is the pin) with this repository's start script (postgres-auth/run.sh says why not the image's),
@@ -207,6 +215,45 @@ services:
     # Healthy once its roles, database and migrations are in place
     healthcheck:
       test: ["CMD", "sh", "-c", "test -f /tmp/ready && pg_isready -q -h /var/run/postgresql -d postgres -U postgres"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 1s
+
+  # The research data's numbers (docs/architecture/data-plane.md, decisions 6-8): the upstream
+  # image's Alpine variant (zlib and OpenSSL fixed; its FROM line is the pin) with this repository's
+  # start script and whole configuration: the two TLS ports only, users and rights from their secret
+  # files (no `default` user), the migrations as the migration owner; TLS from its renewer's volume,
+  # on ingest only. The ingester has no login here
+  clickhouse:
+    <<: [*no-restart, *hardening]
+    build: ./clickhouse
+    image: aetherspark/clickhouse:local
+    labels: { aetherspark.role: clickhouse }
+    entrypoint: ["bash", "/clickhouse/run.sh"]
+    environment:
+      AETHERSPARK_CH_RELOAD_SECONDS: "${AETHERSPARK_CH_RELOAD_SECONDS:-3600}"
+    secrets: [clickhouse-owner-password, clickhouse-pipeline-password]
+    tmpfs:
+      - /tmp
+    mem_limit: 2g
+    # Threads count as processes: above config.xml's max_thread_pool_size (2000), so the server's
+    # own limit is reached first
+    pids_limit: 4096
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - ./clickhouse:/clickhouse:ro
+      - { type: volume, source: clickhouse-data, target: /var/lib/clickhouse, volume: { nocopy: true } }
+      - clickhouse-tls:/tls:ro
+    networks:
+      ingest:
+        aliases: ["clickhouse.svc.aether.${AETHERSPARK_PLACE:-localhost}"]
+    depends_on:
+      clickhouse-renewer: { condition: service_healthy }
+    # Healthy once its users and migrations are in place
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/ready"]
       interval: 30s
       timeout: 5s
       start_period: 60s
@@ -584,6 +631,12 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/postgres-data-ingester-password"
   postgres-data-pipeline-password:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/postgres-data-pipeline-password"
+  step-ca-provisioner-clickhouse:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/step-ca-provisioner-clickhouse"
+  clickhouse-owner-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/clickhouse-owner-password"
+  clickhouse-pipeline-password:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/clickhouse-pipeline-password"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:
@@ -595,6 +648,8 @@ volumes:
   whoami-tls: {}
   postgres-data-tls: {}
   postgres-data-data: {}
+  clickhouse-tls: {}
+  clickhouse-data: {}
 
 networks:
   # A fixed subnet, so that the source address Traefik sees from the host is known (its gateway)
@@ -633,7 +688,7 @@ networks:
     driver_opts: { com.docker.network.bridge.name: as-auth-edge }
     ipam: { config: [{ subnet: 172.30.62.0/24, gateway: 172.30.62.1, ip_range: 172.30.62.128/25 }] }
   # The data plane's writers and their stores (egress.md, `ingest`; data-plane.md): the subnet is the
-  # one postgres-data/pg_hba.conf admits
+  # one postgres-data/pg_hba.conf and clickhouse/users.xml admit
   ingest:
     internal: true
     enable_ipv6: false
