@@ -1,13 +1,13 @@
 # Dev container: Ubuntu 24.04, the DGX OS userland, with the repo's pinned toolchain (WP2.4).
 # Every input is pinned by digest or checksum (ADR-0005); builds for amd64 and arm64.
 
-FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d AS uv
 
 # gitleaks from its tagged source, built with a current Go: the release image and binaries carry an
 # old Alpine and Go 1.24's standard library, with fixed High/Critical findings (#31). The source
 # archive is checked by SHA-256, its modules by go.sum. CI's gitleaks job runs this same binary
 # (target gitleaks-bin), so the pre-commit hook, the container and CI share one version.
-FROM golang:1.27.3-alpine3.24@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS gitleaks-build
+FROM golang:1.27.4-alpine3.24@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS gitleaks-build
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=e90fb266d75837e75894c778bf594ab8e2787f12dce5a62651f21b893eaf9abb
 RUN set -eu; \
@@ -30,7 +30,7 @@ FROM scratch AS gitleaks-bin
 COPY --from=gitleaks-build /gitleaks /gitleaks
 
 # .NET SDK on Ubuntu 24.04 (noble); global.json names the minimum (latestFeature roll-forward)
-FROM mcr.microsoft.com/dotnet/sdk:10.0.404-noble@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb
+FROM mcr.microsoft.com/dotnet/sdk:10.0.404-noble@sha256:bef136a371963aaa46ec97882845ef6f54dec15728bb4b128b1c2a400ffbc9b4
 
 ARG TARGETARCH
 # apt itself, fixed for CVE-2026-109518; the base image still ships 2.8.3 (2026-11-06)
