@@ -7,7 +7,7 @@
 ## Goal and scope
 No **stack container**, and on the Spark no host process, sends anything to the internet or the LAN except the flows named below. Refusals at the proxies and at the host firewall leave a log line; a connection that has no route leaves none (see Logging).
 
-- **In scope:** the containers of the Compose stack (`just up`: the hand-written infrastructure file `deploy/compose/stack/compose.yaml`, from P4a the file `aspire publish` generates for the services built here, and the egress overlay; [compose-base.md](compose-base.md)) on the desktop, in CI and on the Spark; on the Spark, the host itself.
+- **In scope:** the containers of the Compose stack (`just up`: the hand-written stack file `deploy/compose/stack/compose.yaml`, from P4a with the services built here in it, and the egress overlay; [compose-base.md](compose-base.md), [data-plane.md](data-plane.md) decision 4) on the desktop, in CI and on the Spark; on the Spark, the host itself.
 - **Out of scope:** `aspire run` (its host processes and the containers it starts; development data only) and dev tooling: the dev container (WP2.4), Claude Code sessions (ADR-0015), CI build jobs (ADR-0004).
 
 ## Flows
@@ -36,16 +36,16 @@ Internal networks are cut so that a compromised container reaches only what its 
 | `auth-<group>` (internal, one per group) | Traefik's back-channel entrypoint; the services of one group that validate tokens or get client-credentials tokens | OIDC discovery, JWKS, tokens, through Traefik, which forwards only the realm's protocol paths to Keycloak on `auth-front`. *Corrected 2026-11-04:* Keycloak has no separate admin listener, so it joins only `auth-front` and `db-auth`, and no service reaches it but Traefik |
 | `pki` (internal) | step-ca; Traefik; one renewer per service that holds its own certificate (role `cert-renewer`; the service itself does not join) | Certificate issuance and renewal. Only Traefik carries network aliases here (its served names, for the ACME challenge). The NAS (from WP6.6) renews through Traefik on the ingress rule |
 | `db-auth` (internal) | Keycloak; its own Postgres (`postgres-auth`) | Keycloak's database on a server of its own; it accepts the `keycloak` role from this network only (2026-11-04) |
-| `llm` (internal) | LiteLLM; vLLM/Ollama; agent host; pipeline (embeddings) | Model calls through the gateway only |
+| `llm` (internal) | LiteLLM; vLLM/Ollama; agent host; embed worker (from P5a). *Changed 2026-11-19:* the pipeline, which parses untrusted filings, never joins `llm`; embeddings run in a worker of their own that reads finished chunks ([data-plane.md](data-plane.md) decision 5) | Model calls through the gateway only |
 | `mcp` (internal) | agent host; MCP servers | Tool calls |
 | `data-read` (internal) | MCP servers; verifier; Postgres; ClickHouse (read-only roles) | Queries |
-| `ingest` (internal) | ingester; price job; pipeline; Postgres; ClickHouse (**write-only roles** for the ingester and the price job: insert into their tables, no select on other tables) | Writes |
+| `ingest` (internal) | ingester; price job; pipeline; Postgres; ClickHouse (**own-schema roles**: each program has rights in its own schema only and none on the others' tables; *changed 2026-11-19 from "write-only roles", which cannot hold Wolverine's state or the duplicate check, [data-plane.md](data-plane.md) decision 5*) | Writes |
 | `obs-<group>` (internal, one per group) | the services of one group (push only); the OTel collector | Telemetry in; Grafana/Loki queried through `edge` only |
 | `egress-runtime` (internal) / `out-runtime` | ingester, price job / runtime proxy | Runtime egress |
 | `egress-ops` (internal) / `out-ops` | owner-started jobs (pull jobs, builds, taxonomy download) / ops proxy | Ops egress |
 | `backup` | restic job | NAS only |
 
-**Groups** for the per-group `auth-` and `obs-` networks: `ingest` (ingester, price job, pipeline), `llm` (LiteLLM, serving), `agents` (agent host, MCP servers, verifier), `edge` (UI/API services, Grafana, ntfy). Traefik's back-channel entrypoint and the OTel collector join every group's network (Keycloak itself joins none, 2026-11-04); services of different groups never meet on them. A network shared by "every service" would put the ingester next to LLM serving and MCP servers, which the matrix exists to prevent.
+**Groups** for the per-group `auth-` and `obs-` networks: `ingest` (ingester, price job, pipeline; the pipeline joins only `obs-ingest`, never `auth-ingest`: Python has no Keycloak or JWT dependency, ADR-0002 rule 3, changed 2026-11-19), `llm` (LiteLLM, serving), `agents` (agent host, MCP servers, verifier), `edge` (UI/API services, Grafana, ntfy). Traefik's back-channel entrypoint and the OTel collector join every group's network (Keycloak itself joins none, 2026-11-04); services of different groups never meet on them. A network shared by "every service" would put the ingester next to LLM serving and MCP servers, which the matrix exists to prevent.
 
 Rules the lint checks: the generated Compose's default network is removed by the overlay, and every service is on networks of this matrix only; the ingester and the price job share no network with LLM serving, MCP servers, the agent host or Grafana/Loki query APIs; only Traefik shares a network with Keycloak (and Keycloak's own database, on `db-auth`); LLM serving joins only `llm`, `auth-llm` and `obs-llm`; no container except the proxies joins an `out-*` network; only Traefik joins `ingress`.
 

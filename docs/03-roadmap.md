@@ -100,14 +100,15 @@ Risk: a Windows update can change WSL2 or GPU-driver behaviour → pin the NVIDI
 - **Gate G3:** `just up` from clean WSL2 works; restore drill passes; OIDC login to one sample service; locked-mode restore green in CI and from the local folder feed alone; `just egress-test` and the egress lints green with Traefik, Keycloak and restic in the stack.
 - **Gate G3: met on 2026-11-19.** `just up` from clean WSL2 and the restore drill (the owner's drill from the NAS in a fresh distribution on 2026-11-17, [restore-drill.md](runbooks/restore-drill.md), Record); the OIDC login (C8, by hand on 2026-11-09); locked-mode restore in CI and from the local folder feed alone (WP3.5, `just local-feed-proof` in CI, the owner's `local-check` on 2026-11-12); the egress suite and lints with Traefik, Keycloak and restic in the stack (C6 at the end of every stack test: in CI under the host rules, and the owner's desktop run of 2026-11-19, `stack-test: 0 failed`). That desktop run was the first since the backup job; its four rounds found gaps CI cannot see (Docker Desktop keeps a secret file as it was when the container was created; a terminal under `timeout`; the desktop's stand-in container; a certificate expiring between `just up`'s bootstrap and its renewer), fixed in #109.
 
-### P4a — Data plane, CPU *(≈ 10 Nov – 1 Dec; continues across D)*
-- WP4.1 Schema: ClickHouse bitemporal fact tables (`valid_date`, `known_date`), Postgres reference data and lineage
-- WP4.2 EDGAR ingester (.NET Wolverine: SEC fair-access rate limit, declared User-Agent, retry/backoff, idempotent by accession no.)
-- WP4.3 XBRL normalizer (Python/Polars, CPU): concept mapping, unit scaling, sign conventions, context dedup
-- WP4.4 Validation & anomaly quarantine (NFR-DQ-04); golden-file set (≥ 30 tricky filings); quant-validator agent and G5v go live
-- WP4.5 Chunking + metadata for filings/footnotes; embed the dev universe on the RTX 2060 and run an **early recall test**: `halfvec(512)` vs full-size embeddings (de-risks ADR-0007 change 1 before D)
-- **Dev universe:** ~100 deliberately hard companies × 10 years (ADR-0020); full universe (numbers tier + text tier) ingested on Spark
-- **Gate G4:** golden tests green; point-in-time test proves no look-ahead; CPU baseline benchmark recorded.
+### P4a — Data plane, CPU *(started 2026-11-19 after Gate G3; ≈ 19 Nov – 23 Dec; planned 10 Nov – 1 Dec)*
+Design: [data-plane.md](architecture/data-plane.md) (owner's decisions of 2026-11-19).
+- WP4.1 Schema: ClickHouse bitemporal fact table (`period_end` = valid time, `known_at` = SEC acceptance time, ADR-0007), Postgres reference data and lineage
+- WP4.2 EDGAR ingester (.NET Wolverine: SEC fair-access rate limit, declared User-Agent, retry/backoff, idempotent by accession no.); it hands each filing to the pipeline as a `job_runs` row (ADR-0002 amendment 2)
+- WP4.3 XBRL normalizer (Python/Polars, CPU; Arelle offline with downloaded taxonomies): concept mapping, unit scaling, sign conventions, context dedup
+- WP4.4 Validation & anomaly quarantine (NFR-DQ-04); golden-file set (≥ 30 tricky filings); G5v on every data-pipeline PR and Gate G4 checked by the owner until the quant-validator agent comes with WP2.6
+- WP4.5 Chunking + metadata for filings/footnotes. *Changed 2026-11-19:* no embeddings in P4a; embedding and the recall test (`halfvec(512)` vs full size, ADR-0007 change 1) come when LiteLLM exists (P5a, on the Spark in P5b)
+- **Dev universe:** ~100 deliberately hard companies × 10 years (ADR-0020); the full universe (numbers tier + text tier) is ingested on the Spark in WP5b.2
+- **Gate G4:** golden tests green; point-in-time test proves no look-ahead; CPU baseline recorded as a regression baseline (not an NFR-PERF-05 measurement, which is a Spark target).
 
 ### P5a — Intelligence plane, build against stub *(≈ 10 Nov – 8 Dec, desktop)* — **moved forward**
 Deterministic parts don't need a real model:
@@ -116,6 +117,7 @@ Deterministic parts don't need a real model:
 - WP5a.3 Claims verifier (deterministic) + its tests; quarantined-reader schema validation
 - WP5a.5 Agent oversight (ADR-0019): `agent-audit` stream, deny → stop run, honeytokens, `just agents-off` kill switch + test
 - WP5a.4 Eval harness + golden question set + injection set written (scored at D)
+- WP5a.6 *(added 2026-11-19, from P4a's WP4.5)* Embed worker: reads finished chunks from Postgres, embeds them through LiteLLM (small model on the RTX 2060 in dev), the only data-plane service on `llm`; it never parses filings ([data-plane.md](architecture/data-plane.md) decision 5); prepares the `halfvec(512)` recall test that runs on the Spark in P5b. *Dates of P5a to be re-planned with its start (it was drawn 10 Nov – 8 Dec).*
 - **Gate G5a:** end-to-end run completes with the tiny model (answer quality ignored); verifier BLOCKs a seeded wrong claim; scope tests deny cross-lane calls; a token issued for one MCP server is rejected by every other; `just egress-test` and the egress lints green with MCP servers, LiteLLM and Ollama in the stack.
 
 ### P6 — Spark provisioning & cutover *(D … D+5 days)*

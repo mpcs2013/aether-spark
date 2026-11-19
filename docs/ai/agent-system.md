@@ -226,7 +226,7 @@ Metrics: citation precision, verifier BLOCK rate, injection success rate (target
 |---|---|
 | WP2.6 (waits for Norma) | Lock the first Norma version that covers AetherSpark's needs (core, .NET pack, a Python pack when available); write the project layer (`project.json`, `boundaries.json`, CLAUDE.md from §3/§4); add `data_guard.py`, budgets lint and identity-tied approvals as a pack, overlay guards or core options |
 | WP2.6 | First issue through the pipeline = the lock and project layer itself (ci-tooling class, G3+G6) |
-| P4a | quant-validator + `xbrl-golden-test`, `point-in-time-test` skills go live with the data plane |
+| P4a | quant-validator + `xbrl-golden-test`, `point-in-time-test` skills go live with the data plane. *Changed 2026-11-19:* the agents wait for WP2.6 (Norma); until then the owner checks G5v on every data-pipeline PR and Gate G4 by hand ([data-plane.md](../architecture/data-plane.md) decision 11) |
 | P5a (WP5a.2–5a.5) | `policy/agents.yaml`, agent host, verifier, eval harness; runtime agents behind G5v |
 
 ## 8. Divergence log (closed 2026-10-16)
