@@ -3,7 +3,7 @@
 # package fixes) with the pgvector extension compiled in from its tagged source. The extension is
 # built in now and created in the database only when the embeddings come (P5a). The start script,
 # migrations and pg_hba.conf are mounted from this folder at run time, not copied in.
-FROM postgres:18.6-alpine3.24@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395 AS build
+FROM postgres:18.7-alpine3.24@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38c5105903c6295876738ff AS build
 ARG PGVECTOR_VERSION=0.8.7
 ARG PGVECTOR_SHA256=cac0b10c360f05b2d521200105ba3697e773d4cd3731f5a915a7e37ebe0bea85
 # OPTFLAGS="": no -march=native, so the image runs on any CPU of its architecture; with_llvm=no: no
@@ -19,11 +19,9 @@ RUN set -eu; \
     make OPTFLAGS="" with_llvm=no install DESTDIR=/out; \
     test -f /out/usr/local/lib/postgresql/vector.so
 
-FROM postgres:18.6-alpine3.24@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
-# The same fixes as postgres-auth/Dockerfile (zlib, krb5-libs, libxslt); drop them together with
-# that file's once the base image carries them
-ARG ZLIB_VERSION=1.4-r0
-ARG KRB5_VERSION=1.22.3-r0
-ARG LIBXSLT_VERSION=1.1.43-r4
-RUN apk add --no-cache "zlib=${ZLIB_VERSION}" "krb5-libs=${KRB5_VERSION}" "libxslt=${LIBXSLT_VERSION}"
+FROM postgres:18.7-alpine3.24@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38c5105903c6295876738ff
+# The same fix as postgres-auth/Dockerfile (OpenSSL); drop it together with that file's once the
+# base image carries 3.5.9-r1 or newer
+ARG OPENSSL_VERSION=3.5.9-r1
+RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}"
 COPY --from=build /out/usr/local/ /usr/local/
