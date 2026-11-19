@@ -112,8 +112,11 @@ def _valid() -> dict[str, Any]:
         ),
         # Keycloak behind Traefik only, with its own database (compose-base.md)
         "keycloak": _service("keycloak", "auth-front", "db-auth"),
-        "postgres-auth": _service("postgres", "db-auth"),
+        "postgres-auth": _service("postgres-auth", "db-auth"),
         "keycloak-cert": _service("cert-renewer", "pki"),
+        # The data plane's stores and its parser of untrusted filings (data-plane.md)
+        "postgres-data": _service("postgres-data", "ingest"),
+        "pipeline": _service("pipeline", "ingest"),
     }
     used = sorted({n for s in services.values() for n in s["networks"]})
     return {
@@ -390,6 +393,26 @@ CASES: list[tuple[str, Mutation, str]] = [
         "role cert-renewer may not join db-auth",
     ),
     (
+        "the research data's Postgres on Keycloak's database network",
+        _join("postgres-data", "db-auth"),
+        "role postgres-data may not join db-auth",
+    ),
+    (
+        "Keycloak's Postgres on the research data's network",
+        _join("postgres-auth", "ingest"),
+        "role postgres-auth may not join ingest",
+    ),
+    (
+        "the pipeline on a back-channel network (no Keycloak in Python)",
+        _join("pipeline", "auth-ingest"),
+        "role pipeline may not join auth-ingest",
+    ),
+    (
+        "the pipeline on the model network",
+        _join("pipeline", "llm"),
+        "role pipeline may not join llm",
+    ),
+    (
         "serving on a proxy network",
         _join("vllm", "egress-ops"),
         "role llm-serving may not join egress-ops",
@@ -437,6 +460,17 @@ def test_pair_rule_holds_even_if_the_matrix_is_widened() -> None:
     _join("ingester", "llm")(project)
     findings = _findings(project, policy)
     assert findings == ["network llm: ['ingester'] share it with ['llm-serving']"]
+
+
+def test_pipeline_never_meets_the_agent_side_even_if_the_matrix_is_widened() -> None:
+    """The parser of untrusted filings never shares a network with LLM serving or the agent side,
+    even after a matrix edit allows it (data-plane.md, decision 5)."""
+    policy = copy.deepcopy(POLICY)
+    policy["networks"]["llm"]["roles"].append("pipeline")
+    project = _valid()
+    _join("pipeline", "llm")(project)
+    findings = _findings(project, policy)
+    assert findings == ["network llm: ['pipeline'] share it with ['llm-serving']"]
 
 
 def test_only_traefik_shares_a_network_with_keycloak_even_if_the_matrix_is_widened() -> None:

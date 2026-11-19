@@ -29,7 +29,7 @@
 ### 4. Redis optional
 Nothing in the design requires it (Wolverine keeps durable state in Postgres). Added only when a concrete need appears (LiteLLM rate limiting/cache), as **Valkey** drop-in, consistent with Decisya ADR-0007.
 
-*Note (2026-11-19, proposed with P4a's design, [data-plane.md](../architecture/data-plane.md) section 2):* "latest row" in change 3 is per **full context**: `(cik, concept, unit, period_start, period_end, dimensions)`. Per `period_end` alone, a 10-Q's three-month and year-to-date values, two units or two segments would replace each other. The table's sort key is unchanged.
+*Note (2026-11-19, accepted 2026-11-19 with P4a's design, #112, [data-plane.md](../architecture/data-plane.md) section 2):* "latest row" in change 3 is per **full context**: `(cik, concept, unit, period_start, period_end, dimensions)`. Per `period_end` alone, a 10-Q's three-month and year-to-date values, two units or two segments would replace each other. The table's sort key is unchanged.
 
 ### Migrations
 EF Core 10 migrations (Postgres); versioned SQL scripts (ClickHouse).

@@ -4,7 +4,7 @@
   "roles": [
     "traefik", "ui-api", "keycloak", "grafana", "ntfy", "step-ca",
     "litellm", "llm-serving", "agent-host", "mcp-server", "verifier",
-    "postgres", "clickhouse", "ingester", "price-job", "pipeline",
+    "postgres-auth", "postgres-data", "clickhouse", "ingester", "price-job", "pipeline",
     "otel-collector", "runtime-proxy", "ops-proxy",
     "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"
   ],
@@ -16,12 +16,12 @@
     "auth-agents":    { "bridge": "as-auth-agents", "internal": true,  "roles": ["traefik", "agent-host", "mcp-server", "verifier"] },
     "auth-edge":      { "bridge": "as-auth-edge",   "internal": true,  "roles": ["traefik", "ui-api", "grafana", "ntfy"] },
     "auth-front":     { "bridge": "as-auth-front",  "internal": true,  "roles": ["traefik", "keycloak"] },
-    "db-auth":        { "bridge": "as-db-auth",     "internal": true,  "roles": ["keycloak", "postgres"] },
+    "db-auth":        { "bridge": "as-db-auth",     "internal": true,  "roles": ["keycloak", "postgres-auth"] },
     "pki":            { "bridge": "as-pki",         "internal": true,  "roles": ["step-ca", "traefik", "cert-renewer"] },
     "llm":            { "bridge": "as-llm",         "internal": true,  "roles": ["litellm", "llm-serving", "agent-host"] },
     "mcp":            { "bridge": "as-mcp",         "internal": true,  "roles": ["agent-host", "mcp-server"] },
-    "data-read":      { "bridge": "as-data-read",   "internal": true,  "roles": ["mcp-server", "verifier", "postgres", "clickhouse"] },
-    "ingest":         { "bridge": "as-ingest",      "internal": true,  "roles": ["ingester", "price-job", "pipeline", "postgres", "clickhouse"] },
+    "data-read":      { "bridge": "as-data-read",   "internal": true,  "roles": ["mcp-server", "verifier", "postgres-data", "clickhouse"] },
+    "ingest":         { "bridge": "as-ingest",      "internal": true,  "roles": ["ingester", "price-job", "pipeline", "postgres-data", "clickhouse"] },
     "obs-ingest":     { "bridge": "as-obs-ingest",  "internal": true,  "roles": ["otel-collector", "ingester", "price-job", "pipeline"] },
     "obs-llm":        { "bridge": "as-obs-llm",     "internal": true,  "roles": ["otel-collector", "litellm", "llm-serving"] },
     "obs-agents":     { "bridge": "as-obs-agents",  "internal": true,  "roles": ["otel-collector", "agent-host", "mcp-server", "verifier"] },
@@ -35,7 +35,7 @@
   "never_share_a_network": [
     { "roles": ["ingester", "price-job"], "with": ["llm-serving", "mcp-server", "agent-host", "grafana"] },
     { "roles": ["pipeline"], "with": ["llm-serving", "litellm", "mcp-server", "agent-host", "grafana"] },
-    { "roles": ["keycloak"], "with": ["ui-api", "grafana", "ntfy", "step-ca", "litellm", "llm-serving", "agent-host", "mcp-server", "verifier", "clickhouse", "ingester", "price-job", "pipeline", "otel-collector", "runtime-proxy", "ops-proxy", "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"] }
+    { "roles": ["keycloak"], "with": ["ui-api", "grafana", "ntfy", "step-ca", "litellm", "llm-serving", "agent-host", "mcp-server", "verifier", "postgres-data", "clickhouse", "ingester", "price-job", "pipeline", "otel-collector", "runtime-proxy", "ops-proxy", "pull-job", "build-job", "taxonomy-job", "restic", "cert-renewer"] }
   ],
   "published_ports_roles": ["traefik"],
   "_secret_source_dirs": "Folders a Compose secret may come from, as full-match regular expressions: the in-memory secrets folder on the Spark and under the WSL2 user's runtime folder on the desktop (docs/architecture/compose-base.md, Secrets). A secret file must sit directly in one of them.",

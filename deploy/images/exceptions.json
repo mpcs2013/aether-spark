@@ -928,24 +928,6 @@
       "expires": "2026-12-18"
     },
     {
-      "id": "CVE-2026-107496",
-      "target": "postgres-auth",
-      "package": "libcrypto3",
-      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-107496",
-      "target": "postgres-auth",
-      "package": "libssl3",
-      "reason": "CMS_encrypt() loops forever on an EC recipient certificate with group order 1. Only applications that CMS-encrypt to a certificate an attacker supplies are affected; OpenSSL's TLS and QUIC do not use this path. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
       "id": "CVE-2026-88823",
       "target": "curlimages/curl",
       "package": "libcrypto3",
