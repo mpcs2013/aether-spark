@@ -928,60 +928,6 @@
       "expires": "2026-12-18"
     },
     {
-      "id": "CVE-2026-88823",
-      "target": "postgres-auth",
-      "package": "libcrypto3",
-      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-88823",
-      "target": "postgres-auth",
-      "package": "libssl3",
-      "reason": "AES-GCM-SIV leaves earlier AAD unauthenticated after an empty AAD update (forgery). Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-95692",
-      "target": "postgres-auth",
-      "package": "libcrypto3",
-      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-95692",
-      "target": "postgres-auth",
-      "package": "libssl3",
-      "reason": "AES-GCM-SIV reads past a too-short IV and truncates a too-long one. Only applications that call AES-GCM-SIV through OpenSSL's EVP interface are affected; TLS does not use AES-GCM-SIV. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-95691",
-      "target": "postgres-auth",
-      "package": "libcrypto3",
-      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
-      "id": "CVE-2026-95691",
-      "target": "postgres-auth",
-      "package": "libssl3",
-      "reason": "OpenSSL's QUIC client: a malicious QUIC server can cause a use-after-free read. Only applications that use OpenSSL as a QUIC (HTTP/3) client are affected. PostgreSQL uses OpenSSL only for its TLS server and libpq's TLS client (the backup's dump): no AES-GCM-SIV, no QUIC, no CMS encryption. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
-      "issue": 31,
-      "approved": "2026-11-18",
-      "expires": "2026-12-18"
-    },
-    {
       "id": "CVE-2026-107496",
       "target": "postgres-auth",
       "package": "libcrypto3",
