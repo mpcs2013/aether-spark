@@ -15,7 +15,7 @@ fi
 # host, which the rules do not restrict here (only the Spark's host mode does).
 COMPOSE_PROJECT_NAME=as-stack-test AETHERSPARK_PLACE=localhost \
     docker compose -f "$repo/deploy/compose/stack/compose.yaml" -f "$repo/tests/stack/compose.test.yaml" \
-    build step-ca postgres-auth keycloak forward-auth whoami backup backup-standin \
+    build step-ca postgres-auth postgres-data keycloak forward-auth whoami backup backup-standin \
     || exit 1
 for f in tests/egress/compose.layer3.yaml tests/egress/compose.test.yaml tests/stack/compose.test.yaml deploy/compose/stack/compose.yaml; do
     for image in $(sed -n 's/^ *image: *\([^ ]*@sha256:[0-9a-f]*\) *$/\1/p' "$repo/$f" | sort -u); do
