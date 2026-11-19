@@ -440,7 +440,7 @@ Two different situations, documented in `docs/runbooks/certificates.md` and test
   - **E14, adapted:** during the whole run (sign-ins, renewals, restarts, expiry and recovery), the rules dropped nothing from the stack's networks, so no service tried to reach anything outside;
   - **E16:** no service reaches a host listener through its network's gateway;
   - **Traefik**, on `ingress`, a network with a route out: the same probes fail, and the drops are logged on `ingress` (E9).
-- **On the desktop** there is no layer 3. Traefik's probes are skipped with a visible line: on Docker Desktop it can reach the internet, as the egress design accepts.
+- **On the desktop** there is no layer 3. Traefik's probes are skipped with a visible line: on Docker Desktop it can reach the internet, as the egress design accepts. First run with every service, the backup job included: the owner's, 2026-11-19, `stack-test: 0 failed` (Gate G3), after the fixes of #109.
 - **On the Spark** C6 runs with the stack's first deployment (WP6.4).
 
 ## Residual risks

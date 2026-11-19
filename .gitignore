@@ -38,6 +38,9 @@ Thumbs.db
 .local.ref/
 .local.ops/
 ops.local/
+# Every other local-only folder of that naming (N-016), at the top level: for example the owner's
+# Norma notice checker (.local.norma-check/, N-025) or a later capture folder
+/.local.*/
 
 # Scratch output folder of Claude desktop sessions (may contain site details)
 Claude outputs/
