@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # step-ca, Traefik and postgres-auth end to end (docs/architecture/compose-base.md, tests C3, C3b,
-# C5 for postgres-auth, C6, C9a, C9b, C11). C6's host-rule checks need tests/stack/layer3.sh (CI).
+# C5 for postgres-auth, C6, C9a, C9b, C11), and the data Postgres (docs/architecture/data-plane.md,
+# D8 and D10 for it). C6's host-rule checks need tests/stack/layer3.sh (CI).
 # Needs Docker, age, python3, curl and openssl; runs in WSL2 and in CI (about 13 minutes).
 # Everything is throw-away: its own Compose project, store, dev key and in-memory folder, and
 # 3-minute certificates so that renewal and expiry happen within the run. Prints PASS/FAIL lines;
@@ -343,6 +344,111 @@ pg_secrets_hidden() { # in no process environment of the container, not in inspe
 check "no secret value in postgres-auth's process environments, inspect output or log (C5)" pg_secrets_hidden
 # Within a reload period: with 3-minute certificates the renewer may have just replaced the files
 check "postgres-auth serves the certificate in its volume" pg_reloaded
+
+echo "--- postgres-data: TLS only, its two runtime roles only, rows not tables (C3, C3b, C5, D8, D10)"
+# A client on ingest: psql in postgres-data's own image and service definition, as on_db for
+# postgres-auth. The password sources: ingester, pipeline, owner, superuser, or a wrong one
+pgd=postgres-data.svc.aether.localhost
+cat >"$work/pg/client-data.sh" <<'EOF'
+set -euo pipefail
+user=$1 source=$2 conninfo=$3 sql=$4
+{
+    printf '*:*:*:%s:' "$user"
+    case $source in
+        ingester|pipeline|owner|superuser) cat "/run/secrets/postgres-data-$source-password" ;;
+        *) printf 'not-the-password' ;;
+    esac
+    printf '\n'
+} >/tmp/pgpass
+chmod 0600 /tmp/pgpass
+PGPASSFILE=/tmp/pgpass psql "user=$user connect_timeout=5 $conninfo" -X -q -t -A -v ON_ERROR_STOP=1 -c "$sql"
+EOF
+on_data() { dc run --rm --no-deps -T --entrypoint bash -v "$work/pg:/test:ro" postgres-data "$@"; }
+pgdc() { on_data /test/client-data.sh "$@"; }
+pgd_tls="host=$pgd dbname=research sslmode=verify-full sslrootcert=/test/root.crt"
+pgd_is() { # expected output, then pgdc's arguments
+    local want=$1 got
+    shift
+    got="$(pgdc "$@")" || return 1
+    [ "$got" = "$want" ] || { echo "got: $got"; return 1; }
+}
+# The migration owner, on the server's own socket inside its container (as migrate.sh signs in)
+owner_sql() {
+    docker exec -i "$(dc ps -q postgres-data)" bash -c '
+        umask 077
+        { printf "*:*:*:data_owner:"; cat /run/secrets/postgres-data-owner-password; printf "\n"; } >/tmp/owner.pgpass
+        PGPASSFILE=/tmp/owner.pgpass psql -h /var/run/postgresql -U data_owner -d research -X -q -t -A -v ON_ERROR_STOP=1 -c "$1"
+        code=$?; rm -f /tmp/owner.pgpass; exit $code' _ "$1"
+}
+check "ingester signs in over TLS checked with the CA's root and the name (verify-full)" \
+    pgd_is ingester ingester ingester "$pgd_tls" "select current_user"
+check "pipeline signs in over TLS checked with the CA's root and the name (verify-full)" \
+    pgd_is pipeline pipeline pipeline "$pgd_tls" "select current_user"
+check "the connection is encrypted, TLS 1.2 or newer" pgd_is t ingester ingester "$pgd_tls" \
+    "select ssl and version in ('TLSv1.2', 'TLSv1.3') from pg_stat_ssl where pid = pg_backend_pid()"
+refuse "a plain connection is refused (hostssl only)" \
+    pgdc ingester ingester "host=$pgd dbname=research sslmode=disable" "select 1"
+refuse "a wrong password is refused" pgdc ingester wrong "$pgd_tls" "select 1"
+refuse "the superuser cannot sign in over the network, even with its password" \
+    pgdc postgres superuser "$pgd_tls" "select 1"
+refuse "the migration owner cannot sign in over the network, even with its password" \
+    pgdc data_owner owner "$pgd_tls" "select 1"
+refuse "the ingester cannot open another database" \
+    pgdc ingester ingester "host=$pgd dbname=postgres sslmode=verify-full sslrootcert=/test/root.crt" "select 1"
+refuse "libpq (verify-full) refuses postgres-data under a foreign root" \
+    pgdc ingester ingester "host=$pgd dbname=research sslmode=verify-full sslrootcert=/test/foreign.crt" "select 1"
+pgd_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$(dc ps -q postgres-data)" | awk '{print $1}')"
+refuse "libpq (verify-full) refuses postgres-data by address (not its name)" \
+    pgdc ingester ingester "host=$pgd_ip dbname=research sslmode=verify-full sslrootcert=/test/root.crt" "select 1"
+hba_data_matches() { # every hostssl line of postgres-data's pg_hba.conf admits exactly the ingest subnet
+    local net lines
+    net="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${COMPOSE_PROJECT_NAME}_ingest")"
+    lines="$(awk '$1 == "hostssl" {print $4}' "$repo/deploy/compose/stack/postgres-data/pg_hba.conf" | sort -u)"
+    [ -n "$net" ] && [ "$lines" = "$net" ] || { echo "ingest $net, pg_hba.conf: $lines"; return 1; }
+}
+check "pg_hba.conf admits the ingest network's subnet, nothing wider" hba_data_matches
+check "the migrations are applied and recorded with their SHA-256" \
+    owner_sql "select count(*) = 1 from meta.migrations where name = '0001_schemas.sql' and length(sha256) = 64"
+# D8 with a table of the owner's in each schema: the runtime roles get rows, never tables
+check "the migration owner creates a probe table in ref and in pipeline" \
+    owner_sql "create table if not exists ref.stack_test_probe (id int); create table if not exists pipeline.stack_test_probe (id int)"
+check "the ingester writes and reads rows in ref (default privileges)" \
+    pgdc ingester ingester "$pgd_tls" "insert into ref.stack_test_probe values (1); select count(*) from ref.stack_test_probe"
+check "the pipeline inserts and reads rows in pipeline" \
+    pgdc pipeline pipeline "$pgd_tls" "insert into pipeline.stack_test_probe values (1); select count(*) from pipeline.stack_test_probe"
+refuse "the pipeline cannot update rows in pipeline (insert only)" \
+    pgdc pipeline pipeline "$pgd_tls" "update pipeline.stack_test_probe set id = 2"
+refuse "the ingester cannot drop the owner's table" pgdc ingester ingester "$pgd_tls" "drop table ref.stack_test_probe"
+refuse "the pipeline cannot drop the owner's table" pgdc pipeline pipeline "$pgd_tls" "drop table pipeline.stack_test_probe"
+refuse "the ingester cannot create a table in its own schema" pgdc ingester ingester "$pgd_tls" "create table ref.stack_test_new (id int)"
+refuse "the pipeline cannot create a table in its own schema" pgdc pipeline pipeline "$pgd_tls" "create table pipeline.stack_test_new (id int)"
+refuse "the ingester cannot create a table in public" pgdc ingester ingester "$pgd_tls" "create table public.stack_test_new (id int)"
+refuse "the ingester cannot read the pipeline's schema" pgdc ingester ingester "$pgd_tls" "select count(*) from pipeline.stack_test_probe"
+refuse "the pipeline cannot read the ingester's schema" pgdc pipeline pipeline "$pgd_tls" "select count(*) from ref.stack_test_probe"
+check "neither runtime role holds another role (no pg_* role)" pgd_is 0 ingester ingester "$pgd_tls" \
+    "select count(*) from pg_auth_members m join pg_roles u on u.oid = m.member where u.rolname in ('ingester', 'pipeline', 'data_owner')"
+check "the owner's probe tables are removed again" \
+    owner_sql "drop table ref.stack_test_probe; drop table pipeline.stack_test_probe"
+pgd_secrets_hidden() { # in no process environment of the container, not in inspect, not in its log
+    local id s
+    id="$(dc ps -q postgres-data)"
+    docker exec "$id" bash -c '
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in postgres-data-superuser-password postgres-data-owner-password postgres-data-ingester-password postgres-data-pipeline-password; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+}
+check "no secret value in postgres-data's process environments, inspect output or log (C5)" pgd_secrets_hidden
+pgd_reloaded() { # within two reload periods
+    for _ in $(seq 1 9); do tls_py ingest postgres-data-tls "$pgd" 5432 yes - >/dev/null 2>&1 && return 0; sleep 5; done
+    tls_py ingest postgres-data-tls "$pgd" 5432 yes -
+}
+check "postgres-data serves the certificate in its volume" pgd_reloaded
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost
@@ -1032,7 +1138,7 @@ c6() { # service, control name, gateway (layer 3) or "": the control works, ever
 }
 # Kernel log lines since a mark, from the stack's own bridges. Never `grep -q` at the end of a
 # pipeline: it exits at the first match and, with pipefail, a found line would read as not found.
-stack_bridges='as-(ingress|auth-front|pki|db-auth|edge|auth-edge)'
+stack_bridges='as-(ingress|auth-front|pki|db-auth|edge|auth-edge|ingest)'
 drops_since() { klog | awk -F'[][]' -v since="$1" '$2 + 0 > since + 0' | grep -E "aetherspark-[a-z]+:IN=$stack_bridges "; }
 gw() { [ -n "$layer3" ] && echo "$1"; } # the host-service probe needs layer 3's host listener
 if [ -z "$curl_image" ]; then
@@ -1061,6 +1167,7 @@ else
     c6 step-ca traefik "$(gw 172.30.50.1)"
     c6 postgres-auth-renewer step-ca "$(gw 172.30.50.1)"
     c6 postgres-auth keycloak "$(gw 172.30.60.1)"
+    c6 postgres-data "$pgd" "$(gw 172.30.70.1)"
     c6 keycloak traefik "$(gw 172.30.61.1)"
     c6 forward-auth traefik "$(gw 172.30.63.1)"
     c6 whoami traefik "$(gw 172.30.63.1)"

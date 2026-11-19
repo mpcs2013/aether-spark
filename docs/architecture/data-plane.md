@@ -1,6 +1,6 @@
 # Data plane (P4a) — design
 
-**Status:** proposed 2026-11-19, for the owner's acceptance. Implements the roadmap's P4a (WP4.1–WP4.5) on the desktop with the dev universe, under [ADR-0002](../adr/0002-hybrid-dotnet-python.md), [ADR-0007](../adr/0007-data-stores.md), [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md), [ADR-0014](../adr/0014-quant-dataframe-engine.md), [ADR-0020](../adr/0020-research-universe.md). Requirements: NFR-DQ-01…04, NFR-SEC-01/04/05, NFR-OPS-01/02/06 ([NFRs](../01-nfr.md)); threat T20 ([threat model](../02-threat-model.md)).
+**Status:** accepted 2026-11-19 (#112); being built (As built below). Implements the roadmap's P4a (WP4.1–WP4.5) on the desktop with the dev universe, under [ADR-0002](../adr/0002-hybrid-dotnet-python.md), [ADR-0007](../adr/0007-data-stores.md), [ADR-0012](../adr/0012-network-egress.md) and the [egress design](egress.md), [ADR-0014](../adr/0014-quant-dataframe-engine.md), [ADR-0020](../adr/0020-research-universe.md). Requirements: NFR-DQ-01…04, NFR-SEC-01/04/05, NFR-OPS-01/02/06 ([NFRs](../01-nfr.md)); threat T20 ([threat model](../02-threat-model.md)).
 
 **Reviews (2026-11-19).** `architect` CONSISTENT WITH FIXES (7 major, 4 minor), `security-reviewer` GO WITH FIXES (5 major, 5 minor). All findings are folded in; two of them became owner decisions 4 and 5.
 
@@ -115,6 +115,16 @@ ClickHouse: facts (MergeTree)            data Postgres: pipeline.membership, pip
 6. **Chunks;** then the backup extension, after the home infrastructure's answer.
 
 **Dates:** P4a planned 10 Nov – 1 Dec, started 19 Nov after Gate G3; re-planned to **≈ 19 Nov – 23 Dec**.
+
+## As built
+- **PR 2 is split** like WP3.1's PR 5: **2a** the data Postgres, **2b** ClickHouse.
+- **2a (2026-11-19), the data Postgres:**
+  - **Image** `deploy/compose/stack/postgres-data/`: postgres-auth's pin and package fixes, with pgvector 0.8.7 compiled from its tagged source (archive checked by SHA-256; `OPTFLAGS=""` so it runs on any CPU of its architecture, no LLVM). The extension loads (`CREATE EXTENSION vector`, `halfvec`), but is created in the database only with the embeddings (P5a). A build target of the image scan.
+  - **Roles and rights** (decision 7): `data_owner` owns the database `research` and its schemas and signs in only on the server's own socket; `ingester` and `pipeline` sign in over TLS from `ingest` only. The start script sets all three from their secret files at every start; `0001_schemas.sql` creates `ref`, `ingest_ops` and `pipeline` with default privileges: the ingester rows in `ref` and `ingest_ops`, the pipeline select and insert in `pipeline`; nobody creates in any schema or uses `public`.
+  - **The migration step** is part of the server's start (`migrate.sh`, before it reports healthy), as the migration owner: each file of `migrations/` applied once, in one transaction, recorded with its SHA-256 in `meta.migrations`; a changed file stops the start. So the owner's secret is mounted only into the server, which needs it anyway to set the owner's password, and the services that need the tables start after them. The EF Core migrations of PR 3 arrive as such SQL files.
+  - **No `data` profile:** the data Postgres starts with every `just up`, like the infrastructure; a profile would make `just up`, `just down`, the backup and the tests each name it. *Replaces*, in decision 4 and ADR-0003's note of 2026-11-19, "profile `data`".
+  - **Network `ingest`** at 172.30.70.0/24, the subnet pg_hba.conf admits (checked by the stack test); the role `postgres` is split into `postgres-auth` and `postgres-data` in policy.json, with lint fixtures that fail when either joins the other's network, and when the pipeline joins `auth-ingest` or `llm`.
+  - **Tests** in `tests/stack/run.sh`: C3/C3b (TLS checked by name and root, foreign root and address refused, plain refused), sign-in only for the two runtime roles over the network, D8 (rows yes, tables never, no schema crossing, no other role held), the migrations recorded, C5 for its four secrets, the served certificate, C6 from its namespace.
 
 ## Document changes (in this note's pull request)
 - **ADR-0002 amendment 2:** rule 1's trigger is a `job_runs` row picked up by a long-running worker without a listener (decision 1); the services built here go into the hand-written Compose file, not `aspire publish` (decision 4). ADR index row.
