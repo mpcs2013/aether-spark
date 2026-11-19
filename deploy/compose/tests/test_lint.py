@@ -642,6 +642,42 @@ def test_only_the_backup_job_mounts_only_its_staging_folder(
     assert (findings == []) is ok, findings
 
 
+# The raw SEC downloads' host folder: the ingester writes, the pipeline reads (data-plane.md, 9)
+@pytest.mark.parametrize(
+    ("service", "source", "read_only", "ok"),
+    [
+        ("ingester", "/mnt/e/aetherspark/raw", False, True),
+        ("ingester", "/srv/raw", True, True),
+        ("pipeline", "/srv/raw", True, True),
+        ("pipeline", "/mnt/e/aetherspark/raw", False, False),  # the reader writable
+        ("clickhouse", "/srv/raw", True, False),  # another role, even read-only
+        ("ingester", "/mnt/e", False, False),  # a folder above
+        ("ingester", "/srv", True, False),  # a folder above
+        ("ingester", "/srv/raw/0000320193", False, False),  # a folder below
+        ("ingester", "/srv/models/../raw", False, False),  # not normalised
+        ("pipeline", "/srv/rawer", True, True),  # another folder that only starts alike
+    ],
+)
+def test_only_the_ingester_writes_and_the_pipeline_reads_the_raw_folder(
+    service: str, source: str, read_only: bool, ok: bool
+) -> None:
+    project = _valid()
+    project["services"][service]["volumes"] = [
+        {"type": "bind", "source": source, "target": "/raw", "read_only": read_only}
+    ]
+    findings = _findings(project)
+    assert (findings == []) is ok, findings
+
+
+def test_the_raw_folder_is_never_behind_a_named_volume() -> None:
+    project = _valid()
+    project["volumes"]["raw"] = {"driver_opts": {"type": "none", "o": "bind", "device": "/srv/raw"}}
+    project["services"]["ingester"]["volumes"] = [
+        {"type": "volume", "source": "raw", "target": "/raw"}
+    ]
+    assert any("reaches the raw folder" in f for f in _findings(project))
+
+
 def test_the_staging_exception_is_for_binds_only() -> None:
     project = _valid()
     project["networks"]["backup"] = _net("backup")

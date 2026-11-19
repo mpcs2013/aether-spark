@@ -58,6 +58,8 @@
   "_memory_bind_dirs": "The one exception to host_paths_forbidden's /run: the backup job's in-memory staging folder (docs/architecture/backup-job.md), as full-match regular expressions, bound exactly (never a folder above or below it) and only for these roles.",
   "memory_bind_dirs": { "roles": ["restic"], "dirs": ["/run/aetherspark/backup", "/run/user/[0-9]+/aetherspark/backup"] },
   "model_store": { "volume": "model-store", "writers": ["pull-job"] },
+  "_raw_dirs": "The raw SEC downloads' host folder (docs/architecture/data-plane.md, decision 9): the Spark's and the desktop's (E:, from WSL2). Bound exactly (never a folder above or below it), read-write by the writers, read-only by the readers, by no other role; never behind a named volume.",
+  "raw_dirs": { "dirs": ["/srv/raw", "/mnt/e/aetherspark/raw"], "writers": ["ingester"], "readers": ["pipeline"] },
   "phone_home": {
     "traefik":     { "TRAEFIK_GLOBAL_CHECKNEWVERSION": "false", "TRAEFIK_GLOBAL_SENDANONYMOUSUSAGE": "false" },
     "litellm":     { "LITELLM_LOCAL_MODEL_COST_MAP": "True", "LITELLM_TELEMETRY": "False" },

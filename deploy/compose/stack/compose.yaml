@@ -4,6 +4,12 @@
 # the stack user (AETHERSPARK_UID/GID; the WSL user on the desktop).
 name: aetherspark
 
+# The egress proxies and their networks (docs/architecture/egress.md), one definition for the stack
+# and the egress tests. The runtime proxy starts with every `just up` (data-plane.md section 7); the
+# ops proxy and the model pull stay behind their profiles, as before.
+include:
+  - path: ../egress/compose.yaml
+
 x-hardening: &hardening
   read_only: true
   cap_drop: [ALL]
