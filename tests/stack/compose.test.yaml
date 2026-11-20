@@ -1,9 +1,16 @@
-# Test overlay (tests/stack/run.sh): adds the test route, and a stand-in for the NAS's backup server.
-# Paths are relative to the first file's folder, deploy/compose/stack/.
+# Test overlay (tests/stack/run.sh): adds the test route, an empty universe for the ingester, and a
+# stand-in for the NAS's backup server. Paths are relative to the first file's folder,
+# deploy/compose/stack/.
 services:
   traefik:
     volumes:
       - ../../../tests/stack/test-route.yml:/etc/traefik/dynamic/test/test-route.yml:ro
+
+  # The test's ingester has a dummy contact: it walks an empty universe, never the real dev universe
+  # (Compose merges volumes by their target, so this replaces the stack's /universe mount)
+  ingester:
+    volumes:
+      - { type: bind, source: ../../../tests/stack/universe, target: /universe, read_only: true }
 
   # The backup target's stand-in where the test runs without the host rules (the desktop): an
   # append-only rest-server with private repositories and a login, as on the NAS. With the host rules

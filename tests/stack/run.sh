@@ -608,6 +608,8 @@ ingester_up() {
 check "with the SEC contact entered, the ingester starts and is healthy (its database heartbeat)" ingester_up
 ing() { docker exec "$(dc ps -q ingester)" "$@"; }
 ingester_walked() { # the walk at start went through Wolverine's durable queue to its handler
+    # 0 companies: the overlay mounts the test's empty universe (tests/stack/universe), never the
+    # real dev universe, which this ingester's dummy contact must not walk
     for _ in $(seq 1 30); do
         dc logs ingester 2>&1 | grep -F 'universe walk (start): 0 companies' >/dev/null && return 0
         sleep 2
@@ -615,7 +617,7 @@ ingester_walked() { # the walk at start went through Wolverine's durable queue t
     dc logs --tail 20 ingester 2>&1
     return 1
 }
-check "the walk at start runs (Wolverine's durable local queue, the empty universe file)" ingester_walked
+check "the walk at start runs (Wolverine's durable local queue, the test's empty universe, never the real one)" ingester_walked
 ingester_networks() {
     local got
     got="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(dc ps -q ingester)")"
