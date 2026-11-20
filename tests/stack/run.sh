@@ -27,6 +27,9 @@ cd "$work" || exit 1
 export AETHERSPARK_SECRETS_STORE="$work/store" AETHERSPARK_SECRETS_KEY="$work/key/dev.key"
 export AETHERSPARK_PACKAGE_FEED="$work/packages"
 export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NAME/secrets"
+# The ingester's raw folder: a throw-away one, never the desktop's E: or the Spark's /srv/raw
+export AETHERSPARK_RAW_DIR="$work/raw"
+mkdir -p "$AETHERSPARK_RAW_DIR"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
 name=whoami.aether.localhost
 auth=auth.aether.localhost
@@ -70,6 +73,9 @@ refuse() { # description, command...: PASS when the command fails
     local d=$1 out
     shift
     if out=$("$@" 2>&1); then fail "$d (it succeeded)" "$(printf '%s\n' "$out" | tail -3)"; else pass "$d"; fi
+}
+enter() { # name, value: through the test's file descriptor, never an argument of the tool
+    AETHERSPARK_SECRETS_ENTER_FD=3 python3 -I "$repo/deploy/secret-store/secret_store.py" enter "$1" 3< <(printf '%s\n' "$2") >/dev/null
 }
 cleanup() {
     cd / || return
@@ -200,6 +206,13 @@ if ! up; then
     exit 1
 fi
 pass "just up reaches healthy (CA initialised, postgres-auth bootstrapped and started, Traefik ordered)"
+ingester_left_out() { # no container, a message, and no folder where the secret file belongs
+    grep -F 'the ingester is not started until the SEC contact is entered' "$work/up.log" >/dev/null \
+        || { echo "no message in up.log"; return 1; }
+    [ -z "$(dc ps -aq ingester)" ] || { echo "an ingester container exists"; return 1; }
+    [ ! -e "$AETHERSPARK_SECRETS_DIR/sec-user-agent-contact" ] || { echo "something at the secret's path"; return 1; }
+}
+check "just up leaves the ingester out until the SEC contact is entered, and says so" ingester_left_out
 ca root >"$work/root.crt"
 [ -n "$py_image" ] || { fail "the egress tests' Python image is found (tests/egress/compose.layer3.yaml)"; exit 1; }
 cp "$work/root.crt" "$work/pg/root.crt"
@@ -579,6 +592,115 @@ sec_through_proxy() {
 check "a client on egress-runtime reaches www.sec.gov through the proxy (TLS checked by the client)" sec_through_proxy
 refuse "a host not on the runtime list is refused" on_runtime -s -o /dev/null -m 15 --proxy "$rt_proxy" https://www.example.com/
 refuse "without the proxy, egress-runtime has no way out" on_runtime -s -o /dev/null -m 10 https://www.sec.gov/
+
+echo "--- the ingester: no listener, its two networks, rows only, its schema checked at start (data-plane.md; C5, D8, D10)"
+# just up left it out (setup); a dummy contact as in CI (decision 8), then it starts
+ingester_up() {
+    enter sec-user-agent-contact stack-test@example.org \
+        && python3 -I "$repo/deploy/secret-store/secret_store.py" unseal >/dev/null \
+        && dc up -d --wait ingester
+}
+check "with the SEC contact entered, the ingester starts and is healthy (its database heartbeat)" ingester_up
+ing() { docker exec "$(dc ps -q ingester)" "$@"; }
+ingester_walked() { # the walk at start went through Wolverine's durable queue to its handler
+    for _ in $(seq 1 30); do
+        dc logs ingester 2>&1 | grep -F 'universe walk (start): 0 companies' >/dev/null && return 0
+        sleep 2
+    done
+    dc logs --tail 20 ingester 2>&1
+    return 1
+}
+check "the walk at start runs (Wolverine's durable local queue, the empty universe file)" ingester_walked
+ingester_networks() {
+    local got
+    got="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(dc ps -q ingester)")"
+    [ "$got" = "${COMPOSE_PROJECT_NAME}_egress-runtime ${COMPOSE_PROJECT_NAME}_ingest " ] || { echo "networks: $got"; return 1; }
+}
+check "the ingester is on ingest and egress-runtime only" ingester_networks
+ingester_no_listener() { # no listening TCP socket (state 0A) and no listening Unix socket (flag 00010000);
+    # 127.0.0.11 (0B00007F) is Docker's own resolver, which listens in every container's namespace
+    local found
+    found="$(ing cat /proc/net/tcp /proc/net/tcp6 | awk '$4 == "0A" && $2 !~ /^0B00007F:/')$(ing cat /proc/net/unix | awk 'NR > 1 && $4 == "00010000"')"
+    [ -z "$found" ] || { echo "$found"; return 1; }
+}
+check "the ingester listens on no socket, TCP or Unix (no diagnostics socket either)" ingester_no_listener
+check "the ingester writes its raw folder" ing sh -c 'touch /raw/.stack-test && rm /raw/.stack-test'
+refuse "the ingester cannot write its universe file (read-only)" ing touch /universe/universe.csv
+refuse "the ingester cannot write its program files (read-only root)" ing touch /app/stack-test
+ingester_secrets_hidden() { # as postgres-data's C5: no process environment, inspect output or log holds one
+    local id s
+    id="$(dc ps -q ingester)"
+    docker exec "$id" sh -c '
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
+        done' || return 1
+    for s in postgres-data-ingester-password sec-user-agent-contact; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
+}
+check "no secret value in the ingester's process environments, inspect output or log (C5)" ingester_secrets_hidden
+check "the ingester's migrations are applied and recorded (EF Core's, Wolverine's, the rights)" owner_sql \
+    "select (select count(*) from meta.migrations where name in ('0002_ingester_tables.sql', '0003_ingester_wolverine.sql', '0004_ingester_rights.sql')) = 3 and (select count(*) from meta.ef_migrations) = 1"
+check "the ingester writes and removes a company in ref (rows)" pgdc ingester ingester "$pgd_tls" \
+    "insert into ref.issuers values (9999999999, 'stack test', now(), now()); delete from ref.issuers where cik = 9999999999"
+refuse "the database refuses a malformed accession number (its check constraint)" pgdc ingester ingester "$pgd_tls" \
+    "insert into ref.issuers values (9999999999, 'stack test', now(), now()); insert into ref.filings values ('../etc', 9999999999, '10-K', now(), current_date, null, now())"
+refuse "the ingester cannot create a table in ingest_ops" pgdc ingester ingester "$pgd_tls" "create table ingest_ops.stack_test_new (id int)"
+check "the ingester reads meta.ef_migrations (its start check)" pgdc ingester ingester "$pgd_tls" "select count(*) from meta.ef_migrations"
+refuse "the ingester cannot read meta.migrations (the owner's)" pgdc ingester ingester "$pgd_tls" "select count(*) from meta.migrations"
+check "the pipeline reads the jobs" pgdc pipeline pipeline "$pgd_tls" "select count(*) from ingest_ops.job_runs"
+check "the pipeline may update a job's status columns" pgdc pipeline pipeline "$pgd_tls" \
+    "update ingest_ops.job_runs set status = 'done', reason = null, attempts = 1, started_at = now(), finished_at = now() where false"
+refuse "the pipeline cannot change a job's contract" pgdc pipeline pipeline "$pgd_tls" \
+    "update ingest_ops.job_runs set contract = '{}' where false"
+refuse "the pipeline cannot add a job" pgdc pipeline pipeline "$pgd_tls" \
+    "insert into ingest_ops.job_runs (accession_no, contract, created_at) values ('0000000000-00-000000', '{}', now())"
+refuse "the pipeline cannot read Wolverine's tables" pgdc pipeline pipeline "$pgd_tls" \
+    "select count(*) from ingest_ops.wolverine_incoming_envelopes"
+# The start check: with a migration missing, or Wolverine's tables not as its version expects, the
+# ingester stops before any work and names the gap; once the database is right again, it starts
+ingester_exits() { # text, since: the ingester, started, stops with an error and the text in its log
+    local id state=
+    dc up -d ingester >/dev/null 2>&1
+    id="$(dc ps -aq ingester)"
+    for _ in $(seq 1 30); do
+        state="$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$id")"
+        case $state in exited*) break ;; esac
+        sleep 2
+    done
+    case $state in "exited 0" | "" | running* | created* | restarting*) echo "state: $state"; return 1 ;; esac
+    docker logs --since "$2" "$id" 2>&1 | grep -F "$1" >/dev/null || { docker logs --tail 15 "$id" 2>&1; return 1; }
+}
+ingester_guard_ef() {
+    local since
+    dc stop ingester >/dev/null 2>&1
+    owner_sql "create table meta.stack_test_ef as select * from meta.ef_migrations; delete from meta.ef_migrations" >/dev/null \
+        || return 1
+    since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    ingester_exits "lacks the ingester's migrations" "$since"
+}
+ingester_ef_back() {
+    owner_sql "insert into meta.ef_migrations select * from meta.stack_test_ef; drop table meta.stack_test_ef" >/dev/null \
+        && dc up -d --wait ingester
+}
+check "the ingester refuses to start while an EF migration is missing" ingester_guard_ef
+check "... and starts once it is back" ingester_ef_back
+ingester_guard_wolverine() {
+    local since
+    dc stop ingester >/dev/null 2>&1
+    owner_sql "drop index ingest_ops.idx_wolverine_incoming_envelopes_keep_until" >/dev/null || return 1
+    since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    ingester_exits "idx_wolverine_incoming_envelopes_keep_until" "$since"
+}
+ingester_index_back() { # as 0003_ingester_wolverine.sql makes it
+    owner_sql "CREATE INDEX idx_wolverine_incoming_envelopes_keep_until ON ingest_ops.wolverine_incoming_envelopes USING btree (keep_until) WHERE (status = 'Handled')" >/dev/null \
+        && dc up -d --wait ingester
+}
+check "the ingester refuses to start while Wolverine's tables differ from its version's (an index dropped)" ingester_guard_wolverine
+check "... and starts once the index is back" ingester_index_back
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost
@@ -1127,9 +1249,6 @@ else
 fi
 python3 -I -c 'import secrets; print(secrets.token_urlsafe(32))' >"$work/owner/pw"
 chmod 0644 "$work/owner/pw"
-enter() { # name, value: through the test's file descriptor, never an argument of the tool
-    AETHERSPARK_SECRETS_ENTER_FD=3 python3 -I "$repo/deploy/secret-store/secret_store.py" enter "$1" 3< <(printf '%s\n' "$2") >/dev/null
-}
 # Never `grep -q` at the end of a pipeline here (pipefail: an early exit reads as "not found")
 no_login_yet() { bk run --if-due 2>&1 | grep 'skipped: no backup login' >/dev/null; }
 check "B: just up before the login is entered warns and skips the backup" no_login_yet
@@ -1299,6 +1418,7 @@ else
     c6 postgres-auth keycloak "$(gw 172.30.60.1)"
     c6 postgres-data "$pgd" "$(gw 172.30.70.1)"
     c6 clickhouse "$ch" "$(gw 172.30.70.1)"
+    c6 ingester "$pgd" "$(gw 172.30.70.1)"
     c6 keycloak traefik "$(gw 172.30.61.1)"
     c6 forward-auth traefik "$(gw 172.30.63.1)"
     c6 whoami traefik "$(gw 172.30.63.1)"

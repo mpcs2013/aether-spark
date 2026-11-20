@@ -265,6 +265,44 @@ services:
       start_period: 60s
       start_interval: 1s
 
+  # The EDGAR ingester (docs/architecture/data-plane.md, section 3): a .NET worker without a listener,
+  # built from the repository root. Its database login over verified TLS on ingest (the stack's root
+  # only); the SEC only through the runtime proxy on egress-runtime (PR 3b2). Writes the raw folder
+  # (AETHERSPARK_RAW_DIR, decision 9; up.sh picks the desktop's or the Spark's), reads the universe
+  # file. Starts only once the SEC contact is entered (up.sh): a missing secret file would become a
+  # root-owned folder. Healthy while its heartbeat file is fresh (a database query every 15 s)
+  ingester:
+    <<: [*no-restart, *hardening]
+    build:
+      context: ../../..
+      dockerfile: src/dotnet/AetherSpark.Ingester/Dockerfile
+    image: aetherspark/ingester:local
+    labels: { aetherspark.role: ingester }
+    environment:
+      AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
+    secrets: [postgres-data-ingester-password, sec-user-agent-contact]
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    pids_limit: 200
+    volumes:
+      - *ca-certs
+      - type: bind
+        source: "${AETHERSPARK_RAW_DIR:-/srv/raw}"
+        target: /raw
+        bind: { create_host_path: false }
+      - { type: bind, source: ../../universe, target: /universe, read_only: true }
+    networks: [ingest, egress-runtime]
+    depends_on:
+      postgres-data: { condition: service_healthy }
+      egress-runtime: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "sh", "-c", "f=/tmp/heartbeat; test -f $$f && test $$(( $$(date +%s) - $$(stat -c %Y $$f) )) -lt 60"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+
   # Keycloak (compose-base.md, "Keycloak exposure"): built from Ostium's notice (deploy/keycloak),
   # production start, reached only by Traefik on auth-front; its database over verified TLS on
   # db-auth. Its two passwords come from one configuration file in the in-memory secrets folder
@@ -643,6 +681,8 @@ secrets:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/clickhouse-owner-password"
   clickhouse-pipeline-password:
     file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/clickhouse-pipeline-password"
+  sec-user-agent-contact:
+    file: "${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR}/aetherspark/secrets}/sec-user-agent-contact"
 
 # Created and given to the stack user by `just up` (deploy/ca/ca.py volumes)
 volumes:

@@ -441,7 +441,9 @@ def test_cis_image_filter_covers_every_build_context() -> None:
     assert pattern is not None
     for target in policy.load_targets():
         if target.kind == "build":
-            assert re.search(pattern[1], f"{target.source}/entrypoint.sh"), target.source
+            # A target built from the repository root changes with its Dockerfile's folder
+            folder = target.dockerfile.rsplit("/", 1)[0] if target.source == "." else target.source
+            assert re.search(pattern[1], f"{folder}/entrypoint.sh"), target.source
     assert re.search(pattern[1], "deploy/images/exceptions.json")
 
 

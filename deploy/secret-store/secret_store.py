@@ -51,6 +51,9 @@ ENTERED = {
     "password": re.compile(r"^[\x21-\x7e]{12,256}$"),
     "address": re.compile(r"^[A-Za-z0-9.-]{1,253}:[0-9]{1,5}$"),
     "path": re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*/?$"),
+    # An email address for a request header (the SEC's User-Agent): no space, quote or control
+    # character, so it cannot end the header or add one
+    "contact": re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})+$"),
 }
 # Tests and CI give an entered value through this file descriptor instead of a terminal
 ENTER_FD = "AETHERSPARK_SECRETS_ENTER_FD"

@@ -150,6 +150,13 @@ def test_url_references_are_percent_encoded() -> None:
         ("path", "/root", False),
         ("path", "a/../b", False),
         ("path", "a?b", False),
+        ("contact", "research@example.org", True),
+        ("contact", "first.last+sec@mail.example.co.uk", True),
+        ("contact", "research@localhost", False),
+        ("contact", "Research Team research@example.org", False),
+        ("contact", "research@example.org\r\nX-Other: 1", False),
+        ("contact", "a@b@example.org", False),
+        ("contact", "<research@example.org>", False),
     ],
 )
 def test_entered_values_have_their_kinds_form(kind: str, value: str, ok: bool) -> None:

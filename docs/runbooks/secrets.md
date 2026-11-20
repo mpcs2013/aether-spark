@@ -51,7 +51,7 @@ From PowerShell, `just secrets …` forwards to WSL2 (the distribution in `AETHE
 
 `just up` and `just down` call `generate`, `unseal` and `clear` themselves (from WP3.1's first services). Until an entered secret has a value, `unseal` leaves it out, with every file built from it, and names it; the stack starts without it.
 
-**Entered secrets** (ADR-0010 note of 2026-11-11) are values another party issues, today the backup login from the home infrastructure (exchange A-015). Type them from the password manager's entry; each kind has a fixed form, and anything else is refused without the value being shown:
+**Entered secrets** (ADR-0010 notes of 2026-11-11 and 2026-11-19) are values another party issues, today the backup login from the home infrastructure (exchange A-015), or the owner's own values that must stay out of the repository, today the SEC contact. Type them from the password manager's entry; each kind has a fixed form, and anything else is refused without the value being shown:
 
 | Kind | Allowed |
 |---|---|
@@ -59,13 +59,20 @@ From PowerShell, `just secrets …` forwards to WSL2 (the distribution in `AETHE
 | `password` | 12–256 printable characters without spaces (percent-encoded wherever it goes into an address) |
 | `address` | `host:port`: a name or IPv4 address, then the port |
 | `path` | segments of letters, digits, `.`, `_`, `-`, separated by `/`; no leading `/`, no `..` |
+| `contact` | one email address: letters, digits and `.`, `_`, `%`, `+`, `-` before the `@`, a domain with at least one dot after it; no space, quote or line break (it goes into a request header) |
+
+**The SEC contact** (`sec-user-agent-contact`, kind `contact`; data-plane.md, decision 8): the email address the ingester declares to the SEC in its User-Agent (`AetherSpark <address>`), as the SEC's fair-access rules require. It is personal data: never in the repository, a log or a trace; CI uses a dummy. Until it is entered, `just up` starts everything but the ingester and says so (a missing secret file would become a root-owned folder in the container). Enter it once, in WSL2 or from PowerShell, then `just up`:
+
+```
+just secrets enter sec-user-agent-contact
+```
 
 ## Adding a secret
 1. Add an entry to `deploy/secrets.manifest.json`:
    - `name`: lower-case, the file name the service sees under `/run/secrets/`;
    - `consumers`: the Compose services allowed to read it; a tool on the host that reads it from the in-memory folder is named `host:<tool>` (for example `host:keycloak-admin`), and a secret read only by host tools needs no Compose file;
    - `rotation_days`: optional;
-   - exactly one of `generator` (`{"type": "random", "bytes": 32}`, at least 16 bytes); `entered` (`{"kind": "name"}`, or `password`, `address`, `path`); or `derived`, a file built from generated or entered secrets, such as `"db-password={keycloak-db-password}\n"`. In a derived file, `{name|url}` percent-encodes the value, for a login inside an address.
+   - exactly one of `generator` (`{"type": "random", "bytes": 32}`, at least 16 bytes); `entered` (`{"kind": "name"}`, or `password`, `address`, `path`, `contact`); or `derived`, a file built from generated or entered secrets, such as `"db-password={keycloak-db-password}\n"`. In a derived file, `{name|url}` percent-encodes the value, for a login inside an address.
 2. In the Compose file: a top-level secret with the same name and `file:` in the in-memory folder; only its consumers list it.
 3. The lint refuses any other source, and CI's check refuses a secret outside the manifest or an entry nobody uses.
 
