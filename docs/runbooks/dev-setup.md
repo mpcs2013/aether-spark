@@ -55,7 +55,12 @@ dotnet run --project src/dotnet/AetherSpark.AppHost
 - **What to expect:** within a minute the dashboard's **Console logs** page, resource `ingester`, shows `company 1234567: 2 filings handed off, 0 already stored, 3 refused`. The three refusals are on purpose (a file name that climbs out of its folder, two acceptance times that differ, a redirect).
 - **Nothing to enter:** the passwords, the database's certificate and its root are made new at every start; the SEC contact is a dummy (`aspire-run@example.org`). Your sealed contact is never read.
 - **The run's files** are in `%LOCALAPPDATA%\AetherSpark\aspire-run` (the raw files under `raw\1234567\`). The folder is cleared at the next start, and the database lives in memory: stopping ends both.
-- **Stop with Ctrl+C.** If the window was closed instead, the two containers keep running until the next start removes them. To remove them at once: `docker rm -f -v $(docker ps -aq --filter label=aetherspark.dev=aspire-run)`.
+- **Stop with Ctrl+C.** If the window was closed instead, the two containers keep running and Aspire's network for them stays (`aspire-session-network-…-AetherSpark`), until the next start removes them. To remove them at once, first the containers, then the network:
+  ```
+  docker rm -f -v $(docker ps -aq --filter label=aetherspark.dev=aspire-run)
+  docker network ls --format '{{.Name}}' | Where-Object { $_ -like 'aspire-session-network-*-AetherSpark' } | ForEach-Object { docker network rm $_ }
+  ```
+  Never remove another project's Aspire network (another name after the last dash).
 
 ## WSL2 and the GPU (WP2.4)
 1. **Budget first.** `%USERPROFILE%\.wslconfig` holds the roadmap budget, before the distro is installed:
