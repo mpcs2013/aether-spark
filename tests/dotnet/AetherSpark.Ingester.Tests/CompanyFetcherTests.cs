@@ -138,12 +138,31 @@ public sealed class CompanyFetcherTests
 
     private sealed class Recorder(params string[] known) : IFilingRecorder
     {
+        private int knownCalls;
+
         public List<(SubmissionRow Row, DateTimeOffset KnownAt, FilingJob Job)> Filings { get; } = [];
 
         public (string Name, IReadOnlyList<ListedTicker> Tickers)? Issuer { get; private set; }
 
-        public Task<IReadOnlySet<string>> KnownAccessionsAsync(long cik, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlySet<string>>(known.Concat(Filings.Select(f => f.Row.AccessionNo)).ToHashSet(StringComparer.Ordinal));
+        /// <summary>Filings another walk stores first: their record's write answers false.</summary>
+        public HashSet<string> StoredElsewhere { get; init; } = new(StringComparer.Ordinal);
+
+        /// <summary>The database fails after the walk's first question (the one before the filings).</summary>
+        public bool FailsAfterTheFirstQuestion { get; init; }
+
+        public Task<IReadOnlySet<string>> KnownAccessionsAsync(long cik, CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref knownCalls);
+            if (FailsAfterTheFirstQuestion && call > 1)
+            {
+                throw new InvalidOperationException("the database is gone");
+            }
+
+            // From the second question on, the filings another walk stored meanwhile are known too
+            var recorded = known.Concat(Filings.Select(f => f.Row.AccessionNo));
+            return Task.FromResult<IReadOnlySet<string>>(
+                (call > 1 ? recorded.Concat(StoredElsewhere) : recorded).ToHashSet(StringComparer.Ordinal));
+        }
 
         public Task RecordIssuerAsync(long cik, string name, IReadOnlyList<ListedTicker> tickers, CancellationToken cancellationToken)
         {
@@ -154,6 +173,11 @@ public sealed class CompanyFetcherTests
         public Task<bool> RecordFilingAsync(long cik, SubmissionRow row, DateTimeOffset knownAt, FilingJob job,
             CancellationToken cancellationToken)
         {
+            if (StoredElsewhere.Contains(row.AccessionNo))
+            {
+                return Task.FromResult(false);
+            }
+
             Filings.Add((row, knownAt, job));
             return Task.FromResult(true);
         }
@@ -309,5 +333,79 @@ public sealed class CompanyFetcherTests
             Assert.Empty(recorder.Filings);
             Assert.Equal(3, sec.Requests.Count); // the index, its older page, the first header
         }
+    }
+
+    // B's schema is its last file: its primary document and instance are stored before it is asked for
+    private static readonly string BSchema = Folder + Dashless(B.Accession) + "/stub-20250630.xsd";
+
+    private static readonly Dictionary<string, string> Elsewhere = new(StringComparer.Ordinal) { ["Location"] = "http://127.0.0.1:9/elsewhere" };
+
+    private static async Task<(CompanyResult Result, string[] Folders, Captured Log)> WalkAsync(
+        Func<string, LoopbackAnswer?> answer, Recorder recorder)
+    {
+        Dictionary<string, byte[]> routes = [];
+        await using var sec = new LoopbackSec((r, _) => answer(r.Path)
+            ?? (routes.TryGetValue(r.Path, out var body) ? LoopbackAnswer.Ok(body) : LoopbackAnswer.Code(404)));
+        routes = Routes(sec.Root);
+        var raw = SecTesting.TempFolder();
+        var log = new Captured();
+        var (fetcher, client, pace) = Build(sec, raw, recorder, log);
+        using (client)
+        using (pace)
+        {
+            var result = await fetcher.FetchAsync(Cik, Token);
+            var folders = Directory.GetDirectories(System.IO.Path.Combine(raw, "1234567"))
+                .Select(f => System.IO.Path.GetFileName(f)!).Order(StringComparer.Ordinal).ToArray();
+            return (result, folders, log);
+        }
+    }
+
+    [Fact]
+    public async Task AFilingRefusedWhileItsFilesAreStoredLeavesNoFiles()
+    {
+        var (result, folders, log) = await WalkAsync(
+            p => p == BSchema ? LoopbackAnswer.Code(302, Elsewhere) : null, new Recorder(G.Accession));
+
+        Assert.Equal(new CompanyResult(HandedOff: 2, Known: 1, Refused: 3, Stopped: false), result);
+        Assert.Equal([H.Accession, A.Accession], folders);
+        Assert.Contains(log.Lines, l => l.Contains(B.Accession, StringComparison.Ordinal) && l.Contains("files removed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheStopWhileAFilingsFilesAreStoredRemovesThemToo()
+    {
+        var (result, folders, _) = await WalkAsync(
+            p => p == BSchema ? LoopbackAnswer.Code(403) : null, new Recorder(G.Accession));
+
+        Assert.True(result.Stopped);
+        Assert.Equal([H.Accession, A.Accession], folders);
+    }
+
+    [Fact]
+    public async Task AFilingAnotherWalkStoredFirstKeepsItsFiles()
+    {
+        // Refused at its record's write: the other walk's record names these files
+        var atTheWrite = await WalkAsync(_ => null, new Recorder(G.Accession) { StoredElsewhere = { B.Accession } });
+        Assert.Equal([H.Accession, A.Accession, B.Accession], atTheWrite.Folders);
+        Assert.Contains(atTheWrite.Log.Lines, l => l.Contains(B.Accession, StringComparison.Ordinal) && l.Contains("already recorded", StringComparison.Ordinal));
+
+        // Refused before it, but the database says it is recorded by now
+        var before = await WalkAsync(
+            p => p == BSchema ? LoopbackAnswer.Code(302, Elsewhere) : null,
+            new Recorder(G.Accession) { StoredElsewhere = { B.Accession } });
+        Assert.Equal([H.Accession, A.Accession, B.Accession], before.Folders);
+        Assert.DoesNotContain(before.Log.Lines, l => l.Contains("files removed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task NothingIsRemovedWhenTheDatabaseCannotSay()
+    {
+        var (result, folders, log) = await WalkAsync(
+            p => p == BSchema ? LoopbackAnswer.Code(302, Elsewhere) : null,
+            new Recorder(G.Accession) { FailsAfterTheFirstQuestion = true });
+
+        Assert.Equal(3, result.Refused);
+        Assert.Contains(B.Accession, folders);
+        Assert.Contains(log.Lines, l => l.Contains(B.Accession, StringComparison.Ordinal) && l.Contains("could not be removed", StringComparison.Ordinal));
     }
 }

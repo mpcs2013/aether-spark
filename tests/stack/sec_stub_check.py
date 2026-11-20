@@ -109,6 +109,18 @@ def stored(raw: str, contracts: str, files: str) -> list[str]:
         problems.append(f"after-hours filing: {late['known_at']} filed {late['filed_date']}")
     if rows != from_contracts:
         problems.append("ref.filing_files differs from the contracts")
+    # The raw folder holds the recorded files and nothing else: a filing refused while its files
+    # were being stored (E, at its schema's redirect) leaves none behind, nor a partial file
+    company = Path(raw) / str(CIK)
+    on_disk = {
+        (p.parent.name, p.name) for p in company.glob("*/*") if p.is_file() or p.is_symlink()
+    }
+    folders = sorted(p.name for p in company.iterdir())
+    recorded = {(acc, name) for acc, names in STORED.items() for name in names}
+    if folders != sorted(STORED):
+        problems.append(f"filing folders in the raw folder: {folders}")
+    if on_disk != recorded:
+        problems.append(f"files not recorded: {sorted(on_disk - recorded)}")
     return problems
 
 
