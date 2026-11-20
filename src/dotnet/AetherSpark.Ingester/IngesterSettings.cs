@@ -50,8 +50,12 @@ public sealed record IngesterSettings
     /// <summary>The first filing date fetched: FY2015 on (data-plane.md, decision 12).</summary>
     public DateOnly FiledFrom { get; init; } = new(2015, 1, 1);
 
-    /// <summary>The least time between two requests to the SEC: under 5 per second (it allows 10).</summary>
-    public TimeSpan RequestSpacing { get; init; } = TimeSpan.FromMilliseconds(210);
+    /// <summary>
+    /// The least time between two requests to the SEC (it allows 10 per second): 4 sent per second, so
+    /// the network can bunch arrivals by a quarter second before the SEC counts 5 in one second. 210 ms
+    /// left 50 ms, and a new connection's set-up alone took 60 ms on a CI runner (PR #119).
+    /// </summary>
+    public TimeSpan RequestSpacing { get; init; } = TimeSpan.FromMilliseconds(250);
 
     /// <summary>The first retry's wait; it grows exponentially, with jitter.</summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(2);

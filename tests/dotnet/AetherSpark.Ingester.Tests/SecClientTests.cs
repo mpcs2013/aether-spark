@@ -18,9 +18,12 @@ public sealed class SecClientTests
     [Fact]
     public async Task NeverMoreThanFiveRequestsInAnySecondEvenFromParallelCallers()
     {
+        // The ingester's own spacing, measured where the SEC counts: on arrival, after each new
+        // connection's set-up (on a cold CI runner that alone squeezed 210 ms spacing below a second).
         await using var sec = new LoopbackSec((_, _) => LoopbackAnswer.Ok("{}"));
-        using var pace = new SecPace(TimeProvider.System, TimeSpan.FromMilliseconds(210));
-        using var client = SecTesting.Client(SecTesting.Settings(sec.Root, SecTesting.TempFolder()), new SecStop(), pace);
+        var settings = SecTesting.Settings(sec.Root, SecTesting.TempFolder());
+        using var pace = new SecPace(TimeProvider.System, settings.RequestSpacing);
+        using var client = SecTesting.Client(settings, new SecStop(), pace);
 
         await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => client.HeaderAsync(Cik, Accession, Token)));
 

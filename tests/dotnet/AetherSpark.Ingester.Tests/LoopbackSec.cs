@@ -149,15 +149,19 @@ internal static class SecTesting
     /// <summary>A dummy contact, as in CI; it must never appear in a log or a trace.</summary>
     public const string Contact = "stack-test@example.org";
 
-    public static IngesterSettings Settings(Uri sec, string raw, TimeSpan? spacing = null) => new()
+    /// <summary>The ingester's own settings against the loopback SEC; its real pace unless a test sets one.</summary>
+    public static IngesterSettings Settings(Uri sec, string raw, TimeSpan? spacing = null)
     {
-        DatabaseHost = "unused.invalid",
-        SecArchives = sec,
-        SecData = sec,
-        RawDirectory = raw,
-        RequestSpacing = spacing ?? TimeSpan.FromMilliseconds(210),
-        RetryDelay = TimeSpan.FromMilliseconds(10),
-    };
+        var settings = new IngesterSettings
+        {
+            DatabaseHost = "unused.invalid",
+            SecArchives = sec,
+            SecData = sec,
+            RawDirectory = raw,
+            RetryDelay = TimeSpan.FromMilliseconds(10),
+        };
+        return spacing is { } set ? settings with { RequestSpacing = set } : settings;
+    }
 
     public static SecClient Client(IngesterSettings settings, SecStop stop, SecPace pace) =>
         new(SecHttp.CreateClient(settings, new SecIdentity(Contact), pace, SecHttp.PrimaryHandler(settings)), settings, stop);
