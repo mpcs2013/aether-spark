@@ -396,6 +396,11 @@ owner_sql() {
         PGPASSFILE=/tmp/owner.pgpass psql -h /var/run/postgresql -U data_owner -d research -X -q -t -A -v ON_ERROR_STOP=1 -c "$1"
         code=$?; rm -f /tmp/owner.pgpass; exit $code' _ "$1"
 }
+owner_is() { # expected output, SQL
+    local got
+    got="$(owner_sql "$2")" || return 1
+    [ "$got" = "$1" ] || { echo "got: $got"; return 1; }
+}
 check "ingester signs in over TLS checked with the CA's root and the name (verify-full)" \
     pgd_is ingester ingester ingester "$pgd_tls" "select current_user"
 check "pipeline signs in over TLS checked with the CA's root and the name (verify-full)" \
@@ -642,7 +647,7 @@ ingester_secrets_hidden() { # as postgres-data's C5: no process environment, ins
     done
 }
 check "no secret value in the ingester's process environments, inspect output or log (C5)" ingester_secrets_hidden
-check "the ingester's migrations are applied and recorded (EF Core's, Wolverine's, the rights)" owner_sql \
+check "the ingester's migrations are applied and recorded (EF Core's, Wolverine's, the rights)" owner_is t \
     "select (select count(*) from meta.migrations where name in ('0002_ingester_tables.sql', '0003_ingester_wolverine.sql', '0004_ingester_rights.sql')) = 3 and (select count(*) from meta.ef_migrations) = 1"
 check "the ingester writes and removes a company in ref (rows)" pgdc ingester ingester "$pgd_tls" \
     "insert into ref.issuers values (9999999999, 'stack test', now(), now()); delete from ref.issuers where cik = 9999999999"
@@ -701,6 +706,98 @@ ingester_index_back() { # as 0003_ingester_wolverine.sql makes it
 }
 check "the ingester refuses to start while Wolverine's tables differ from its version's (an index dropped)" ingester_guard_wolverine
 check "... and starts once the index is back" ingester_index_back
+
+echo "--- the ingester against a stub SEC: stored, hashed, handed off; nothing beyond its URLs (D3, D4, D5)"
+# The stub SEC (stub_sec.py, the standard library in the pinned Python image) serves one made-up
+# company on ingest. A run of the ingester's own image and service, with its SEC hosts pointed at the
+# stub and no proxy, walks a one-company universe in the raw folder. The stack's ingester stops
+# meanwhile: both would share Wolverine's store. No request reaches the real SEC.
+sec_stub_name="${COMPOSE_PROJECT_NAME}-sec-stub"
+ingester_stub_name="${COMPOSE_PROJECT_NAME}-ingester-stub"
+mkdir -p "$work/stub"
+printf 'cik,name,why\n1234567,Stub Co,the stack test'"'"'s stand-in company\n' >"$work/raw/stub-universe.csv"
+sec_stub_check() { python3 -I "$repo/tests/stack/sec_stub_check.py" "$@"; }
+sec_stub_lines() { if [ -f "$work/stub/requests.jsonl" ]; then wc -l <"$work/stub/requests.jsonl"; else echo 0; fi; }
+sec_stub_up() {
+    dc stop ingester >/dev/null 2>&1
+    docker run -d --name "$sec_stub_name" --network "${COMPOSE_PROJECT_NAME}_ingest" --network-alias sec-stub \
+        --read-only --cap-drop ALL --user "$AETHERSPARK_UID:$AETHERSPARK_GID" \
+        -v "$repo/tests/stack/stub_sec.py:/stub/stub_sec.py:ro" -v "$work/stub:/log" \
+        "$py_image" python3 -I /stub/stub_sec.py >/dev/null || return 1
+    for _ in $(seq 1 30); do
+        docker logs "$sec_stub_name" 2>&1 | grep -F 'sec-stub listening' >/dev/null && return 0
+        sleep 1
+    done
+    docker logs "$sec_stub_name" 2>&1 | tail -5
+    return 1
+}
+ingester_stub_run() { # summary line expected: the run walks, then stops
+    local line=$1
+    dc run -d --name "$ingester_stub_name" \
+        -e Ingester__SecArchives=http://sec-stub:8080/ -e Ingester__SecData=http://sec-stub:8080/ \
+        -e Ingester__Proxy= -e Ingester__UniverseFile=/raw/stub-universe.csv ingester >/dev/null || return 1
+    for _ in $(seq 1 90); do
+        if docker logs "$ingester_stub_name" 2>&1 | grep -F "$line" >/dev/null; then
+            # A graceful stop, so Wolverine marks the company's message handled before the end
+            docker stop -t 30 "$ingester_stub_name" >/dev/null
+            docker logs "$ingester_stub_name" >"$work/stub/ingester.log" 2>&1
+            docker rm -f "$ingester_stub_name" >/dev/null
+            return 0
+        fi
+        sleep 2
+    done
+    docker logs --tail 30 "$ingester_stub_name" 2>&1
+    docker rm -f "$ingester_stub_name" >/dev/null
+    return 1
+}
+check "the stub SEC serves one company on ingest" sec_stub_up
+stub_first="$(sec_stub_lines)"
+check "the ingester walks the stub's company: 2 filings handed off, 3 refused" \
+    ingester_stub_run "company 1234567: 2 filings handed off, 0 already stored, 3 refused"
+check "it asked only for the URLs it builds, never a link, schema location, redirect or path found in a filing; one User-Agent, the contact; under 5 a second; the 429 and the 503 retried once each" \
+    sec_stub_check requests "$work/stub/requests.jsonl" "$stub_first" "AetherSpark stack-test@example.org"
+stub_refused() { # accession, reason
+    grep -F "filing $1 refused" "$work/stub/ingester.log" | grep -F "$2" >/dev/null \
+        || { grep -F 'refused' "$work/stub/ingester.log"; return 1; }
+}
+check "a traversing file name refuses its filing" stub_refused 0001234567-25-000003 "plain file name"
+check "a header whose acceptance time differs from the index refuses its filing (D3)" \
+    stub_refused 0001234567-25-000004 "acceptance times differ: header 2025-11-03T21:30:00Z, index 2025-11-03T21:00:00Z"
+check "a redirect is not followed and refuses its filing" stub_refused 0001234567-25-000005 "HTTP 302"
+refuse "the contact is not in the run's log" grep -F stack-test@example.org "$work/stub/ingester.log"
+stub_stored() {
+    pgdc pipeline pipeline "$pgd_tls" \
+        "select contract::text from ingest_ops.job_runs where accession_no like '0001234567-%' order by accession_no" \
+        >"$work/stub/contracts.jsonl" \
+        && pgdc ingester ingester "$pgd_tls" \
+            "select accession_no || ' ' || name || ' ' || kind || ' ' || sha256 || ' ' || size from ref.filing_files where accession_no like '0001234567-%'" \
+            >"$work/stub/files.txt" \
+        && sec_stub_check stored "$work/raw" "$work/stub/contracts.jsonl" "$work/stub/files.txt"
+}
+check "each job's contract names its stored files with their SHA-256, as ref.filing_files does (the pipeline reads it)" stub_stored
+check "known_at keeps the true acceptance time of a filing accepted after 17:30 ET (D3)" pgd_is \
+    "2025-07-31T22:03:34Z 2025-08-01" ingester ingester "$pgd_tls" \
+    "select to_char(known_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') || ' ' || filed_date from ref.filings where accession_no = '0001234567-25-000002'"
+check "the company and its ticker are recorded" pgd_is "Stub Co STUB NYSE" ingester ingester "$pgd_tls" \
+    "select i.name || ' ' || t.symbol || ' ' || t.exchange from ref.issuers i join ref.tickers t using (cik) where cik = 1234567 and t.valid_to is null"
+stub_second="$(sec_stub_lines)"
+check "a second walk hands off nothing new" \
+    ingester_stub_run "company 1234567: 0 filings handed off, 2 already stored, 3 refused"
+check "... and asks for no stored filing" sec_stub_check again "$work/stub/requests.jsonl" "$stub_second"
+check "... and the jobs stay two" pgd_is 2 pipeline pipeline "$pgd_tls" \
+    "select count(*) from ingest_ops.job_runs where accession_no like '0001234567-%'"
+check "no message is left in Wolverine's store for the stack's ingester" owner_is 0 \
+    "select count(*) from ingest_ops.wolverine_incoming_envelopes where status <> 'Handled'"
+stub_down() {
+    docker rm -f "$sec_stub_name" >/dev/null 2>&1
+    owner_sql "delete from ingest_ops.job_runs where accession_no like '0001234567-%';
+        delete from ref.filing_files where accession_no like '0001234567-%';
+        delete from ref.filings where cik = 1234567; delete from ref.tickers where cik = 1234567;
+        delete from ref.issuers where cik = 1234567" >/dev/null \
+        && rm -rf "$work/raw/1234567" "$work/raw/stub-universe.csv" \
+        && dc up -d --wait ingester
+}
+check "the stub's rows and files are removed and the stack's ingester runs again" stub_down
 
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost

@@ -36,7 +36,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/python", "deploy/backup", "deploy/ca", "deploy/compose", "deploy/images", "deploy/packages", "deploy/secret-store", "tests/python"]
+testpaths = ["contracts", "src/python","deploy/backup", "deploy/ca", "deploy/compose", "deploy/images", "deploy/packages", "deploy/secret-store", "tests/python"]
 addopts = "-ra --strict-markers --strict-config"

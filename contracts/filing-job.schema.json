@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aetherspark:contracts:filing-job",
+  "title": "FilingJob",
+  "description": "One filing for the pipeline (ADR-0002 rules 1 and 2; data-plane.md, section 3). The ingester writes it into ingest_ops.job_runs.contract after storing and hashing the files. It holds no paths: the pipeline reads each file at <raw folder>/<cik>/<accession_no>/<name> and hashes it again.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "accession_no", "cik", "form", "known_at", "filed_date", "files"],
+  "properties": {
+    "version": {
+      "description": "The contract's version; a change that a reader of version 1 cannot read raises it.",
+      "const": 1
+    },
+    "accession_no": {
+      "description": "The SEC's accession number.",
+      "type": "string",
+      "pattern": "^[0-9]{10}-[0-9]{2}-[0-9]{6}$"
+    },
+    "cik": {
+      "description": "The filing company's CIK (ADR-0020).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9999999999
+    },
+    "form": {
+      "description": "The form type as the SEC gives it.",
+      "type": "string",
+      "enum": ["10-K", "10-Q", "10-K/A", "10-Q/A"]
+    },
+    "known_at": {
+      "description": "The SEC's acceptance time in UTC, to the second (ADR-0007 change 2).",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "filed_date": {
+      "description": "The SEC's filing date; after 17:30 ET it is the next business day, so it may follow known_at's date.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "files": {
+      "description": "The stored files: the primary document and, for an XBRL filing, its instance, schemas and linkbases.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/JobFile" }
+    }
+  },
+  "$defs": {
+    "JobFile": {
+      "description": "One stored file of the filing.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "sha256", "size"],
+      "properties": {
+        "name": {
+          "description": "The file name from the SEC's index; never a path, never starting with a dot.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$"
+        },
+        "kind": {
+          "description": "What the file is to the pipeline.",
+          "type": "string",
+          "enum": ["primary", "instance", "schema", "linkbase"]
+        },
+        "sha256": {
+          "description": "The SHA-256 of the stored bytes, lower-case hex.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size": {
+          "description": "The stored size in bytes.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1073741824
+        }
+      }
+    }
+  }
+}

@@ -782,6 +782,7 @@
         "dependencies": {
           "AetherSpark.ServiceDefaults": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "WolverineFx": "[6.64.2, )",
           "WolverineFx.Postgresql": "[6.64.2, )"

@@ -1,0 +1,76 @@
+{
+  "description": "Public SEC excerpts for the ingester's tests (data-plane.md, decision 10). sha256 is the SEC's original answer's; an excerpt differs from it by the rows left out.",
+  "files": [
+    {
+      "file": "0000320193-26-000026.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "d1ac0424db36dd562152b511ce8be2d876b289c46ee7df68f66b48e53d5cf4c4",
+      "excerpt": false
+    },
+    {
+      "file": "0000320193-26-000006.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000006/0000320193-26-000006.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "e8afe6c11cd81ef77342b4dd84db27fa6e1f4e2fb7d0413fc6721a269e604909",
+      "excerpt": false
+    },
+    {
+      "file": "0000320193-26-000020.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/0000320193-26-000020.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "ad2699b39c73f1dd7dd4579a27b45381404309a1790d9c792c367ea8b7c6120d",
+      "excerpt": false
+    },
+    {
+      "file": "0001193125-26-323660.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/0001193125-26-323660.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "904e24278c549945c7a18d6214051c3a9b36281fae15e5e0d0d753ff9a503ed2",
+      "excerpt": false
+    },
+    {
+      "file": "0001104659-26-053166.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/1318605/000110465926053166/0001104659-26-053166.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "650296dcde24269cbabc40a6575ea73498fb5ff5e742c2ac4c8f2fb582daa0b4",
+      "excerpt": false
+    },
+    {
+      "file": "0000320193-24-000081.hdr.sgml",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000081/0000320193-24-000081.hdr.sgml",
+      "fetched": "2026-11-20",
+      "sha256": "92c9a706dc0a05bf532a4b5327a657c80d0f337de8bc650f44460489bb334b0f",
+      "excerpt": false
+    },
+    {
+      "file": "apple-10q-0000320193-26-000006.index.json",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000006/index.json",
+      "fetched": "2026-11-20",
+      "sha256": "a7fcfdf06a1502e223d2539a02d5eb618459460eecdf2a538046db435dbd208e",
+      "excerpt": false
+    },
+    {
+      "file": "microsoft-10k-0001193125-26-323660.index.json",
+      "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/index.json",
+      "fetched": "2026-11-20",
+      "sha256": "bf17f342b5ffc274ba7a8ea55dd0837915546613ccb44b04705c73fd31966ae0",
+      "excerpt": false
+    },
+    {
+      "file": "tesla-10ka-0001104659-26-053166.index.json",
+      "url": "https://www.sec.gov/Archives/edgar/data/1318605/000110465926053166/index.json",
+      "fetched": "2026-11-20",
+      "sha256": "1d95eb12ec185c4d511519b8b1907ceda01ad72a992cffa024f547f76a9c47de",
+      "excerpt": false
+    },
+    {
+      "file": "apple-submissions-excerpt.json",
+      "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+      "fetched": "2026-11-20",
+      "sha256": "f001022596bb110c821112a8b12f794e0d5c545475b7d5f0ccfb42d9b431e57b",
+      "excerpt": true,
+      "kept": "cik, entityType, sic, name, tickers, exchanges, fiscalYearEnd; filings.recent rows of the four Apple filings above, its first 8-K and first Form 4 in the index; filings.files"
+    }
+  ]
+}
