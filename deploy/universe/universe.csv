@@ -1,5 +1,128 @@
 # The research universe the ingester walks (docs/architecture/data-plane.md, decision 12; ADR-0020):
-# one company per line, its CIK, its name, and why it is in the set. Public data only. The dev
-# universe (~100 hard companies) arrives with PR 3c, reviewed by the owner; until then it is empty.
-# Format: UTF-8, the header below, no quoting; `why` may hold commas (src/dotnet/AetherSpark.Ingester/Universe/UniverseFile.cs).
+# one company per line, its CIK, its name, and why it is in the set. Public data only.
+# Format: UTF-8, the header below, no quoting; `why` may hold commas, `name` may not
+# (src/dotnet/AetherSpark.Ingester/Universe/UniverseFile.cs).
+#
+# The dev universe (PR 3c, reviewed by the owner): 104 deliberately hard companies (ADR-0020). Each CIK
+# was checked against the SEC's own submissions index on 2026-11-20 (name, fiscal year end, 10-K
+# years, deregistration filings); the events named in `why` are public record. Fiscal year ends are
+# the SEC's (month and day); "52/53 weeks" marks a year that ends on a weekday, not a date.
 cik,name,why
+
+# Fiscal years that do not end in December
+320193,Apple,fiscal year ends late September (52/53 weeks), the first filer the known_at check was measured on
+789019,Microsoft,fiscal year ends 30 June
+1341439,Oracle,fiscal year ends 31 May
+320187,Nike,fiscal year ends 31 May
+1048911,FedEx,fiscal year ends 31 May
+104169,Walmart,fiscal year ends 31 January, so FY2024 is mostly calendar 2023
+909832,Costco,fiscal year ends around 31 August (52/53 weeks)
+80424,Procter & Gamble,fiscal year ends 30 June
+858877,Cisco,fiscal year ends late July (52/53 weeks)
+723125,Micron,fiscal year ends around 1 September (52/53 weeks)
+315189,Deere,fiscal year ends around 1 November (52/53 weeks)
+1403161,Visa,fiscal year ends 30 September
+40704,General Mills,fiscal year ends late May (52/53 weeks)
+354950,Home Depot,fiscal year ends around 31 January (52/53 weeks)
+829224,Starbucks,fiscal year ends late September (52/53 weeks)
+1467373,Accenture,fiscal year ends 31 August; incorporated in Ireland but files 10-K, not 20-F
+1613103,Medtronic,fiscal year ends late April; Irish holding company since the 2015 Covidien deal, a new CIK (the old one, 64670, filed its last 10-K in 2014)
+1336917,Under Armour,fiscal year changed from December to March (now ends 31 March); two share classes
+1571996,Dell Technologies,fiscal year ends around 31 January (52/53 weeks); first 10-K under this CIK 2017, after the EMC deal; listed again at the end of 2018
+1867072,Kyndryl,fiscal year ends 31 March; spun off from IBM in 2021
+
+# Spin-offs, mergers and splits: the same business under two or more CIKs
+1065088,eBay,spun off PayPal in 2015
+1633917,PayPal,spun off from eBay in 2015; first 10-K 2016
+47217,HP Inc,formerly Hewlett-Packard; split off Hewlett Packard Enterprise in 2015; fiscal year ends 31 October
+1645590,Hewlett Packard Enterprise,split from Hewlett-Packard in 2015; fiscal year ends 31 October
+1637459,Kraft Heinz,Kraft and Heinz merged in 2015 (formerly H.J. Heinz Holding); restated in 2019; 52/53-week year
+30554,E. I. du Pont de Nemours,merged into DowDuPont in 2017 and kept filing as a subsidiary (now EIDP at the SEC)
+29915,Dow Chemical,merged into DowDuPont in 2017 and kept filing as a subsidiary (15-12B in 2017)
+1666700,DuPont de Nemours,DowDuPont from 2017, renamed after splitting off Dow and Corteva in 2019; first 10-K 2018
+1751788,Dow Inc,split from DowDuPont in 2019 (formerly Dow Holdings)
+1755672,Corteva,split from DowDuPont in 2019
+40545,General Electric,spun off GE HealthCare (2023) and GE Vernova (2024), now GE Aerospace
+1932393,GE HealthCare,spun off from General Electric in 2023
+1996810,GE Vernova,spun off from General Electric in 2024; one 10-K in the window
+200406,Johnson & Johnson,spun off Kenvue in 2023; 52/53-week year ending around the turn of the year
+1944048,Kenvue,spun off from Johnson & Johnson in 2023
+51143,IBM,spun off Kyndryl in 2021
+1623613,Mylan,Dutch holding company from 2015 (Mylan N.V.); merged with Pfizer's Upjohn into Viatris in 2020; 10-K/A every year 2016-2020
+1792044,Viatris,Mylan plus Pfizer's Upjohn from 2020 (formerly Upjohn Inc); 10-K/A every year since 2021
+313616,Danaher,spun off Fortive in 2016
+1659166,Fortive,spun off from Danaher in 2016
+1679273,Lamb Weston,spun off from Conagra in 2016; fiscal year ends late May
+55067,Kellanova,formerly Kellogg; spun off WK Kellogg in 2023; deregistered in 2025 (15-12G)
+1959348,WK Kellogg,spun off from Kellogg in 2023; delisted in 2025 (25-NSE)
+66740,3M,spun off Solventum in 2024
+1964738,Solventum,spun off from 3M in 2024; one 10-K in the window
+773840,Honeywell,spun off Garrett Motion and Resideo in 2018
+1735707,Garrett Motion,spun off from Honeywell in 2018; Chapter 11 in 2020, emerged in 2021
+1652044,Alphabet,holding company over Google from 2015, a new CIK; two listed share classes
+1288776,Google Inc,the CIK before Alphabet; last 10-K filed 2016 (15-12B in 2015)
+1744489,Walt Disney,new holding company in 2019 for the 21st Century Fox deal, a new CIK; 52/53-week year ending around 30 September
+1001039,Walt Disney (before 2019),the old Disney CIK (now TWDC Enterprises 18 at the SEC); last 10-K 2018
+1308161,Twenty-First Century Fox,acquired by Disney in 2019 after spinning off Fox Corp; formerly News Corp; fiscal year ends 30 June
+1754301,Fox Corp,spun off from Twenty-First Century Fox in 2019; two share classes; fiscal year ends 30 June
+1730168,Broadcom,re-domiciled from Singapore (Broadcom Ltd) to the US in 2018, a new CIK; fiscal year ends around 1 November
+1707925,Linde,Linde AG and Praxair merged in 2018 into an Irish plc that files 10-K, a new CIK
+101829,RTX,formerly United Technologies, then Raytheon Technologies after the 2020 merger; ticker UTX became RTX
+1047122,Raytheon,merged into United Technologies in 2020; last 10-K 2020 (15-12B)
+1418135,Keurig Dr Pepper,formerly Dr Pepper Snapple; reverse merger with Keurig in 2018
+732717,AT&T,acquired Time Warner in 2018 and spun its media business into Warner Bros. Discovery in 2022
+1437107,Warner Bros. Discovery,formerly Discovery; merged with AT&T's WarnerMedia in 2022
+1099219,MetLife,insurer; spun off Brighthouse Financial in 2017
+1685040,Brighthouse Financial,insurer; spun off from MetLife in 2017
+
+# Acquired or taken private: the filings stop
+1105705,Time Warner,acquired by AT&T in 2018; last 10-K 2018 (now Warner Media LLC at the SEC)
+1110783,Monsanto,acquired by Bayer in 2018; fiscal year ended 31 August; last 10-K 2017
+816284,Celgene,acquired by Bristol-Myers Squibb in 2019; last 10-K 2019
+1578845,Allergan,Irish plc (formerly Actavis) acquired by AbbVie in 2020; last 10-K 2020
+1087423,Red Hat,acquired by IBM in 2019; fiscal year ended 28 February; last 10-K 2019
+1271024,LinkedIn,acquired by Microsoft in 2016; last 10-K 2016
+1418091,Twitter,taken private in 2022; last 10-K 2022
+718877,Activision Blizzard,acquired by Microsoft in 2023; last 10-K 2023
+1122304,Aetna,acquired by CVS Health in 2018; last 10-K 2018
+1532063,Express Scripts,acquired by Cigna in 2018; last 10-K 2018
+773910,Anadarko,acquired by Occidental in 2019; last 10-K 2019
+101830,Sprint,merged into T-Mobile in 2020; fiscal year ended 31 March; transition report 10-KT in 2014; last 10-K 2019
+743988,Xilinx,acquired by AMD in 2022; fiscal year ended around 1 April; last 10-K 2021
+
+# Bankruptcies, wind-downs and returns
+1310067,Sears Holdings,Chapter 11 in 2018; fiscal year ended around 31 January; last 10-K 2018
+1166126,J. C. Penney,Chapter 11 in 2020; last 10-K 2020 (now Old COPPER Company at the SEC)
+1657853,Hertz Global,Chapter 11 in 2020, delisted (25-NSE 2020) and back in 2021; first 10-K under this CIK 2017
+895126,Expand Energy,formerly Chesapeake Energy; Chapter 11 in 2020; renamed in 2024
+20520,Frontier Communications,Chapter 11 in 2020; emerged as Frontier Communications Parent in 2021
+886158,Bed Bath & Beyond,Chapter 11 in 2023; fiscal year ended around 28 February; last 10-K 2023
+719739,SVB Financial,bank holding company; its bank failed in 2023; last 10-K 2023
+1312109,Silvergate Capital,bank holding company; wound down in 2023; last 10-K 2022 (for 2021)
+84129,Rite Aid,Chapter 11 in 2023; fiscal year ended around 1 March; last 10-K 2023
+887921,Revlon,Chapter 11 in 2022; delisted 2022; last 10-K 2023
+1004980,PG&E,Chapter 11 in 2019 after the wildfires, emerged in 2020
+278130,Pier 1 Imports,Chapter 11 in 2020; fiscal year ended around 29 February; last 10-K 2019
+1005414,Toys R Us,no listed shares (a public-debt filer), so never in the universe by the float rule; liquidated 2018; last 10-K 2017
+1375365,Super Micro Computer,10-K for fiscal 2024 filed months late after its auditor resigned; fiscal year ends 30 June
+
+# Banks and insurers: statements unlike an industrial company's
+19617,JPMorgan Chase,bank
+70858,Bank of America,bank
+831001,Citigroup,bank
+72971,Wells Fargo,bank
+886982,Goldman Sachs,bank holding company (broker-dealer origins)
+927628,Capital One,bank (card lender)
+5272,AIG,insurer
+1067983,Berkshire Hathaway,insurer and conglomerate; two share classes (BRK-A and BRK-B)
+
+# REITs
+1063761,Simon Property Group,REIT (malls)
+1101239,Equinix,became a REIT in 2015
+1053507,American Tower,REIT (towers)
+899689,Vornado Realty Trust,REIT; spun off JBG Smith in 2017
+1045609,Prologis,REIT (formerly AMB Property)
+
+# Name and ticker changes
+1326801,Meta Platforms,formerly Facebook; ticker FB became META in 2022
+1512673,Block,formerly Square; renamed in 2021

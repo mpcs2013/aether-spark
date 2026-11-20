@@ -1,0 +1,5 @@
+# The stack test's universe (tests/stack/compose.test.yaml mounts this folder over the stack's
+# deploy/universe): empty on purpose. The test's ingester runs with a dummy contact, so it must never
+# walk the real dev universe and send the SEC requests under a made-up name. Its SEC section walks
+# the stand-in's one company from a file of its own (run.sh).
+cik,name,why
