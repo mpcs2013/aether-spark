@@ -7,6 +7,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The build output may live outside the repository (ArtifactsPath in the dev container). -->
+    <AssemblyMetadata Include="RepositoryRoot"
+                      Value="$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', '..'))" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>

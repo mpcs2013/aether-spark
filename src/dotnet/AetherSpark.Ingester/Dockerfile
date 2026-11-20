@@ -14,6 +14,11 @@ COPY src/dotnet/AetherSpark.Ingester/ src/dotnet/AetherSpark.Ingester/
 RUN dotnet publish src/dotnet/AetherSpark.Ingester --no-restore -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.15-alpine3.24@sha256:21c3f9798416cba4c0576a947c286231cb71ea2884896cb968253f5c9668f930
+# The base carries OpenSSL 3.5.9-r0 with four High findings fixed in 3.5.9-r1 (the scan of
+# 2026-11-20; the same fix as postgres-auth's, the owner's decision); drop this once the base
+# carries 3.5.9-r1 or newer
+ARG OPENSSL_VERSION=3.5.9-r1
+RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}"
 # No diagnostics socket in /tmp: the ingester has no listener of any kind (D10)
 ENV DOTNET_EnableDiagnostics=0
 COPY --from=build /app /app

@@ -1,3 +1,4 @@
+using System.Reflection;
 using AetherSpark.Ingester.Universe;
 
 namespace AetherSpark.Ingester.Tests;
@@ -50,14 +51,8 @@ public sealed class UniverseFileTests
         Assert.Contains(reason, error.Message, StringComparison.Ordinal);
     }
 
-    internal static string RepositoryRoot()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "AetherSpark.slnx")))
-        {
-            folder = folder.Parent;
-        }
-
-        return folder?.FullName ?? throw new InvalidOperationException("repository root not found");
-    }
+    internal static string RepositoryRoot() => typeof(UniverseFileTests).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .Single(a => a.Key == "RepositoryRoot").Value
+        ?? throw new InvalidOperationException("the build sets RepositoryRoot");
 }
