@@ -3,7 +3,8 @@ name = "aetherspark-common"
 version = "0.0.0"
 description = "Shared Python code of the compute plane (ADR-0002)"
 requires-python = ">=3.12"
-dependencies = []
+# Pydantic for the generated job contracts (contracts/, ADR-0002 rule 2; owner, 2026-11-20)
+dependencies = ["pydantic>=2.12,<3"]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,857 @@
+{
+  "description": "Cases both languages must judge alike: C# (tests/dotnet/AetherSpark.Ingester.Tests/ContractTests.cs) and Pydantic (contracts/tests/test_generate.py). Hashes are placeholders; the accession number and sizes are from the SEC's index (2026-11-20).",
+  "valid": {
+    "a 10-Q accepted after 17:30 ET, filed the next day": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "an amendment without XBRL: the primary document only": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-K/A",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        }
+      ]
+    },
+    "the largest CIK": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 9999999999,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    }
+  },
+  "invalid": {
+    "accession number without dashes": {
+      "version": 1,
+      "accession_no": "000032019324000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "known_at with an offset instead of Z": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T18:03:34-04:00",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "known_at with a line end after Z": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z\n",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "known_at with fractions of a second": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34.000Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "filed_date with a time": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02T00:00:00Z",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a form outside the four": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "8-K",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "version 2": {
+      "version": 2,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "CIK 0": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 0,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "CIK above ten digits": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 10000000000,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "CIK as a string": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": "320193",
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a file name ..": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "..",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a file name with a path": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "../../run/secrets/x.xsd",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a file name starting with a dot": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": ".hidden.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a file name with a line end": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "x.xml\n",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "an upper-case hash": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a short hash": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a kind outside the four": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "exhibit",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a negative size": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": -1
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a file without its hash": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "no files": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": []
+    },
+    "files missing": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02"
+    },
+    "a path added to the contract": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ],
+      "path": "/raw/320193"
+    },
+    "a URL added to a file": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": "aapl-20240629.htm",
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973,
+          "url": "https://example.org/x"
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    },
+    "a null name": {
+      "version": 1,
+      "accession_no": "0000320193-24-000081",
+      "cik": 320193,
+      "form": "10-Q",
+      "known_at": "2024-08-01T22:03:34Z",
+      "filed_date": "2024-08-02",
+      "files": [
+        {
+          "name": null,
+          "kind": "primary",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 765973
+        },
+        {
+          "name": "aapl-20240629_htm.xml",
+          "kind": "instance",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 738162
+        },
+        {
+          "name": "aapl-20240629.xsd",
+          "kind": "schema",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size": 33949
+        },
+        {
+          "name": "aapl-20240629_lab.xml",
+          "kind": "linkbase",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "size": 498596
+        }
+      ]
+    }
+  }
+}

@@ -267,7 +267,8 @@ services:
 
   # The EDGAR ingester (docs/architecture/data-plane.md, section 3): a .NET worker without a listener,
   # built from the repository root. Its database login over verified TLS on ingest (the stack's root
-  # only); the SEC only through the runtime proxy on egress-runtime (PR 3b2). Writes the raw folder
+  # only); the SEC only through the runtime proxy on egress-runtime, set here (the program never takes
+  # a proxy from the environment's HTTPS_PROXY). Writes the raw folder
   # (AETHERSPARK_RAW_DIR, decision 9; up.sh picks the desktop's or the Spark's), reads the universe
   # file. Starts only once the SEC contact is entered (up.sh): a missing secret file would become a
   # root-owned folder. Healthy while its heartbeat file is fresh (a database query every 15 s)
@@ -280,6 +281,7 @@ services:
     labels: { aetherspark.role: ingester }
     environment:
       AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
+      Ingester__Proxy: http://172.30.10.2:3128
     secrets: [postgres-data-ingester-password, sec-user-agent-contact]
     tmpfs:
       - /tmp

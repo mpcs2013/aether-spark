@@ -1,3 +1,4 @@
+using AetherSpark.Ingester.Walk;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine;
@@ -26,6 +27,9 @@ public static class Messaging
         opts.PersistMessagesWithPostgresql(DataConnection.ConnectionString(settings).ConnectionString, Schema);
         opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
         opts.Policies.UseDurableLocalQueues();
+
+        // One company at a time: the SEC's pace is the limit anyway, and a stop ends the rest quickly
+        opts.LocalQueueFor<FetchCompany>().Sequential();
 
         // Handler code is written into the project at build time (`codegen write`) and loaded from
         // the assembly: no compiler at run time, and the image's file system stays read-only

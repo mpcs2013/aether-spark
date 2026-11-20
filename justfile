@@ -22,9 +22,10 @@ local-feed-proof:
 
 # Python: lint, format check, strict type check, tests
 py-ci:
+    {{ uv }} python -I contracts/generate.py --check
     {{ uv }} ruff check
     {{ uv }} ruff format --check
-    {{ uv }} mypy src/python deploy/backup deploy/ca deploy/compose deploy/images deploy/keycloak deploy/packages deploy/secret-store tests/python tests/stack
+    {{ uv }} mypy contracts src/python deploy/backup deploy/ca deploy/compose deploy/images deploy/keycloak deploy/packages deploy/secret-store tests/python tests/stack
     {{ uv }} pytest
 
 # .NET: locked restore, build (warnings are errors), tests
@@ -175,8 +176,10 @@ host-role-test:
 egress-lint:
     & "$env:ProgramFiles\Git\bin\bash.exe" tests/egress/lint.sh
 
-# Generate or check shared types from contracts/ (ADR-0002)
-contracts *args: (pending "WP2.2/2.3" "contracts")
+# Generate (or with --check, check) the shared types from contracts/ (ADR-0002 rule 2): C# records
+# and Pydantic models
+contracts *args:
+    {{ uv }} python -I contracts/generate.py {{ args }}
 
 # Secrets (ADR-0010, docs/runbooks/secrets.md): generate | enter NAME | rotate NAME | unseal | clear
 # | check RENDERED... The sealed store, the dev key and the in-memory folder live in WSL2 (or on the Spark)

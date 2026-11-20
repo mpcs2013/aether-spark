@@ -8,6 +8,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <!-- The provider asks only for 10.0.x; the program and its tests use the design tools' version -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- The SEC client's own resilience pipeline (Sec/SecHttp.cs); the same version ServiceDefaults uses -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.Postgresql" />
