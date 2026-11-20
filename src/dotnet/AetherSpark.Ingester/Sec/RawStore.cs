@@ -79,6 +79,24 @@ public sealed class RawStore(IngesterSettings settings)
 
         return new StoredFile(file.Name, file.Kind, Convert.ToHexStringLower(hash.GetHashAndReset()), size);
     }
+
+    /// <summary>
+    /// Removes one filing's folder with what it holds, for a filing that ends without a record (the
+    /// fetcher decides that): the raw folder holds the files `ref.filing_files` names and nothing
+    /// else. The folder is built from a checked CIK and accession number, so nothing outside it is
+    /// touched. True when a folder was there.
+    /// </summary>
+    public bool RemoveFiling(long cik, string accession)
+    {
+        var folder = FolderFor(cik, accession);
+        if (!Directory.Exists(folder))
+        {
+            return false;
+        }
+
+        Directory.Delete(folder, recursive: true);
+        return true;
+    }
 }
 
 /// <summary>A file beyond the size limit; its filing is refused.</summary>

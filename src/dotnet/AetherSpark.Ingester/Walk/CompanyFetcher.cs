@@ -88,9 +88,13 @@ public sealed partial class CompanyFetcher(
         }
     }
 
-    // Null when handed off; otherwise the reason it was refused. The stop passes through.
+    // Null when handed off; otherwise the reason it was refused. The stop passes through. A filing that
+    // ends before its record is written (refused, stopped, cancelled) leaves no files behind; from the
+    // record's write on they stay, since a write whose answer was lost may still have committed, and
+    // a filing another walk stored first keeps the files that walk wrote.
     private async Task<string?> FetchFilingAsync(long cik, SubmissionRow row, CancellationToken cancellationToken)
     {
+        var mayBeRecorded = false;
         try
         {
             var header = FilingHeader.Parse(
@@ -130,6 +134,7 @@ public sealed partial class CompanyFetcher(
                 return "the job contract does not hold: " + string.Join("; ", problems);
             }
 
+            mayBeRecorded = true;
             return await recorder.RecordFilingAsync(cik, row, knownAt, job, cancellationToken).ConfigureAwait(false)
                 ? null
                 : "already recorded (another walk stored it first)";
@@ -139,7 +144,44 @@ public sealed partial class CompanyFetcher(
         {
             return e.Message;
         }
+        finally
+        {
+            if (!mayBeRecorded)
+            {
+                await RemoveUnrecordedAsync(cik, row.AccessionNo).ConfigureAwait(false);
+            }
+        }
     }
+
+    // Asks the database first (another walk may have stored the filing meanwhile; also after a
+    // cancellation, so without the walk's token) and removes nothing when it cannot tell. Never lets
+    // a failed removal hide why the filing ended: the next walk overwrites what is left.
+    private async Task RemoveUnrecordedAsync(long cik, string accessionNo)
+    {
+        if (!Directory.Exists(raw.FolderFor(cik, accessionNo)))
+        {
+            return;
+        }
+
+        try
+        {
+            var recorded = await recorder.KnownAccessionsAsync(cik, CancellationToken.None).ConfigureAwait(false);
+            if (!recorded.Contains(accessionNo) && raw.RemoveFiling(cik, accessionNo))
+            {
+                LogFilesRemoved(logger, cik, accessionNo);
+            }
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            LogFilesNotRemoved(logger, cik, accessionNo, e.Message);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "company {Cik}, filing {AccessionNo}: its stored files removed (no record)")]
+    private static partial void LogFilesRemoved(ILogger logger, long cik, string accessionNo);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "company {Cik}, filing {AccessionNo}: its stored files could not be removed: {Reason}")]
+    private static partial void LogFilesNotRemoved(ILogger logger, long cik, string accessionNo, string reason);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "company {Cik}: {HandedOff} filings handed off, {Known} already stored, {Refused} refused")]
