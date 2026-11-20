@@ -17,4 +17,8 @@
     <Error Condition="'@(_OstiumReference)' != ''"
            Text="The AppHost has no lock file, so it must not reference Ostium.* packages (ADR-0005 amendment 2, ADR-0009): @(_OstiumReference)" />
   </Target>
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" VersionOverride="1.21.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" VersionOverride="1.21.0" />
+  </ItemGroup>
 </Project>
