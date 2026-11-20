@@ -8,6 +8,11 @@
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- A resource of `aspire run`, not a library: the SDK references no assembly of it -->
+    <ProjectReference Include="..\AetherSpark.Ingester\AetherSpark.Ingester.csproj" />
+  </ItemGroup>
+
   <!-- Ostium.* hashes are checked against the lock file (ADR-0009), which this project does not have -->
   <Target Name="ForbidOstiumWithoutLockFile" BeforeTargets="CollectPackageReferences">
     <ItemGroup>
