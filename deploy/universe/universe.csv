@@ -1,0 +1,5 @@
+# The research universe the ingester walks (docs/architecture/data-plane.md, decision 12; ADR-0020):
+# one company per line, its CIK, its name, and why it is in the set. Public data only. The dev
+# universe (~100 hard companies) arrives with PR 3c, reviewed by the owner; until then it is empty.
+# Format: UTF-8, the header below, no quoting; `why` may hold commas (src/dotnet/AetherSpark.Ingester/Universe/UniverseFile.cs).
+cik,name,why

@@ -18,17 +18,37 @@ for arg in "$@"; do
 done
 dc() { docker compose -f "$repo/deploy/compose/stack/compose.yaml" "${extra[@]}" "$@"; }
 
+# The raw SEC downloads' folder (data-plane.md, decision 9; policy.json raw_dirs): E: on the
+# desktop (WSL2), /srv/raw on the Spark (made by its host role, WP6.4). Never made under /srv here
+if [ -z "${AETHERSPARK_RAW_DIR:-}" ]; then
+    if [ -n "${WSL_DISTRO_NAME:-}" ]; then AETHERSPARK_RAW_DIR=/mnt/e/aetherspark/raw; else AETHERSPARK_RAW_DIR=/srv/raw; fi
+fi
+export AETHERSPARK_RAW_DIR
+case "$AETHERSPARK_RAW_DIR" in /mnt/*) mkdir -p "$AETHERSPARK_RAW_DIR" ;; esac
+[ -d "$AETHERSPARK_RAW_DIR" ] && [ -w "$AETHERSPARK_RAW_DIR" ] || {
+    echo "up: the raw folder $AETHERSPARK_RAW_DIR must exist and be writable by the stack user" >&2
+    exit 2
+}
+
 # The local images: step (step-ca and the step CLI, built from source; the first build takes
-# minutes), postgres-auth's and Keycloak's, the data stores', the runtime egress proxy's
-dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data clickhouse egress-runtime
+# minutes), postgres-auth's and Keycloak's, the data stores', the runtime egress proxy's, the ingester's
+dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data clickhouse egress-runtime ingester
 python3 -I "$repo/deploy/secret-store/secret_store.py" generate
 python3 -I "$repo/deploy/secret-store/secret_store.py" unseal
 python3 -I "$repo/deploy/ca/ca.py" prepare
+# The ingester waits for the SEC contact, an entered secret (docs/runbooks/secrets.md): without its
+# file Docker would make a root-owned folder in its place, so the ingester is left out until then
+secrets_dir="${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aetherspark/secrets}"
+without=()
+if [ ! -f "$secrets_dir/sec-user-agent-contact" ]; then
+    echo "up: the ingester is not started until the SEC contact is entered: just secrets enter sec-user-agent-contact" >&2
+    without=(--scale ingester=0)
+fi
 # Always new containers: Docker Desktop mounts a secret file as it was when the container was
 # created, and unseal has just written new files (after a restart of WSL the old ones are gone)
 dc up -d --wait --force-recreate step-ca
 dc run --rm cert-bootstrap
-dc up -d --wait --force-recreate
+dc up -d --wait --force-recreate "${without[@]}"
 # The aetherspark realm as the repository says (deploy/keycloak/admin.py apply): Keycloak imports
 # the realm file only into an empty database. Skipped before `just keycloak setup` has run
 python3 -I "$repo/deploy/keycloak/admin.py" apply --if-ready \
