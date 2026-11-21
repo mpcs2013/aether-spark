@@ -1,5 +1,5 @@
 # ADR-0005: Multi-arch, reproducible builds
-- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment** 2026-10-16 (native arm64 runners) · **Amendment 2** Accepted 2026-10-20 (Aspire AppHost without lock file) · **Amendment 3** Accepted 2026-10-31 (image scan policy)
+- **Status:** Accepted · **Date:** 2026-10-03 · **Amendment** 2026-10-16 (native arm64 runners) · **Amendment 2** Accepted 2026-10-20 (Aspire AppHost without lock file) · **Amendment 3** Accepted 2026-10-31 (image scan policy) · **Amendment 4** Accepted 2026-11-21 (the pull request gate scoped to the images it changes; a daily run on main)
 ## Decision
 - All custom images built with `docker buildx` for `linux/arm64` (primary) and `linux/amd64` (dev). Before Spark arrives, arm64 builds run under QEMU; on Spark they build natively.
 - Base images pinned by digest; .NET central package management with lock files; Python `uv.lock`.
@@ -51,3 +51,21 @@ In plain words: every image the repository builds or runs is checked for known v
 - **Consequences:**
   - Good: an unfixed High or Critical no longer passes silently; every exception is visible, owned and dated.
   - Bad: exceptions need a review at least every 90 days; a vendor gap (a fixed library that no image release carries yet) needs an exception or an own build; each image-changing pull request adds a scan on both architectures.
+
+## Amendment 4 (2026-11-21, accepted by the owner) — the pull request gate scoped to the images it changes; a daily run on main
+In plain words: a pull request fails the image scan only for the images it changes. A new advisory against an image nobody touched shows up as a warning there, and fails the daily scan of `main` instead, where it is fixed once in its own pull request.
+
+- **Why:** amendment 3 meant a new advisory to fail "the weekly run, not unrelated pull requests", but every pull request scanned and failed on every image. The scanner's database changes daily, so findings in images a pull request never touched blocked it: 5 of the 12 pull requests with a failed CI run among #100–#127 (#110, #113, #117, #118, #125), and #127's two image re-scans.
+- **The gate:** on a pull request, the workflow lists the paths it changes (`git diff` against its base) and `deploy/images/scan_policy.py` (`--changed-files`) works out the targets it changes, on doubt counting a target as changed:
+  - a change to the scan itself (`deploy/images/`, the scan's workflow) changes every target;
+  - a build target: a change in its Dockerfile's folder or its context; for a context at the repository root, also any path the root `.dockerignore` admits, or that file (shared by all root-context images);
+  - a pulled image: a change to a Compose file that names it.
+  - High and Critical findings without a valid exception **fail** in those targets and are **warnings** (`WARN`, with the note that the daily run on main fails on them) in the others. Medium and lower, exceptions and their lifecycle reports are unchanged.
+- **Runs** (replacing amendment 3's list):
+  - on every pull request that changes an image input, gated as above;
+  - **daily** on `main` (05:23 UTC), every target failing as before;
+  - by hand, every target failing.
+- **Who sees a new advisory:** the daily run fails; GitHub notifies the user who last changed its schedule (the owner, whose merge changes it). The fix, a bump or an exception, is its own pull request, as #126 was. Until it merges, pull requests that change the affected image fail on it, as they should.
+- **Consequences:**
+  - Good: an unrelated pull request is not blocked by a new advisory; new advisories surface within a day, not a week.
+  - Bad: for up to a day a new advisory is only a warning on pull requests that do not change the image; seven scheduled runs a week instead of one (free while the repository is public; with the repository's move to private, part of that decision).

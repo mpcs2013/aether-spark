@@ -50,4 +50,10 @@ while read -r kind name source dockerfile; do
     args+=(--result "$name=$out/$i.json")
 done <<< "$targets"
 
-python3 -I "$here/scan_policy.py" evaluate --arch "$arch" --exceptions "$here/exceptions.json" "${args[@]}"
+# On a pull request the workflow names its changed paths (CHANGED_FILES): only the images it changes
+# can fail it, findings elsewhere are warnings (ADR-0005 amendment 4). Unset (the daily run on main,
+# a run by hand, a local run), every image can fail.
+gate=()
+[ -n "${CHANGED_FILES:-}" ] && gate=(--changed-files "$CHANGED_FILES")
+python3 -I "$here/scan_policy.py" evaluate --arch "$arch" --exceptions "$here/exceptions.json" \
+    "${args[@]}" "${gate[@]}"

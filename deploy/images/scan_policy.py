@@ -4,9 +4,13 @@
 Compose files run, which must be pinned by digest. `evaluate` reads Grype's JSON for each target
 and fails on any High or Critical finding, fixed or not, that no valid, unexpired exception covers.
 
+With `--changed-files` (a pull request's changed paths, one per line), only the images that pull
+request changes can fail it; a finding elsewhere is reported as a warning, and the daily run on main
+fails on it instead (ADR-0005 amendment 4). A change to the scan itself changes every image.
+
     python -I scan_policy.py targets
     python -I scan_policy.py evaluate --arch amd64 --exceptions exceptions.json \\
-        --result dev-container=0.json [--result ...] [--today YYYY-MM-DD]
+        --result dev-container=0.json [--result ...] [--today YYYY-MM-DD] [--changed-files PATH]
 
 Exit codes: 0 pass, 1 failing findings, 2 unusable input (targets, exceptions or results).
 """
@@ -45,6 +49,9 @@ COMPOSE_FILE = re.compile(r"(^|/)(docker-)?compose[^/]*\.ya?ml$")
 IMAGE_KEY = re.compile(r"""(?:^|[\s{,])["']?image["']?\s*:\s*["']?(?P<ref>[^\s"',}#]+)""", re.M)
 EXCEPTION_KEYS = {"id", "target", "package", "reason", "issue", "approved", "expires", "arches"}
 REQUIRED_KEYS = EXCEPTION_KEYS - {"arches"}
+# A change to any of these changes the verdict for every image: the policy, its targets and
+# exceptions, the scanner's pin, the scan's script and workflow
+SCAN_INPUTS = ("deploy/images/", ".github/workflows/image-scan.yml")
 
 
 class InputError(Exception):
@@ -167,6 +174,58 @@ def load_targets(
     if len({t.name for t in targets}) != len(targets):
         raise InputError(f"{path.name}: duplicate target names")
     return targets
+
+
+def _root_context_inputs(root: Path) -> list[str]:
+    """What the root `.dockerignore` lets into a build from the repository root: its `!` lines."""
+    try:
+        lines = (root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    return [line[1:].strip() for line in lines if line.startswith("!") and line[1:].strip()]
+
+
+def changed_targets(targets: list[Target], changed: list[str], root: Path = ROOT) -> set[str]:
+    """The targets whose inputs a pull request changes. On doubt a target counts as changed:
+    - a change to the scan itself changes all of them;
+    - a build target: its Dockerfile's folder or its context; for a context at the repository root,
+      also anything the root .dockerignore admits (shared by every root-context image) or that file;
+    - a pulled image: a change to a Compose file that names it."""
+    files = [c.strip() for c in changed if c.strip()]
+    if any(c.startswith(SCAN_INPUTS) for c in files):
+        return {t.name for t in targets}
+    root_inputs = _root_context_inputs(root)
+
+    def admitted(path: str) -> bool:
+        return path == ".dockerignore" or any(
+            path == entry or (entry.endswith("/") and path.startswith(entry))
+            for entry in root_inputs
+        )
+
+    names: set[str] = set()
+    for t in targets:
+        if t.kind == "build":
+            folder = t.dockerfile.rsplit("/", 1)[0] + "/" if "/" in t.dockerfile else ""
+            context = "" if t.source == "." else t.source.rstrip("/") + "/"
+            if any(
+                c == t.dockerfile
+                or (folder and c.startswith(folder))
+                or (context and c.startswith(context))
+                or (not context and admitted(c))
+                for c in files
+            ):
+                names.add(t.name)
+        else:
+            for c in files:
+                path = root / c
+                if (
+                    COMPOSE_FILE.search(c)
+                    and path.is_file()
+                    and t.source in path.read_text(encoding="utf-8")
+                ):
+                    names.add(t.name)
+                    break
+    return names
 
 
 def _date(value: Any, key: str, where: str) -> dt.date:
@@ -316,9 +375,13 @@ def evaluate(
     exceptions: list[Exception_],
     arch: str,
     today: dt.date,
+    gate: set[str] | None = None,
 ) -> tuple[int, list[str]]:
+    """Fails on the unexcepted High and Critical findings; with a `gate`, only on those in the
+    gated targets, the others reported as warnings (a pull request's unchanged images)."""
     lines: list[str] = []
     failing: list[tuple[Finding, str]] = []
+    warned: list[tuple[Finding, str]] = []
     excepted: list[tuple[Finding, Exception_]] = []
     for name, (target, path) in sorted(results.items()):
         findings, meta = load_findings(target, path, arch)
@@ -334,13 +397,22 @@ def evaluate(
             active = [e for e in covering if today <= e.expires]
             if active:
                 excepted.append((finding, active[0]))
-            else:
+            elif gate is None or finding.target in gate:
                 failing.append((finding, "exception expired" if covering else "no exception"))
+            else:
+                warned.append((finding, "exception expired" if covering else "no exception"))
     for finding, why in failing:
         fixed = ", ".join(finding.fix_versions) or "none"
         lines.append(
             f"FAIL {finding.target}: {finding.vuln} {finding.severity} in {finding.package} "
             f"{finding.version} (fix: {finding.fix_state}, {fixed}): {why}"
+        )
+    for finding, why in warned:
+        fixed = ", ".join(finding.fix_versions) or "none"
+        lines.append(
+            f"WARN {finding.target}: {finding.vuln} {finding.severity} in {finding.package} "
+            f"{finding.version} (fix: {finding.fix_state}, {fixed}): {why}; this pull request "
+            "does not change the image, the daily run on main fails on it"
         )
     for finding, e in excepted:
         lines.append(
@@ -363,9 +435,10 @@ def evaluate(
         elif (e.expires - today).days <= 14:
             lines.append(f"DUE {label} expires {e.expires}")
     verdict = "fail" if failing else "pass"
-    lines.append(
-        f"image scan ({arch}): {verdict}: {len(failing)} failing, {len(excepted)} excepted"
-    )
+    summary = f"image scan ({arch}): {verdict}: {len(failing)} failing, {len(excepted)} excepted"
+    if gate is not None:
+        summary += f", {len(warned)} warned in images this pull request does not change"
+    lines.append(summary)
     return (1 if failing else 0), lines
 
 
@@ -385,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--exceptions", type=Path, required=True)
     ev.add_argument("--result", type=_result, action="append", required=True)
     ev.add_argument("--today", type=dt.date.fromisoformat)
+    ev.add_argument("--changed-files", type=Path, help="a pull request's changed paths")
     args = parser.parse_args(argv)
     try:
         targets = {t.name: t for t in load_targets()}
@@ -405,7 +479,15 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             raise InputError(f"exceptions name targets that are not scanned: {unknown}")
         results = {name: (targets[name], path) for name, path in given.items()}
-        code, lines = evaluate(results, exceptions, args.arch, today)
+        gate: set[str] | None = None
+        if args.changed_files is not None:
+            try:
+                changed = args.changed_files.read_text(encoding="utf-8").splitlines()
+            except OSError as error:
+                raise InputError(f"changed files: {error}") from error
+            gate = changed_targets(list(targets.values()), changed)
+            print(f"images this pull request changes: {', '.join(sorted(gate)) or 'none'}")
+        code, lines = evaluate(results, exceptions, args.arch, today, gate)
     except InputError as error:
         print(f"image scan: unusable input: {error}", file=sys.stderr)
         return 2

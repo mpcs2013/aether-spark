@@ -1,12 +1,13 @@
 name: image-scan
 
-# ADR-0005 amendment 3 (#31): every image the repository builds or pins, on both architectures.
-# Called from ci.yml when an image input changes; weekly, so a new advisory fails this run and not
-# an unrelated pull request; and by hand.
+# ADR-0005 amendments 3 and 4 (#31): every image the repository builds or pins, on both
+# architectures. Called from ci.yml when an image input changes, where only the images the pull
+# request changes can fail it; daily on main, where every image can, so a new advisory fails this
+# run and not an unrelated pull request; and by hand.
 on:
   workflow_call:
   schedule:
-    - cron: "23 5 * * 1"
+    - cron: "23 5 * * *"
   workflow_dispatch:
 
 # ADR-0004: read-only GITHUB_TOKEN, no other secrets
@@ -31,6 +32,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The pull request's base, to list what it changes
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+
+      # A pull request's changed paths: only the images it changes can fail it (amendment 4)
+      - name: Changed files
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          git diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed-files.txt"
+          cat "$RUNNER_TEMP/changed-files.txt"
+          echo "CHANGED_FILES=$RUNNER_TEMP/changed-files.txt" >> "$GITHUB_ENV"
 
       # Room for large images: the runner's preinstalled toolchains this job never uses (about 30 GB);
       # a path that does not exist on one architecture is simply skipped
