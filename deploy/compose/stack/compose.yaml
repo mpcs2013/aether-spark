@@ -337,6 +337,12 @@ services:
         target: /raw
         read_only: true
         bind: { create_host_path: false }
+      # The XBRL taxonomies, Arelle's offline cache (PR 4b1): read-only, filled by taxonomy-job
+      - type: bind
+        source: "${AETHERSPARK_TAXONOMY_DIR:-/srv/taxonomies}"
+        target: /taxonomies
+        read_only: true
+        bind: { create_host_path: false }
     networks: [ingest]
     depends_on:
       postgres-data: { condition: service_healthy }
@@ -346,6 +352,35 @@ services:
       timeout: 5s
       start_period: 60s
       start_interval: 2s
+
+  # The taxonomy job (data-plane.md, section 4; egress.md, "Model store and taxonomies"; PR 4b1):
+  # one-shot, in an ops session the owner starts (`just taxonomies`). The pipeline's own image and
+  # code (aetherspark_pipeline.taxonomies), but its own role: on egress-ops only, to the three
+  # taxonomy hosts through the ops proxy. It reads the committed entry list (never a filing), fetches
+  # each file and what it refers to into the taxonomy store, and writes the store's manifest. The
+  # SEC contact goes in the User-Agent, as xbrl.sec.gov asks of every client
+  taxonomy-job:
+    <<: [*no-restart, *hardening]
+    profiles: [taxonomies]
+    image: aetherspark/pipeline:local
+    labels: { aetherspark.role: taxonomy-job }
+    entrypoint: ["python", "-I", "-B", "-u", "-m", "aetherspark_pipeline.taxonomies"]
+    command: ["--entries", "/entries/entry-points.txt", "--store", "/taxonomies", "--contact-file", "/run/secrets/sec-user-agent-contact"]
+    environment:
+      HTTPS_PROXY: http://172.30.20.2:3128
+    secrets: [sec-user-agent-contact]
+    tmpfs: [/tmp]
+    mem_limit: 1g
+    pids_limit: 32
+    volumes:
+      - { type: bind, source: ../../taxonomies, target: /entries, read_only: true }
+      - type: bind
+        source: "${AETHERSPARK_TAXONOMY_DIR:-/srv/taxonomies}"
+        target: /taxonomies
+        bind: { create_host_path: false }
+    networks: [egress-ops]
+    depends_on:
+      egress-ops: { condition: service_healthy }
 
   # Keycloak (compose-base.md, "Keycloak exposure"): built from Ostium's notice (deploy/keycloak),
   # production start, reached only by Traefik on auth-front; its database over verified TLS on

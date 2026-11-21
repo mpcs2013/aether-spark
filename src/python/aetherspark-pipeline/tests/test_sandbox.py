@@ -16,7 +16,9 @@ if sys.platform == "win32":
 from aetherspark_pipeline.jobs import Job
 from aetherspark_pipeline.sandbox import Limits, run
 from aetherspark_pipeline.settings import Settings
+from aetherspark_pipeline.taxonomies import store_path
 from aetherspark_pipeline.worker import process
+from test_xbrl import COMPANY, INSTANCE, TAX_SCHEMA, TAXONOMY
 
 MIB = 1024 * 1024
 LIMITS = Limits(memory_bytes=512 * MIB, cpu_seconds=10, wall_seconds=20)
@@ -84,6 +86,12 @@ def job_in(raw: Path, files: dict[str, bytes], job_id: int = 7) -> Job:
     folder.mkdir(parents=True)
     for name, body in files.items():
         (folder / name).write_bytes(body)
+
+    def kind(name: str) -> str:
+        if name.endswith("_htm.xml"):
+            return "instance"
+        return "schema" if name.endswith(".xsd") else "primary"
+
     contract = {
         "version": 1,
         "accession_no": acc,
@@ -94,7 +102,7 @@ def job_in(raw: Path, files: dict[str, bytes], job_id: int = 7) -> Job:
         "files": [
             {
                 "name": n,
-                "kind": "instance" if n.endswith(".xml") else "primary",
+                "kind": kind(n),
                 "sha256": hashlib.sha256(b).hexdigest(),
                 "size": len(b),
             }
@@ -106,26 +114,64 @@ def job_in(raw: Path, files: dict[str, bytes], job_id: int = 7) -> Job:
 
 def worker_settings(tmp_path: Path) -> Settings:
     (tmp_path / "jobs").mkdir()
+    store = tmp_path / "store"
+    taxonomy = store_path(store, TAXONOMY)
+    taxonomy.parent.mkdir(parents=True)
+    taxonomy.write_text(TAX_SCHEMA, encoding="utf-8")
     return Settings(
         database_host="unused.invalid",
         raw_dir=tmp_path / "raw",
         job_dir=tmp_path / "jobs",
-        child_memory_bytes=512 * MIB,
-        child_cpu_seconds=20,
-        child_wall_seconds=60,
+        taxonomy_dir=store,
+        child_memory_bytes=1024 * MIB,
+        child_cpu_seconds=60,
+        child_wall_seconds=120,
     )
 
 
-def test_a_whole_job_is_checked_and_its_folder_removed(tmp_path: Path) -> None:
+def test_a_whole_job_is_parsed_in_the_sandbox_and_its_folders_removed(tmp_path: Path) -> None:
     settings = worker_settings(tmp_path)
-    job = job_in(tmp_path / "raw", {"q.htm": b"<html/>", "q_htm.xml": b"<xbrl><x>1</x></xbrl>"})
+    job = job_in(
+        tmp_path / "raw",
+        {
+            "q.htm": b"<html/>",
+            "co-20241231.xsd": COMPANY.encode(),
+            "co-20241231_htm.xml": INSTANCE.encode(),
+        },
+    )
 
     outcome = process(settings, job)
 
     assert outcome.ok, outcome.reason
-    assert "2 files" in outcome.reason
-    assert "1 XML files pre-parsed" in outcome.reason
+    assert "3 files" in outcome.reason
+    assert "3 numeric facts" in outcome.reason
+    assert "1 more than six decimal places" in outcome.reason
+    assert len(outcome.rows) == 3
     assert list((tmp_path / "jobs").iterdir()) == []
+
+
+def test_a_filing_without_an_instance_has_no_facts(tmp_path: Path) -> None:
+    settings = worker_settings(tmp_path)
+    job = job_in(tmp_path / "raw", {"q.htm": b"<html/>"})
+
+    outcome = process(settings, job)
+
+    assert outcome.ok
+    assert outcome.reason.endswith("no XBRL instance, so no facts")
+
+
+def test_a_missing_taxonomy_fails_the_job_with_its_url(tmp_path: Path) -> None:
+    settings = worker_settings(tmp_path)
+    store_path(settings.taxonomy_dir, TAXONOMY).unlink()
+    job = job_in(
+        tmp_path / "raw",
+        {"co-20241231.xsd": COMPANY.encode(), "co-20241231_htm.xml": INSTANCE.encode()},
+    )
+
+    outcome = process(settings, job)
+
+    assert not outcome.ok
+    assert TAXONOMY in outcome.reason
 
 
 def test_a_hostile_file_fails_its_job_and_the_folder_is_removed(tmp_path: Path) -> None:

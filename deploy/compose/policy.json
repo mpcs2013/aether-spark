@@ -60,6 +60,8 @@
   "model_store": { "volume": "model-store", "writers": ["pull-job"] },
   "_raw_dirs": "The raw SEC downloads' host folder (docs/architecture/data-plane.md, decision 9): the Spark's and the desktop's (E:, from WSL2). Bound exactly (never a folder above or below it), read-write by the writers, read-only by the readers, by no other role; never behind a named volume.",
   "raw_dirs": { "dirs": ["/srv/raw", "/mnt/e/aetherspark/raw"], "writers": ["ingester"], "readers": ["pipeline"] },
+  "_taxonomy_dirs": "The XBRL taxonomy store's host folder (data-plane.md, section 4; egress.md, Model store and taxonomies): the Spark's and the desktop's. The same rules as the raw folder: written only by the one-shot taxonomy job in an ops session, read-only by the pipeline, by no other role.",
+  "taxonomy_dirs": { "dirs": ["/srv/taxonomies", "/mnt/e/aetherspark/taxonomies"], "writers": ["taxonomy-job"], "readers": ["pipeline"] },
   "phone_home": {
     "traefik":     { "TRAEFIK_GLOBAL_CHECKNEWVERSION": "false", "TRAEFIK_GLOBAL_SENDANONYMOUSUSAGE": "false" },
     "litellm":     { "LITELLM_LOCAL_MODEL_COST_MAP": "True", "LITELLM_TELEMETRY": "False" },

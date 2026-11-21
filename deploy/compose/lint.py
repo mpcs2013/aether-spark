@@ -82,6 +82,11 @@ def host_path_hit(source: str, forbidden: Iterable[str]) -> str | None:
     return None
 
 
+# Host folders with writers and readers (policy.json): the raw folder (data-plane.md, decision 9)
+# and the taxonomy store (data-plane.md, section 4), each bound exactly, by its roles only
+STORES = (("raw_dirs", "the raw folder"), ("taxonomy_dirs", "the taxonomy store"))
+
+
 def _raw_findings(
     where: str,
     role: str | None,
@@ -89,18 +94,19 @@ def _raw_findings(
     raw_dir: str,
     volume: dict[str, Any],
     raw: dict[str, Any],
+    what: str = "the raw folder",
 ) -> list[str]:
-    """A bind mount that reaches the raw folder: the folder itself, by its writers, or read-only by
-    its readers (data-plane.md, decision 9)."""
+    """A bind mount that reaches a store folder: the folder itself, by its writers, or read-only by
+    its readers."""
     if posixpath.normpath(source) != source or source != raw_dir:
-        return [f"{where}: mount of {source} reaches the raw folder {raw_dir}; bind it exactly"]
+        return [f"{where}: mount of {source} reaches {what} {raw_dir}; bind it exactly"]
     if role in raw["writers"]:
         return []
     if role in raw["readers"]:
         if volume.get("read_only"):
             return []
-        return [f"{where}: role {role} mounts the raw folder read-only only"]
-    return [f"{where}: role {role} may not mount the raw folder"]
+        return [f"{where}: role {role} mounts {what} read-only only"]
+    return [f"{where}: role {role} may not mount {what}"]
 
 
 def image_matches(image: str, bound: str) -> bool:
@@ -149,7 +155,8 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
         if bool(net.get("internal", False)) != rule["internal"]:
             findings.append(f"{where}: internal must be {str(rule['internal']).lower()}")
 
-    raw: dict[str, Any] = policy.get("raw_dirs") or {"dirs": [], "writers": [], "readers": []}
+    empty: dict[str, list[str]] = {"dirs": [], "writers": [], "readers": []}
+    stores = [(policy.get(key) or empty, what) for key, what in STORES]
     # Host paths behind a named volume or a config are mounted like a bind mount
     for kind, field in (("volumes", "device"), ("configs", "file")):
         for key, item in (rendered.get(kind) or {}).items():
@@ -159,12 +166,11 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             hit = host_path_hit(source, forbidden_paths)
             if hit:
                 findings.append(f"{kind} {key}: host path {source} reaches {hit}")
-            # The raw folder only as a bind, where its roles are checked below
-            raw_hit = host_path_hit(source, raw["dirs"])
-            if raw_hit:
-                findings.append(
-                    f"{kind} {key}: host path {source} reaches the raw folder {raw_hit}"
-                )
+            # A store folder only as a bind, where its roles are checked below
+            for store, what in stores:
+                store_hit = host_path_hit(source, store["dirs"])
+                if store_hit:
+                    findings.append(f"{kind} {key}: host path {source} reaches {what} {store_hit}")
     # A secret comes only from a file directly in the in-memory secrets folder (compose-base.md)
     source_dirs = [re.compile(p) for p in policy["secret_source_dirs"]]
     for key, item in (rendered.get("secrets") or {}).items():
@@ -261,9 +267,13 @@ def lint_compose(rendered: dict[str, Any], policy: dict[str, Any]) -> list[str]:
                 and role not in model_store["writers"]
             ):
                 findings.append(f"{where}: writable model-store mount outside a pull job")
-            raw_hit = host_path_hit(source, raw["dirs"]) if volume.get("type") == "bind" else None
-            if raw_hit:
-                findings.extend(_raw_findings(where, role, source, raw_hit, volume, raw))
+            if volume.get("type") == "bind":
+                for store, what in stores:
+                    store_hit = host_path_hit(source, store["dirs"])
+                    if store_hit:
+                        findings.extend(
+                            _raw_findings(where, role, source, store_hit, volume, store, what)
+                        )
 
         if mode is None:
             nets = _service_networks(service)

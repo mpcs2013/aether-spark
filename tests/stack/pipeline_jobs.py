@@ -1,8 +1,11 @@
 """The stack test's jobs for the pipeline worker (tests/stack/run.sh; data-plane.md, D5, D6):
 one made-up company whose filings are each a case. Standard library only.
 
-    pipeline_jobs.py prepare RAW     writes the cases' files under RAW and prints the SQL for their
-                                     company, filings and jobs (run by the migration owner)
+    pipeline_jobs.py prepare RAW TAXONOMIES
+                                     writes the cases' files under RAW and a made-up taxonomy into
+                                     the store TAXONOMIES (where the store keeps a FASB file), and
+                                     prints the SQL for their company, filings and jobs (run by the
+                                     migration owner)
     pipeline_jobs.py check RESULTS   compares the jobs' end states (accession|status|attempts|reason
                                      per line) with each case's expected end
 """
@@ -18,10 +21,47 @@ from pathlib import Path
 CIK = 7654321
 SECRET = "/run/secrets/postgres-data-pipeline-password"  # noqa: S105 - its path, not a value
 KINDS = {"q.htm": "primary", "q_htm.xml": "instance", "q.xsd": "schema"}
+# A made-up taxonomy stands in for US GAAP (as in the worker's tests, test_xbrl.py); Arelle brings
+# the XBRL base schemas it imports itself
+TAXONOMY = "https://xbrl.fasb.org/test/2024/test-2024.xsd"
+TAX_SCHEMA = b"""<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xbrli="http://www.xbrl.org/2003/instance"
+ targetNamespace="http://fasb.org/test/2024" elementFormDefault="qualified">
+ <xs:import namespace="http://www.xbrl.org/2003/instance"
+   schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+ <xs:element name="Revenues" id="test_Revenues" type="xbrli:monetaryItemType"
+   substitutionGroup="xbrli:item" xbrli:periodType="duration" nillable="true"/>
+</xs:schema>
+"""
+
+
+def company(imports: str) -> bytes:
+    """The filing's own schema, importing the taxonomy from `imports`."""
+    return (
+        '<?xml version="1.0"?><xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"'
+        ' targetNamespace="http://example.com/q" elementFormDefault="qualified">'
+        f'<xs:import namespace="http://fasb.org/test/2024" schemaLocation="{imports}"/></xs:schema>'
+    ).encode()
+
+
+INSTANCE = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+ xmlns:test="http://fasb.org/test/2024">
+ <link:schemaRef xlink:type="simple" xlink:href="q.xsd"/>
+ <xbrli:context id="q4"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0007654321</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2025-10-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period></xbrli:context>
+ <xbrli:context id="q3"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0007654321</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2025-07-01</xbrli:startDate><xbrli:endDate>2025-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+ <xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+ <test:Revenues contextRef="q4" unitRef="usd" decimals="-3">1250000</test:Revenues>
+ <test:Revenues contextRef="q3" unitRef="usd" decimals="-3">1175000</test:Revenues>
+</xbrli:xbrl>
+"""
 GOOD: dict[str, bytes | str] = {
     "q.htm": b"<html><p>q</p></html>",
-    "q_htm.xml": b"<xbrl><x>1</x></xbrl>",
-    "q.xsd": b"<s/>",
+    "q_htm.xml": INSTANCE,
+    "q.xsd": company(TAXONOMY),
 }
 BOMB = (
     b'<?xml version="1.0"?><!DOCTYPE l [<!ENTITY a "aaaaaaaaaa">'
@@ -30,7 +70,7 @@ BOMB = (
 )
 REMOTE_DTD = b'<?xml version="1.0"?><!DOCTYPE x SYSTEM "http://sec-stub:8080/evil.dtd"><xbrl/>'
 OUTSIDE = ("declares a DTD", "refers to an outside resource")
-CHECKED = ("3 files, hashes as in the contract",)
+CHECKED = ("3 files, hashes as in the contract; 2 XML files pre-parsed; 2 numeric facts",)
 
 
 @dataclass(frozen=True)
@@ -62,6 +102,27 @@ CASES = {
     8: Case("done", 2, CHECKED, row_status="running", row_attempts=1),
     # ... twice: failed, never tried a third time
     9: Case("failed", 2, ("stuck in running twice",), row_status="running", row_attempts=2),
+    # The taxonomy (PR 4b1): a file the store lacks fails with its URL, never fetched; an import
+    # that climbs out of the job folder, or one from a host other than the three, refused before
+    # Arelle reads anything
+    10: Case(
+        "failed",
+        1,
+        ("Could not load file",),
+        files={**GOOD, "q.xsd": company("https://xbrl.fasb.org/test/2024/missing-2024.xsd")},
+    ),
+    11: Case(
+        "failed",
+        1,
+        ("q.xsd: a reference refused (not a file of the job",),
+        files={**GOOD, "q.xsd": company("../../../taxonomies/https/xbrl.fasb.org/test-2024.xsd")},
+    ),
+    12: Case(
+        "failed",
+        1,
+        ("q.xsd: a reference refused (not a taxonomy host",),
+        files={**GOOD, "q.xsd": company("https://sec-stub:8080/test-2024.xsd")},
+    ),
 }
 
 
@@ -88,7 +149,16 @@ def _files(folder: Path, case: Case) -> list[dict[str, object]]:
     return entries
 
 
-def prepare(raw: Path) -> str:
+def store_taxonomy(store: Path) -> None:
+    """The made-up taxonomy where the taxonomy job would keep it: <store>/<scheme>/<host>/<path>."""
+    scheme, rest = TAXONOMY.split("://", 1)
+    path = store.joinpath(scheme, *rest.split("/"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(TAX_SCHEMA)
+
+
+def prepare(raw: Path, taxonomies: Path) -> str:
+    store_taxonomy(taxonomies)
     # The SQL is built only from this file's constants and the contracts it writes itself (S608)
     sql = [f"insert into ref.issuers values ({CIK}, 'Pipeline Test Co', now(), now());"]  # noqa: S608
     for number, case in CASES.items():
@@ -143,8 +213,8 @@ def check(results: Path) -> list[str]:
 
 def main(argv: list[str]) -> int:
     match argv:
-        case ["prepare", raw]:
-            print(prepare(Path(raw)))
+        case ["prepare", raw, taxonomies]:
+            print(prepare(Path(raw), Path(taxonomies)))
             return 0
         case ["check", results]:
             problems = check(Path(results))

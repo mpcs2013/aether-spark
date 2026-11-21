@@ -7,10 +7,14 @@ requires-python = ">=3.12"
 # needs lxml too, comes with PR 4b (owner, 2026-11-21). Versions locked at least two weeks old.
 # psycopg without its binary part (owner, 2026-11-21): psycopg-binary bundles its own libpq and an
 # older OpenSSL the image scan cannot see; the image installs Alpine's libpq instead.
+# Arelle for the XBRL instances (PR 4b1, owner, 2026-11-21): the image leaves out the dependencies an
+# offline load never imports (tools/pipeline_requirements.py); pillow and openpyxl stay, Arelle's
+# load path imports them unconditionally.
 dependencies = [
     "aetherspark-common",
     "psycopg>=3.3,<4",
     "lxml>=6.1,<7",
+    "arelle-release>=2.47.4,<2.48",
 ]
 
 [tool.uv.sources]

@@ -81,6 +81,11 @@ keycloak-break-glass username:
 backup *args="run":
     bash deploy/backup/backup.sh {{ args }}
 
+# Fill the taxonomy store in an ops session (docs/runbooks/taxonomies.md; after `just up`)
+[unix]
+taxonomies:
+    bash deploy/compose/stack/taxonomies.sh
+
 # The stack end to end: tests C3, C3b, C5, C9a, C9b, C10 so far, C11 (tests/stack/run.sh; ~20 minutes)
 [unix]
 stack-test:
@@ -150,6 +155,11 @@ keycloak-break-glass username:
 [windows]
 backup *args="run":
     {{ wsl }} backup {{ args }}
+
+# Fill the taxonomy store in an ops session, in WSL2 (docs/runbooks/taxonomies.md; after `just up`)
+[windows]
+taxonomies:
+    {{ wsl }} taxonomies
 
 # The stack end to end, in WSL2 (tests/stack/run.sh; ~20 minutes)
 [windows]

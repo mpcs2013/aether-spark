@@ -32,25 +32,31 @@ def process(settings: Settings, job: jobs.Job) -> Outcome:
     """One job: its contract, its files copied and hashed into an in-memory folder, then the parse
     in a child process. The folder is removed whatever happens."""
     folder = settings.job_dir / str(job.id)
+    home = settings.job_dir / f"{job.id}.home"
     try:
         contract = read_contract(job.accession_no, job.contract)
         folder.mkdir(mode=0o700)
         copied = copy_files(settings, contract, folder)
+        instances = [f.name for f in contract.files if f.kind == "instance"]
+        checked = f"checked: {len(copied)} files, hashes as in the contract"
+        if not instances:
+            return Outcome(True, f"{checked}; no XBRL instance, so no facts")
+        if len(instances) > 1:
+            return Outcome(False, f"{checked}; more than one instance: {', '.join(instances)}")
         limits = Limits(
             settings.child_memory_bytes, settings.child_cpu_seconds, settings.child_wall_seconds
         )
-        parsed = parse_job(folder, limits)
+        parsed = parse_job(folder, instances[0], settings.taxonomy_dir, limits)
         if not parsed.ok:
             return parsed
         return Outcome(
-            True,
-            f"checked: {len(copied)} files, hashes as in the contract; {parsed.reason} "
-            "(PR 4a: no facts yet)",
+            True, f"{checked}; {parsed.reason} (PR 4b1: not loaded yet)", parsed.report, parsed.rows
         )
     except JobRefused as refused:
         return Outcome(False, str(refused))
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+        shutil.rmtree(home, ignore_errors=True)
 
 
 def run(settings: Settings, conn: psycopg.Connection[Any]) -> None:

@@ -30,7 +30,7 @@ RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSIO
 COPY --from=deps /deps/ /usr/local/lib/python3.12/site-packages/
 COPY src/python/aetherspark-common/src/aetherspark_common/ /usr/local/lib/python3.12/site-packages/aetherspark_common/
 COPY src/python/aetherspark-pipeline/src/aetherspark_pipeline/ /usr/local/lib/python3.12/site-packages/aetherspark_pipeline/
-# No bytecode written at run time (the root filesystem is read-only), output unbuffered for the log
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-# -I: no PYTHON* variables, no user site, no current folder on the path
-ENTRYPOINT ["python", "-I", "-m", "aetherspark_pipeline"]
+# -I: no PYTHON* variables, no user site, no current folder on the path. So -B and -u say what the
+# variables cannot: no bytecode written at run time (the root filesystem is read-only), and output
+# unbuffered for the log (with PYTHONUNBUFFERED alone, -I left the worker's log in a buffer)
+ENTRYPOINT ["python", "-I", "-B", "-u", "-m", "aetherspark_pipeline"]
