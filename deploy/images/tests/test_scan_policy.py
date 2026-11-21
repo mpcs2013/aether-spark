@@ -200,6 +200,86 @@ def test_an_exception_due_within_two_weeks_is_reported(tmp_path: Path) -> None:
     assert any(line.startswith("DUE exception") for line in lines)
 
 
+# The pull request gate (amendment 4): only the images a pull request changes can fail it
+
+
+def _gated(tmp_path: Path, gate: set[str]) -> tuple[int, list[str]]:
+    results = {"app": (APP, _write(tmp_path, "app", _doc(_match())))}
+    code, lines = policy.evaluate(results, _exceptions(tmp_path), "amd64", TODAY, gate)
+    return int(code), list(lines)
+
+
+def test_a_finding_in_a_changed_image_fails_the_pull_request(tmp_path: Path) -> None:
+    code, lines = _gated(tmp_path, {"app"})
+    assert code == 1
+    assert any(line.startswith("FAIL app: CVE-2026-1000") for line in lines)
+    assert lines[-1].endswith(", 0 warned in images this pull request does not change")
+
+
+def test_a_finding_in_an_unchanged_image_is_a_warning(tmp_path: Path) -> None:
+    code, lines = _gated(tmp_path, set())
+    assert code == 0
+    assert any(
+        line.startswith("WARN app: CVE-2026-1000") and "the daily run on main fails" in line
+        for line in lines
+    )
+    assert lines[-1] == (
+        "image scan (amd64): pass: 0 failing, 0 excepted, "
+        "1 warned in images this pull request does not change"
+    )
+
+
+def test_without_a_gate_every_image_can_fail(tmp_path: Path) -> None:
+    code, _ = _evaluate(tmp_path, [_match()])
+    assert code == 1
+
+
+def _gate_repo(tmp_path: Path) -> list[Any]:
+    (tmp_path / ".dockerignore").write_text(
+        "*\n!global.json\n!src/app/\n**/bin/\n", encoding="utf-8"
+    )
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / "deploy" / "compose.yaml").write_text(
+        f"services:\n  db:\n    image: postgres@{DIGEST}\n", encoding="utf-8"
+    )
+    return [
+        policy.Target("build", "web", "deploy/web", "deploy/web/Dockerfile"),
+        policy.Target("build", "app", ".", "src/app/Dockerfile"),
+        policy.Target("build", "tool", ".", "tools/tool/Dockerfile"),
+        policy.Target("pull", "postgres", f"postgres@{DIGEST}"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("changed", "expected"),
+    [
+        (["docs/readme.md"], set()),
+        (["deploy/web/nginx.conf"], {"web"}),
+        (["src/app/Program.cs"], {"app", "tool"}),  # what the root .dockerignore admits: shared
+        (["tools/tool/Dockerfile"], {"tool"}),
+        (["global.json"], {"app", "tool"}),
+        ([".dockerignore"], {"app", "tool"}),
+        (["deploy/compose.yaml"], {"postgres"}),
+        (["deploy/other/compose.yaml"], set()),  # deleted or unrelated: it names nothing
+        (["deploy/images/exceptions.json"], {"web", "app", "tool", "postgres"}),
+        ([".github/workflows/image-scan.yml"], {"web", "app", "tool", "postgres"}),
+        (["", "  "], set()),
+    ],
+)
+def test_the_images_a_pull_request_changes(
+    tmp_path: Path, changed: list[str], expected: set[str]
+) -> None:
+    assert policy.changed_targets(_gate_repo(tmp_path), changed, tmp_path) == expected
+
+
+def test_the_root_dockerignore_names_the_root_context_inputs() -> None:
+    # The repository's own: a change to what the ingester's build reads gates that image
+    targets = policy.load_targets()
+    gated = policy.changed_targets(targets, ["src/dotnet/AetherSpark.ServiceDefaults/X.cs"])
+    assert "ingester" in gated
+    assert policy.changed_targets(targets, ["docs/architecture/data-plane.md"]) == set()
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
