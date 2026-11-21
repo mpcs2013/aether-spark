@@ -9,4 +9,7 @@ FROM postgres:18.7-alpine3.24@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38
 # OpenSSL fixed for CVE-2026-88823, -95691 and -95692 (High) in Alpine, not yet in the base image
 # (scan of 2026-11-19); drop this once the base carries 3.5.9-r1 or newer
 ARG OPENSSL_VERSION=3.5.9-r1
-RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}"
+# libxml2 fixed for CVE-2026-86144 (High) in Alpine, not yet in the base image (scan of
+# 2026-11-21, the owner's choice that day); drop this once the base carries 2.13.9-r3 or newer
+ARG LIBXML2_VERSION=2.13.9-r3
+RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}" "libxml2=${LIBXML2_VERSION}"
