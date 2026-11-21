@@ -30,6 +30,9 @@ export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NA
 # The ingester's raw folder: a throw-away one, never the desktop's E: or the Spark's /srv/raw
 export AETHERSPARK_RAW_DIR="$work/raw"
 mkdir -p "$AETHERSPARK_RAW_DIR"
+# The pipeline's taxonomy store: a throw-away one with a made-up taxonomy (tests/stack/pipeline_jobs.py)
+export AETHERSPARK_TAXONOMY_DIR="$work/taxonomies"
+mkdir -p "$AETHERSPARK_TAXONOMY_DIR"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
 name=whoami.aether.localhost
 auth=auth.aether.localhost
@@ -801,21 +804,22 @@ stub_down() {
 }
 check "the stub's rows and files are removed and the stack's ingester runs again" stub_down
 
-echo "--- the pipeline worker: the jobs' files checked and pre-parsed in a limited child (PR 4a; D5, D6)"
-# Not part of `just up` until PR 4b (profile `pipeline`): started here on a made-up company's jobs
-# (tests/stack/pipeline_jobs.py), one case per filing, then stopped and its rows and files removed
+echo "--- the pipeline worker: the jobs' files checked, pre-parsed and read by Arelle offline in a limited child (PR 4a, 4b1; D5, D6)"
+# Not part of `just up` until PR 4b2 (profile `pipeline`): started here on a made-up company's jobs
+# (tests/stack/pipeline_jobs.py), one case per filing, with a made-up taxonomy in the store, then
+# stopped and its rows and files removed
 pipeline_jobs() { python3 -I "$repo/tests/stack/pipeline_jobs.py" "$@"; }
 pip_() { docker exec "$(dc --profile pipeline ps -q pipeline)" "$@"; }
 pipeline_up() {
-    pipeline_jobs prepare "$work/raw" >"$work/pipeline-jobs.sql" \
+    pipeline_jobs prepare "$work/raw" "$work/taxonomies" >"$work/pipeline-jobs.sql" \
         && owner_sql "$(cat "$work/pipeline-jobs.sql")" >/dev/null \
         && dc --profile pipeline build -q pipeline >/dev/null \
         && dc --profile pipeline up -d --wait pipeline
 }
 check "the pipeline worker starts on its profile and is healthy (its database heartbeat)" pipeline_up
-pipeline_settled() { # every test job has ended (done or failed)
+pipeline_settled() { # every test job has ended (done or failed); Arelle takes seconds per job
     local open
-    for _ in $(seq 1 60); do
+    for _ in $(seq 1 90); do
         open="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and status in ('queued', 'running')")" || return 1
         [ "$open" = 0 ] && return 0
         sleep 2
@@ -829,7 +833,7 @@ pipeline_results() {
     owner_sql "select accession_no || '|' || status || '|' || attempts || '|' || coalesce(reason, '') from ingest_ops.job_runs where accession_no like '0007654321-%' order by accession_no" \
         >"$work/pipeline-results.txt" && pipeline_jobs check "$work/pipeline-results.txt"
 }
-check "each job ends as its case says: done; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails (D5, D6)" pipeline_results
+check "each job ends as its case says: done with 2 facts; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails; a taxonomy file the store lacks, an import out of the job folder, an import from another host fail (D5, D6)" pipeline_results
 pipeline_alive() {
     [ "$(docker inspect -f '{{.State.Health.Status}} {{.RestartCount}}' "$(dc --profile pipeline ps -q pipeline)")" = "healthy 0" ]
 }
@@ -848,6 +852,7 @@ pipeline_no_listener() { # as the ingester's
 }
 check "the worker listens on no socket, TCP or Unix" pipeline_no_listener
 refuse "the worker cannot write the raw folder (read-only)" pip_ touch /raw/.stack-test
+refuse "the worker cannot write the taxonomy store (read-only)" pip_ touch /taxonomies/.stack-test
 refuse "the worker cannot write its program files (read-only root)" pip_ touch /usr/local/lib/python3.12/site-packages/stack-test
 pipeline_secrets_hidden() { # as the ingester's C5
     local id
@@ -864,7 +869,7 @@ pipeline_down() {
     dc --profile pipeline rm -sf pipeline >/dev/null 2>&1
     owner_sql "delete from ingest_ops.job_runs where accession_no like '0007654321-%';
         delete from ref.filings where cik = 7654321; delete from ref.issuers where cik = 7654321" >/dev/null \
-        && rm -rf "$work/raw/7654321" "$work/pipeline-jobs.sql" "$work/pipeline-results.txt"
+        && rm -rf "$work/raw/7654321" "$work/taxonomies/https" "$work/pipeline-jobs.sql" "$work/pipeline-results.txt"
 }
 check "the worker is removed with its test jobs and files" pipeline_down
 

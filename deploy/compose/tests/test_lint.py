@@ -669,6 +669,37 @@ def test_only_the_ingester_writes_and_the_pipeline_reads_the_raw_folder(
     assert (findings == []) is ok, findings
 
 
+@pytest.mark.parametrize(
+    ("role", "source", "read_only", "ok"),
+    [
+        ("taxonomy-job", "/mnt/e/aetherspark/taxonomies", False, True),
+        ("taxonomy-job", "/srv/taxonomies", False, True),
+        ("pipeline", "/srv/taxonomies", True, True),
+        ("pipeline", "/srv/taxonomies", False, False),  # the reader writable
+        ("pull-job", "/srv/taxonomies", False, False),  # another ops job
+        ("ingester", "/srv/taxonomies", True, False),  # another role, even read-only
+        ("taxonomy-job", "/srv", False, False),  # a folder above
+        ("taxonomy-job", "/srv/taxonomies/https", False, False),  # a folder below
+    ],
+)
+def test_only_the_taxonomy_job_writes_and_the_pipeline_reads_the_taxonomy_store(
+    role: str, source: str, read_only: bool, ok: bool
+) -> None:
+    project = _valid()
+    network = "egress-ops" if role in ("taxonomy-job", "pull-job") else "ingest"
+    project["services"]["probe"] = _service(
+        role,
+        network,
+        volumes=[
+            {"type": "bind", "source": source, "target": "/taxonomies", "read_only": read_only}
+        ],
+    )
+    findings = _findings(project)
+    assert (findings == []) is ok, findings
+    if not ok:
+        assert any("the taxonomy store" in f for f in findings), findings
+
+
 def test_the_raw_folder_is_never_behind_a_named_volume() -> None:
     project = _valid()
     project["volumes"]["raw"] = {"driver_opts": {"type": "none", "o": "bind", "device": "/srv/raw"}}

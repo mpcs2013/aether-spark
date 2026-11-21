@@ -68,13 +68,23 @@ def test_a_dtd_refuses_the_file(tmp_path: Path, text: str) -> None:
     )
 
 
-@pytest.mark.parametrize("text", [XINCLUDE, SCHEMA_REF], ids=["xinclude", "schema reference"])
-def test_references_inside_a_file_are_not_followed(tmp_path: Path, text: str) -> None:
-    # The pre-parse reads the one file only: XInclude is not processed and links stay text. Arelle
-    # gets its resolver with PR 4b (only the job folder and the taxonomy mount).
-    write(tmp_path, "a_htm.xml", text)
+def test_an_xinclude_is_not_followed(tmp_path: Path) -> None:
+    # The pre-parse reads the one file only: XInclude is not processed, Arelle does not process it
+    write(tmp_path, "a_htm.xml", XINCLUDE)
 
     assert check(tmp_path) == (True, "1 XML files pre-parsed")
+
+
+def test_a_reference_to_another_host_refuses_the_file(tmp_path: Path) -> None:
+    # PR 4b1's reference check: only the job's files and the three taxonomy hosts
+    write(tmp_path, "a_htm.xml", SCHEMA_REF)
+
+    ok, reason = check(tmp_path)
+
+    assert not ok
+    assert reason == (
+        "a_htm.xml: a reference refused (not a taxonomy host: http://sec-stub:8080/evil.xsd)"
+    )
 
 
 def test_not_well_formed_xml_is_refused_with_its_name(tmp_path: Path) -> None:

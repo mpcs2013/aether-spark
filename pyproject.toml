@@ -38,10 +38,10 @@ strict = true
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
 
-# lxml ships no type information; its calls in the pipeline's pre-parse are checked by its tests
-# (a stub package would be one more dependency for a few calls)
+# lxml and Arelle ship no type information; their calls in the pipeline are checked by its tests
+# (stub packages would be more dependencies for a few calls)
 [[tool.mypy.overrides]]
-module = ["lxml", "lxml.*"]
+module = ["lxml", "lxml.*", "arelle", "arelle.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

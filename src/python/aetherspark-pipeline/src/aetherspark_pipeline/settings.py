@@ -26,6 +26,8 @@ class Settings:
     raw_dir: Path = Path("/raw")
     # The job folders, in memory (a tmpfs of the container)
     job_dir: Path = Path("/jobs")
+    # The XBRL taxonomies, read-only, Arelle's offline cache (taxonomies.py)
+    taxonomy_dir: Path = Path("/taxonomies")
     # Touched after each successful database round trip; the health check reads its age
     heartbeat_file: Path = Path("/tmp/heartbeat")  # noqa: S108 - the container's own tmpfs
     poll_seconds: float = 5.0
