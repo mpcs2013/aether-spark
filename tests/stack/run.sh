@@ -801,6 +801,73 @@ stub_down() {
 }
 check "the stub's rows and files are removed and the stack's ingester runs again" stub_down
 
+echo "--- the pipeline worker: the jobs' files checked and pre-parsed in a limited child (PR 4a; D5, D6)"
+# Not part of `just up` until PR 4b (profile `pipeline`): started here on a made-up company's jobs
+# (tests/stack/pipeline_jobs.py), one case per filing, then stopped and its rows and files removed
+pipeline_jobs() { python3 -I "$repo/tests/stack/pipeline_jobs.py" "$@"; }
+pip_() { docker exec "$(dc --profile pipeline ps -q pipeline)" "$@"; }
+pipeline_up() {
+    pipeline_jobs prepare "$work/raw" >"$work/pipeline-jobs.sql" \
+        && owner_sql "$(cat "$work/pipeline-jobs.sql")" >/dev/null \
+        && dc --profile pipeline build -q pipeline >/dev/null \
+        && dc --profile pipeline up -d --wait pipeline
+}
+check "the pipeline worker starts on its profile and is healthy (its database heartbeat)" pipeline_up
+pipeline_settled() { # every test job has ended (done or failed)
+    local open
+    for _ in $(seq 1 60); do
+        open="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and status in ('queued', 'running')")" || return 1
+        [ "$open" = 0 ] && return 0
+        sleep 2
+    done
+    echo "jobs still open: $open"
+    dc --profile pipeline logs --tail 20 pipeline 2>&1
+    return 1
+}
+check "the worker ends every job, one at a time" pipeline_settled
+pipeline_results() {
+    owner_sql "select accession_no || '|' || status || '|' || attempts || '|' || coalesce(reason, '') from ingest_ops.job_runs where accession_no like '0007654321-%' order by accession_no" \
+        >"$work/pipeline-results.txt" && pipeline_jobs check "$work/pipeline-results.txt"
+}
+check "each job ends as its case says: done; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails (D5, D6)" pipeline_results
+pipeline_alive() {
+    [ "$(docker inspect -f '{{.State.Health.Status}} {{.RestartCount}}' "$(dc --profile pipeline ps -q pipeline)")" = "healthy 0" ]
+}
+check "... and the worker is still running and healthy after the hostile files" pipeline_alive
+check "no job folder is left in its memory" sh -c '[ -z "$(docker exec "$1" ls -A /jobs)" ]' _ "$(dc --profile pipeline ps -q pipeline)"
+pipeline_networks() {
+    local got
+    got="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(dc --profile pipeline ps -q pipeline)")"
+    [ "$got" = "${COMPOSE_PROJECT_NAME}_ingest " ] || { echo "networks: $got"; return 1; }
+}
+check "the worker is on ingest only (no proxy network, no route out)" pipeline_networks
+pipeline_no_listener() { # as the ingester's
+    local found
+    found="$(pip_ cat /proc/net/tcp /proc/net/tcp6 | awk '$4 == "0A" && $2 !~ /^0B00007F:/')$(pip_ cat /proc/net/unix | awk 'NR > 1 && $4 == "00010000"')"
+    [ -z "$found" ] || { echo "$found"; return 1; }
+}
+check "the worker listens on no socket, TCP or Unix" pipeline_no_listener
+refuse "the worker cannot write the raw folder (read-only)" pip_ touch /raw/.stack-test
+refuse "the worker cannot write its program files (read-only root)" pip_ touch /usr/local/lib/python3.12/site-packages/stack-test
+pipeline_secrets_hidden() { # as the ingester's C5
+    local id
+    id="$(dc --profile pipeline ps -q pipeline)"
+    docker exec "$id" sh -c '
+        for e in /proc/[0-9]*/environ; do
+            if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f /run/secrets/postgres-data-pipeline-password; then echo "in $e"; exit 1; fi
+        done' || return 1
+    if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/postgres-data-pipeline-password"; then echo "in inspect"; return 1; fi
+    if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/postgres-data-pipeline-password"; then echo "in the log"; return 1; fi
+}
+check "no secret value in the worker's process environments, inspect output or log (C5)" pipeline_secrets_hidden
+pipeline_down() {
+    dc --profile pipeline rm -sf pipeline >/dev/null 2>&1
+    owner_sql "delete from ingest_ops.job_runs where accession_no like '0007654321-%';
+        delete from ref.filings where cik = 7654321; delete from ref.issuers where cik = 7654321" >/dev/null \
+        && rm -rf "$work/raw/7654321" "$work/pipeline-jobs.sql" "$work/pipeline-results.txt"
+}
+check "the worker is removed with its test jobs and files" pipeline_down
+
 echo "--- Keycloak: behind Traefik only, admin refused on the sign-in name (C3, C3b, C5, C10)"
 kc=keycloak.svc.aether.localhost
 via() { # name, path, curl options...: prints the status code; the body goes to $work/kc.body

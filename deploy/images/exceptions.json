@@ -2465,6 +2465,132 @@
       "issue": 31,
       "approved": "2026-11-21",
       "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "pipeline",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "pipeline",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "pipeline",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "pipeline",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "pipeline",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "pipeline",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "pipeline",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "pipeline",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "pipeline",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "pipeline",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. The pipeline worker's only TLS is its database connection, through Alpine's libpq over TCP to postgres-data with the stack's own CA, which libpq reads through OpenSSL's own loading: no QUIC, no DANE, no CMS or PKCS#7. Python's ssl module is loaded with asyncio but opens no connection. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-119373",
+      "target": "pipeline",
+      "package": "sqlite-libs",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-04"
+    },
+    {
+      "id": "CVE-2026-119374",
+      "target": "pipeline",
+      "package": "sqlite-libs",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-04"
+    },
+    {
+      "id": "CVE-2026-119379",
+      "target": "pipeline",
+      "package": "sqlite-libs",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-04"
+    },
+    {
+      "id": "CVE-2026-119586",
+      "target": "pipeline",
+      "package": "sqlite-libs",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-04"
     }
   ]
 }
