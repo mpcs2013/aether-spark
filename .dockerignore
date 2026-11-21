@@ -1,5 +1,6 @@
-# For the images built from the repository root (src/dotnet/AetherSpark.Ingester/Dockerfile): only
-# what they compile goes into the build context; never .git, secrets, local folders or build output.
+# For the images built from the repository root (src/dotnet/AetherSpark.Ingester/Dockerfile,
+# src/python/aetherspark-pipeline/Dockerfile): only what they compile or copy goes into the build
+# context; never .git, secrets, local folders or build output.
 *
 !global.json
 !nuget.config
@@ -7,5 +8,9 @@
 !Directory.Packages.props
 !src/dotnet/AetherSpark.ServiceDefaults/
 !src/dotnet/AetherSpark.Ingester/
+!src/python/aetherspark-common/src/
+!src/python/aetherspark-pipeline/src/
+!src/python/aetherspark-pipeline/requirements.txt
 **/bin/
 **/obj/
+**/__pycache__/

@@ -305,6 +305,48 @@ services:
       start_period: 60s
       start_interval: 2s
 
+  # The pipeline worker (data-plane.md, section 4): Python, without a listener, built from the
+  # repository root. It takes the ingester's jobs from ingest_ops.job_runs over verified TLS on
+  # ingest (the stack's root only), copies each job's files from the raw folder (read-only) into
+  # /jobs (in memory) and hashes them again, then parses them in a child process with memory, CPU
+  # and time limits. PR 4a stops at a hardened pre-parse, so `just up` does not start it (profile
+  # `pipeline`, the owner's choice of 2026-11-21): the stack test runs it on jobs of its own, and it
+  # joins `just up` with PR 4b. Healthy while its heartbeat is fresh; a job may take up to the
+  # child's 15 minutes between two heartbeats, hence the long window
+  pipeline:
+    <<: [*no-restart, *hardening]
+    profiles: [pipeline]
+    build:
+      context: ../../..
+      dockerfile: src/python/aetherspark-pipeline/Dockerfile
+    image: aetherspark/pipeline:local
+    labels: { aetherspark.role: pipeline }
+    environment:
+      AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
+    secrets: [postgres-data-pipeline-password]
+    tmpfs:
+      - /tmp
+      - "/jobs:size=1100m,uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
+    # The job folder (1 GiB of files at most), the child's 2 GiB and the worker itself
+    mem_limit: 4g
+    pids_limit: 64
+    volumes:
+      - *ca-certs
+      - type: bind
+        source: "${AETHERSPARK_RAW_DIR:-/srv/raw}"
+        target: /raw
+        read_only: true
+        bind: { create_host_path: false }
+    networks: [ingest]
+    depends_on:
+      postgres-data: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "sh", "-c", "f=/tmp/heartbeat; test -f $$f && test $$(( $$(date +%s) - $$(stat -c %Y $$f) )) -lt 1000"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+
   # Keycloak (compose-base.md, "Keycloak exposure"): built from Ostium's notice (deploy/keycloak),
   # production start, reached only by Traefik on auth-front; its database over verified TLS on
   # db-auth. Its two passwords come from one configuration file in the in-memory secrets folder

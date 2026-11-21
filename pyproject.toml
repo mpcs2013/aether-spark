@@ -38,6 +38,12 @@ strict = true
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
 
+# lxml ships no type information; its calls in the pipeline's pre-parse are checked by its tests
+# (a stub package would be one more dependency for a few calls)
+[[tool.mypy.overrides]]
+module = ["lxml", "lxml.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["contracts", "src/python","deploy/backup", "deploy/ca", "deploy/compose", "deploy/images", "deploy/packages", "deploy/secret-store", "tests/python"]
 addopts = "-ra --strict-markers --strict-config"
