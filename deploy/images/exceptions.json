@@ -64,43 +64,7 @@
       "expires": "2026-12-08"
     },
     {
-      "id": "CVE-2026-52296",
-      "target": "nvcr.io/nvidia/vllm",
-      "package": "ffmpeg",
-      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
-      "issue": 31,
-      "approved": "2026-11-08",
-      "expires": "2026-12-08"
-    },
-    {
-      "id": "CVE-2026-52297",
-      "target": "nvcr.io/nvidia/vllm",
-      "package": "ffmpeg",
-      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
-      "issue": 31,
-      "approved": "2026-11-08",
-      "expires": "2026-12-08"
-    },
-    {
-      "id": "CVE-2026-70628",
-      "target": "nvcr.io/nvidia/vllm",
-      "package": "ffmpeg",
-      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
-      "issue": 31,
-      "approved": "2026-11-08",
-      "expires": "2026-12-08"
-    },
-    {
       "id": "CVE-2026-70632",
-      "target": "nvcr.io/nvidia/vllm",
-      "package": "ffmpeg",
-      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
-      "issue": 31,
-      "approved": "2026-11-08",
-      "expires": "2026-12-08"
-    },
-    {
-      "id": "CVE-2026-96611",
       "target": "nvcr.io/nvidia/vllm",
       "package": "ffmpeg",
       "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Fixed in ffmpeg 9 (one without a fix); NVIDIA's 26.10 is its latest vLLM image. The trial's Compose file goes when WP5b.1 brings the real serving.",
@@ -1421,6 +1385,1086 @@
       "issue": 31,
       "approved": "2026-11-18",
       "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "postgres-data",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "postgres-data",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "clickhouse",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "clickhouse",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "ingester",
+      "package": "libcrypto3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107493",
+      "target": "ingester",
+      "package": "libssl3",
+      "reason": "A use-after-free in PEM_X509_INFO_read_bio_ex() after a read failure. Only applications that pass it an existing stack and feed it malformed PEM are affected; OpenSSL's own TLS CA loading passes none (OpenSSL: Low). The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "postgres-data",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "postgres-data",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "clickhouse",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "clickhouse",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "ingester",
+      "package": "libcrypto3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-107494",
+      "target": "ingester",
+      "package": "libssl3",
+      "reason": "A malicious QUIC peer can make OpenSSL queue RETIRE_CONNECTION_ID frames without limit until memory runs out. Only OpenSSL's QUIC stack is affected, not TLS over TCP. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "postgres-data",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "postgres-data",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "clickhouse",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "clickhouse",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "ingester",
+      "package": "libcrypto3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-121482",
+      "target": "ingester",
+      "package": "libssl3",
+      "reason": "Verifying a crafted CMS or PKCS#7 SignedData message with CRL checking on takes CPU time that grows with the square of its size. Only applications that verify such messages are affected; TLS and QUIC do not use this path. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "postgres-data",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "postgres-data",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "clickhouse",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "clickhouse",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "ingester",
+      "package": "libcrypto3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-124709",
+      "target": "ingester",
+      "package": "libssl3",
+      "reason": "An OpenSSL QUIC server keeps the state of rejected streams that a client resets, so its memory grows (OpenSSL: Low). Only QUIC servers are affected. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "step-ca",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "step-ca",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. step-ca, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "traefik",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "traefik",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Traefik, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "forward-auth",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "forward-auth",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. oauth2-proxy, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "whoami",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "whoami",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. whoami, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "backup",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "backup",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. restic, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "backup-standin",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "backup-standin",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Stack test only (CI's stand-in backup server). rest-server, written in Go, does its cryptography and TLS with Go's own libraries; OpenSSL is in the image only as a dependency of Alpine's package tool, and nothing in the image calls it. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "curlimages/curl",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "curlimages/curl",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Test client only (egress and stack tests on throwaway CI runners and the desktop): HTTP and HTTPS over TCP, never HTTP/3 (QUIC), no DANE, no CMS or PKCS#7, and the only certificate files it reads are the tests' own. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "python",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "python",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. Test helpers only (the egress tests' UDP client, the stack test's stand-in SEC, checks and TLS client), on throwaway CI runners and the desktop, and the stand-in SEC of `aspire run`. The one TLS client (the stack test's tls.py) connects over TCP to the test's own servers with the stack's own CA file; nothing uses QUIC, DANE or CMS. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "postgres-auth",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "postgres-auth",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "postgres-data",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "postgres-data",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. PostgreSQL uses OpenSSL as a TLS server over TCP only, with certificates from the stack's own CA (the start script's psql uses the local socket, without TLS). Searched on 2026-11-21: nothing in the image calls CMS or PKCS#7 verification, DANE or OpenSSL's QUIC; PEM_X509_INFO_read appears only in libcurl (PostgreSQL 18's OAuth sign-in) and Kerberos's TLS plugin, both unused, since pg_hba.conf allows password (SCRAM) sign-ins and the local socket only. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "clickhouse",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "clickhouse",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. ClickHouse's binary links no OpenSSL library (ldd, 2026-11-21): its TLS is built into the binary, so Alpine's OpenSSL is in the image only as a dependency of Alpine's packages, and nothing in the image calls it. ClickHouse's built-in TLS library is not this package; its fixes come with ClickHouse's releases. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "ingester",
+      "package": "libcrypto3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
+    },
+    {
+      "id": "CVE-2026-84786",
+      "target": "ingester",
+      "package": "libssl3",
+      "reason": "A TLS client with DANE enabled, given a mix of DANE-TA and PKIX TLSA records, can crash on a NULL pointer. Only DANE-enabled TLS clients are affected. The ingester is a TLS client over TCP only (to the SEC through the runtime proxy, to postgres-data). .NET's OpenSSL shim, the only caller of OpenSSL in the image, binds no PEM_X509_INFO, CMS or PKCS#7 verification, DANE or QUIC function (searched on 2026-11-21); .NET reads PEM in its own code. Fixed in OpenSSL 3.5.10, scheduled for 2026-12-01; no fixed Alpine package yet. A rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "issue": 31,
+      "approved": "2026-11-21",
+      "expires": "2026-12-18"
     }
   ]
 }
