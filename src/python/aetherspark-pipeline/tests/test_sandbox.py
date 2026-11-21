@@ -6,19 +6,32 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 if sys.platform == "win32":
     pytest.skip("the sandbox needs Linux (rlimits)", allow_module_level=True)
 
+from aetherspark_pipeline.clickhouse import StoreUnavailable
 from aetherspark_pipeline.jobs import Job
 from aetherspark_pipeline.sandbox import Limits, run
 from aetherspark_pipeline.settings import Settings
 from aetherspark_pipeline.taxonomies import store_path
 from aetherspark_pipeline.worker import process
-from test_xbrl import COMPANY, INSTANCE, TAX_SCHEMA, TAXONOMY
+from test_xbrl import (
+    COMPANY,
+    COMPANY_DEI,
+    DEI,
+    DEI_SCHEMA,
+    INSTANCE,
+    TAX_SCHEMA,
+    TAXONOMY,
+    instance_dei,
+    put,
+)
 
 MIB = 1024 * 1024
 LIMITS = Limits(memory_bytes=512 * MIB, cpu_seconds=10, wall_seconds=20)
@@ -112,12 +125,29 @@ def job_in(raw: Path, files: dict[str, bytes], job_id: int = 7) -> Job:
     return Job(id=job_id, accession_no=acc, contract=contract, attempts=1)
 
 
+class FakeStore:
+    """research.facts in a list: the hashes stored per filing, and each insert's rows."""
+
+    def __init__(self) -> None:
+        self.inserts: list[list[dict[str, Any]]] = []
+
+    def hashes(self, cik: int, accession_no: str) -> set[str]:
+        return {
+            r["fact_hash"]
+            for rows in self.inserts
+            for r in rows
+            if (r["cik"], r["accession_no"]) == (cik, accession_no)
+        }
+
+    def insert(self, rows: Iterable[Mapping[str, Any]]) -> None:
+        self.inserts.append([dict(r) for r in rows])
+
+
 def worker_settings(tmp_path: Path) -> Settings:
     (tmp_path / "jobs").mkdir()
     store = tmp_path / "store"
-    taxonomy = store_path(store, TAXONOMY)
-    taxonomy.parent.mkdir(parents=True)
-    taxonomy.write_text(TAX_SCHEMA, encoding="utf-8")
+    put(store, TAXONOMY, TAX_SCHEMA)
+    put(store, DEI, DEI_SCHEMA)
     return Settings(
         database_host="unused.invalid",
         raw_dir=tmp_path / "raw",
@@ -129,24 +159,70 @@ def worker_settings(tmp_path: Path) -> Settings:
     )
 
 
-def test_a_whole_job_is_parsed_in_the_sandbox_and_its_folders_removed(tmp_path: Path) -> None:
+def test_a_whole_job_is_parsed_loaded_once_and_its_folders_removed(tmp_path: Path) -> None:
     settings = worker_settings(tmp_path)
     job = job_in(
         tmp_path / "raw",
         {
             "q.htm": b"<html/>",
-            "co-20241231.xsd": COMPANY.encode(),
-            "co-20241231_htm.xml": INSTANCE.encode(),
+            "co-20241231.xsd": COMPANY_DEI.encode(),
+            "co-20241231_htm.xml": instance_dei("2024", "FY").encode(),
         },
     )
+    store = FakeStore()
 
-    outcome = process(settings, job)
+    outcome = process(settings, job, store)
 
     assert outcome.ok, outcome.reason
     assert "3 files" in outcome.reason
     assert "3 numeric facts" in outcome.reason
     assert "1 more than six decimal places" in outcome.reason
-    assert len(outcome.rows) == 3
+    assert "3 facts loaded, 0 already stored" in outcome.reason
+    assert [len(rows) for rows in store.inserts] == [3]
+    row = store.inserts[0][0]
+    assert (row["cik"], row["form"], row["fiscal_year"], row["fiscal_period"]) == (
+        1234567,
+        "10-Q",
+        2024,
+        "FY",
+    )
+    assert row["known_at"] == "2025-07-31 22:03:34.000"
+    assert list((tmp_path / "jobs").iterdir()) == []
+
+    # D2, the worker's side: the same job again adds nothing
+    again = process(settings, job, store)
+    assert "0 facts loaded, 3 already stored" in again.reason, again.reason
+    assert len(store.inserts) == 1
+
+
+def test_a_filing_without_its_fiscal_period_is_not_loaded(tmp_path: Path) -> None:
+    settings = worker_settings(tmp_path)
+    job = job_in(
+        tmp_path / "raw",
+        {"co-20241231.xsd": COMPANY.encode(), "co-20241231_htm.xml": INSTANCE.encode()},
+    )
+    store = FakeStore()
+
+    outcome = process(settings, job, store)
+
+    assert not outcome.ok
+    assert outcome.reason == "not loaded: no fiscal year in its dei facts (None)"
+    assert store.inserts == []
+
+
+def test_a_store_that_does_not_answer_gives_the_job_back(tmp_path: Path) -> None:
+    class Down(FakeStore):
+        def hashes(self, cik: int, accession_no: str) -> set[str]:
+            raise StoreUnavailable("ClickHouse unreachable: refused")
+
+    settings = worker_settings(tmp_path)
+    job = job_in(
+        tmp_path / "raw",
+        {"co-20241231.xsd": COMPANY_DEI.encode(), "co-20241231_htm.xml": instance_dei().encode()},
+    )
+
+    with pytest.raises(StoreUnavailable):
+        process(settings, job, Down())
     assert list((tmp_path / "jobs").iterdir()) == []
 
 
@@ -154,7 +230,7 @@ def test_a_filing_without_an_instance_has_no_facts(tmp_path: Path) -> None:
     settings = worker_settings(tmp_path)
     job = job_in(tmp_path / "raw", {"q.htm": b"<html/>"})
 
-    outcome = process(settings, job)
+    outcome = process(settings, job, FakeStore())
 
     assert outcome.ok
     assert outcome.reason.endswith("no XBRL instance, so no facts")
@@ -168,7 +244,7 @@ def test_a_missing_taxonomy_fails_the_job_with_its_url(tmp_path: Path) -> None:
         {"co-20241231.xsd": COMPANY.encode(), "co-20241231_htm.xml": INSTANCE.encode()},
     )
 
-    outcome = process(settings, job)
+    outcome = process(settings, job, FakeStore())
 
     assert not outcome.ok
     assert TAXONOMY in outcome.reason
@@ -179,7 +255,7 @@ def test_a_hostile_file_fails_its_job_and_the_folder_is_removed(tmp_path: Path) 
     bomb = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "a">]><xbrl>&a;</xbrl>'
     job = job_in(tmp_path / "raw", {"q_htm.xml": bomb})
 
-    outcome = process(settings, job)
+    outcome = process(settings, job, FakeStore())
 
     assert not outcome.ok
     assert "declares a DTD" in outcome.reason

@@ -30,7 +30,8 @@ export AETHERSPARK_SECRETS_DIR="${XDG_RUNTIME_DIR:-/dev/shm}/$COMPOSE_PROJECT_NA
 # The ingester's raw folder: a throw-away one, never the desktop's E: or the Spark's /srv/raw
 export AETHERSPARK_RAW_DIR="$work/raw"
 mkdir -p "$AETHERSPARK_RAW_DIR"
-# The pipeline's taxonomy store: a throw-away one with a made-up taxonomy (tests/stack/pipeline_jobs.py)
+# The pipeline's taxonomy store: a throw-away one, empty until the pipeline section writes made-up
+# taxonomies into it (tests/stack/pipeline_jobs.py), so just up leaves the pipeline out at first
 export AETHERSPARK_TAXONOMY_DIR="$work/taxonomies"
 mkdir -p "$AETHERSPARK_TAXONOMY_DIR"
 overlay=(-f "$repo/tests/stack/compose.test.yaml")
@@ -216,6 +217,12 @@ ingester_left_out() { # no container, a message, and no folder where the secret 
     [ ! -e "$AETHERSPARK_SECRETS_DIR/sec-user-agent-contact" ] || { echo "something at the secret's path"; return 1; }
 }
 check "just up leaves the ingester out until the SEC contact is entered, and says so" ingester_left_out
+pipeline_left_out() { # the test's taxonomy store is still empty: no manifest, no pipeline
+    grep -F 'the pipeline is not started until the taxonomy store is filled' "$work/up.log" >/dev/null \
+        || { echo "no message in up.log"; return 1; }
+    [ -z "$(dc ps -aq pipeline)" ] || { echo "a pipeline container exists"; return 1; }
+}
+check "just up leaves the pipeline out until the taxonomy store is filled, and says so" pipeline_left_out
 ca root >"$work/root.crt"
 [ -n "$py_image" ] || { fail "the egress tests' Python image is found (tests/egress/compose.layer3.yaml)"; exit 1; }
 cp "$work/root.crt" "$work/pg/root.crt"
@@ -537,7 +544,9 @@ users_match() { # users.xml admits the pipeline from exactly the ingest network'
 }
 check "users.xml admits the pipeline from the ingest network's subnet, nothing wider" users_match
 check "the migrations are applied and recorded with their SHA-256" \
-    owner_ch "SELECT throwIf(count() != 1) FROM meta.migrations WHERE name = '0001_facts.sql' AND length(sha256) = 64"
+    owner_ch "SELECT throwIf(count() != 2) FROM meta.migrations WHERE name IN ('0001_facts.sql', '0002_facts_as_of.sql') AND length(sha256) = 64"
+check "the as-of view exists (migration 0002) and the owner reads it" \
+    owner_ch "SELECT count() FROM research.facts_as_of(as_of = '2000-01-01 00:00:00.000')"
 # D8: the pipeline gets rows of facts, never tables, other databases or the outside world
 check "the pipeline inserts and reads a fact" chc_is 1 pipeline pipeline \
     "INSERT INTO research.facts (cik, value, period_start, period_end, known_at, filed_date, fiscal_year, fact_hash) VALUES (4294967295, 1.5, '2024-01-01', '2024-12-31', now64(3), today(), 2024, repeat('0', 64)); SELECT count() FROM research.facts WHERE cik = 4294967295"
@@ -546,6 +555,8 @@ refuse "the pipeline cannot create a table" chc pipeline pipeline "CREATE TABLE 
 refuse "the pipeline cannot delete facts (append-only)" chc pipeline pipeline "ALTER TABLE research.facts DELETE WHERE cik = 4294967295"
 refuse "the pipeline cannot truncate the facts table" chc pipeline pipeline "TRUNCATE TABLE research.facts"
 refuse "the pipeline cannot read the migrations' record" chc pipeline pipeline "SELECT count() FROM meta.migrations"
+refuse "the pipeline cannot read the as-of view (for the readers to come)" chc pipeline pipeline \
+    "SELECT count() FROM research.facts_as_of(as_of = '2000-01-01 00:00:00.000')"
 refuse "the pipeline cannot list the users" chc pipeline pipeline "SELECT name FROM system.users"
 refuse "url() is refused" chc pipeline pipeline "SELECT * FROM url('https://www.sec.gov/', CSV, 'a String')"
 refuse "file() is refused" chc pipeline pipeline "SELECT * FROM file('a.csv', CSV, 'a String')"
@@ -804,28 +815,29 @@ stub_down() {
 }
 check "the stub's rows and files are removed and the stack's ingester runs again" stub_down
 
-echo "--- the pipeline worker: the jobs' files checked, pre-parsed and read by Arelle offline in a limited child (PR 4a, 4b1; D5, D6)"
-# Not part of `just up` until PR 4b2 (profile `pipeline`): started here on a made-up company's jobs
-# (tests/stack/pipeline_jobs.py), one case per filing, with a made-up taxonomy in the store, then
-# stopped and its rows and files removed
+echo "--- the pipeline worker: files checked, Arelle offline in a limited child, facts into ClickHouse (PR 4a, 4b1, 4b2; D1, D2, D5, D6)"
+# just up left it out (setup: the test's taxonomy store was empty). Here the store gets made-up
+# taxonomies and its manifest, a made-up company's jobs are queued (tests/stack/pipeline_jobs.py,
+# one case per filing), and the worker starts as just up starts it; afterwards it is removed with
+# its jobs and files. Its facts stay in this throw-away ClickHouse (append-only, D8)
 pipeline_jobs() { python3 -I "$repo/tests/stack/pipeline_jobs.py" "$@"; }
-pip_() { docker exec "$(dc --profile pipeline ps -q pipeline)" "$@"; }
+pip_() { docker exec "$(dc ps -q pipeline)" "$@"; }
 pipeline_up() {
-    pipeline_jobs prepare "$work/raw" "$work/taxonomies" >"$work/pipeline-jobs.sql" \
+    pipeline_jobs taxonomies "$work/taxonomies" \
+        && pipeline_jobs prepare "$work/raw" >"$work/pipeline-jobs.sql" \
         && owner_sql "$(cat "$work/pipeline-jobs.sql")" >/dev/null \
-        && dc --profile pipeline build -q pipeline >/dev/null \
-        && dc --profile pipeline up -d --wait pipeline
+        && dc up -d --wait pipeline
 }
-check "the pipeline worker starts on its profile and is healthy (its database heartbeat)" pipeline_up
+check "with the taxonomy store filled, the pipeline worker starts and is healthy (its database heartbeat)" pipeline_up
 pipeline_settled() { # every test job has ended (done or failed); Arelle takes seconds per job
     local open
-    for _ in $(seq 1 90); do
+    for _ in $(seq 1 120); do
         open="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and status in ('queued', 'running')")" || return 1
         [ "$open" = 0 ] && return 0
         sleep 2
     done
     echo "jobs still open: $open"
-    dc --profile pipeline logs --tail 20 pipeline 2>&1
+    dc logs --tail 20 pipeline 2>&1
     return 1
 }
 check "the worker ends every job, one at a time" pipeline_settled
@@ -833,15 +845,56 @@ pipeline_results() {
     owner_sql "select accession_no || '|' || status || '|' || attempts || '|' || coalesce(reason, '') from ingest_ops.job_runs where accession_no like '0007654321-%' order by accession_no" \
         >"$work/pipeline-results.txt" && pipeline_jobs check "$work/pipeline-results.txt"
 }
-check "each job ends as its case says: done with 2 facts; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails; a taxonomy file the store lacks, an import out of the job folder, an import from another host fail (D5, D6)" pipeline_results
+check "each job ends as its case says: 3 facts loaded; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails; a taxonomy file the store lacks, an import out of the job folder, an import from another host fail; equal duplicates load once, different values for one context are left out; a filing without its fiscal year fails (D5, D6)" pipeline_results
+# D1, point in time, through the view every reader uses (migration 0002): before the first filing
+# nothing; from its acceptance its three values, the quarter and the year that end the same day both
+# among them; after the restatement the restated values; both versions stay in research.facts
+as_of() { # moment, then the expression to select
+    owner_ch "SELECT $2 FROM research.facts_as_of(as_of = '$1') WHERE cik = 7654321"
+}
+seen_as_of() { # moment, then the expected 'start/end=value' list, sorted
+    local got
+    got="$(as_of "$1" "arrayStringConcat(arraySort(groupArray(concat(toString(period_start), '/', toString(period_end), '=', toString(value)))), ' ')")" || return 1
+    [ "$got" = "$2" ] || { echo "as of $1: $got"; return 1; }
+}
+check "D1: as of a millisecond before the first filing's acceptance, no fact" \
+    seen_as_of "2026-01-30 20:59:59.999" ""
+check "D1: from its acceptance, its values; the fourth quarter and the year that end the same day both appear" \
+    seen_as_of "2026-01-30 21:00:00.000" "2025-01-01/2025-12-31=4800000 2025-07-01/2025-09-30=1175000 2025-10-01/2025-12-31=1250000"
+check "D1: after the restatement's acceptance, the restated values" \
+    seen_as_of "2026-03-02 21:00:00.000" "2025-01-01/2025-12-31=4810000 2025-07-01/2025-09-30=1175000 2025-10-01/2025-12-31=1260000"
+check "D1: the restatement is a second row; the first version stays" owner_ch \
+    "SELECT throwIf(uniqExact(value) != 2 OR min(known_at) != '2026-01-30 21:00:00.000') FROM research.facts WHERE cik = 7654321 AND period_start = '2025-10-01'"
+never_later() { # for each moment, no fact accepted after it
+    local at got
+    for at in "2020-01-01 00:00:00.000" "2026-01-30 21:00:00.000" "2026-02-14 12:34:56.789" "2026-03-02 20:59:59.999" "2026-03-02 21:00:00.000" "2030-12-31 23:59:59.999"; do
+        got="$(as_of "$at" "countIf(known_at > toDateTime64('$at', 3, 'UTC'))")" || return 1
+        [ "$got" = 0 ] || { echo "as of $at: $got facts accepted later"; return 1; }
+    done
+}
+check "D1: at none of six moments does the view return a fact accepted later" never_later
+# D2: the same filings processed again leave research.facts as it was (count and a hash of every
+# row) and each job says it loaded nothing new
+facts_digest() { owner_ch "SELECT count(), sum(cityHash64(*)) FROM research.facts WHERE cik = 7654321"; }
+pipeline_again() {
+    local before after nothing
+    before="$(facts_digest)" || return 1
+    owner_sql "update ingest_ops.job_runs set status = 'queued', attempts = 0, reason = null, started_at = null, finished_at = null where accession_no like '0007654321-%' and status = 'done'" >/dev/null || return 1
+    pipeline_settled || return 1
+    after="$(facts_digest)" || return 1
+    [ "$before" = "$after" ] || { echo "facts before: $before, after: $after"; return 1; }
+    nothing="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and status = 'done' and reason like '%; 0 facts loaded, %'")"
+    [ "$nothing" = 4 ] || { echo "jobs done again without new facts: $nothing of 4"; return 1; }
+}
+check "D2: the four loaded filings processed again: research.facts unchanged (count and row hash), each job loads 0 new facts" pipeline_again
 pipeline_alive() {
-    [ "$(docker inspect -f '{{.State.Health.Status}} {{.RestartCount}}' "$(dc --profile pipeline ps -q pipeline)")" = "healthy 0" ]
+    [ "$(docker inspect -f '{{.State.Health.Status}} {{.RestartCount}}' "$(dc ps -q pipeline)")" = "healthy 0" ]
 }
 check "... and the worker is still running and healthy after the hostile files" pipeline_alive
-check "no job folder is left in its memory" sh -c '[ -z "$(docker exec "$1" ls -A /jobs)" ]' _ "$(dc --profile pipeline ps -q pipeline)"
+check "no job folder is left in its memory" sh -c '[ -z "$(docker exec "$1" ls -A /jobs)" ]' _ "$(dc ps -q pipeline)"
 pipeline_networks() {
     local got
-    got="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(dc --profile pipeline ps -q pipeline)")"
+    got="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(dc ps -q pipeline)")"
     [ "$got" = "${COMPOSE_PROJECT_NAME}_ingest " ] || { echo "networks: $got"; return 1; }
 }
 check "the worker is on ingest only (no proxy network, no route out)" pipeline_networks
@@ -854,22 +907,27 @@ check "the worker listens on no socket, TCP or Unix" pipeline_no_listener
 refuse "the worker cannot write the raw folder (read-only)" pip_ touch /raw/.stack-test
 refuse "the worker cannot write the taxonomy store (read-only)" pip_ touch /taxonomies/.stack-test
 refuse "the worker cannot write its program files (read-only root)" pip_ touch /usr/local/lib/python3.12/site-packages/stack-test
-pipeline_secrets_hidden() { # as the ingester's C5
-    local id
-    id="$(dc --profile pipeline ps -q pipeline)"
+pipeline_secrets_hidden() { # as the ingester's C5, for both of its passwords
+    local id s
+    id="$(dc ps -q pipeline)"
     docker exec "$id" sh -c '
-        for e in /proc/[0-9]*/environ; do
-            if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f /run/secrets/postgres-data-pipeline-password; then echo "in $e"; exit 1; fi
+        for s in /run/secrets/*; do
+            for e in /proc/[0-9]*/environ; do
+                if tr "\0" "\n" <"$e" 2>/dev/null | grep -qF -f "$s"; then echo "$s in $e"; exit 1; fi
+            done
         done' || return 1
-    if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/postgres-data-pipeline-password"; then echo "in inspect"; return 1; fi
-    if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/postgres-data-pipeline-password"; then echo "in the log"; return 1; fi
+    for s in postgres-data-pipeline-password clickhouse-pipeline-password; do
+        if docker inspect "$id" | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in inspect"; return 1; fi
+        if docker logs "$id" 2>&1 | grep -qF -f "$AETHERSPARK_SECRETS_DIR/$s"; then echo "$s in the log"; return 1; fi
+    done
 }
 check "no secret value in the worker's process environments, inspect output or log (C5)" pipeline_secrets_hidden
-pipeline_down() {
-    dc --profile pipeline rm -sf pipeline >/dev/null 2>&1
+pipeline_down() { # the store emptied as it was, so the restart below leaves the pipeline out again
+    dc rm -sf pipeline >/dev/null 2>&1
     owner_sql "delete from ingest_ops.job_runs where accession_no like '0007654321-%';
         delete from ref.filings where cik = 7654321; delete from ref.issuers where cik = 7654321" >/dev/null \
-        && rm -rf "$work/raw/7654321" "$work/taxonomies/https" "$work/pipeline-jobs.sql" "$work/pipeline-results.txt"
+        && rm -rf "$work/raw/7654321" "$work/taxonomies/https" "$work/taxonomies/MANIFEST.sha256" \
+            "$work/pipeline-jobs.sql" "$work/pipeline-results.txt"
 }
 check "the worker is removed with its test jobs and files" pipeline_down
 

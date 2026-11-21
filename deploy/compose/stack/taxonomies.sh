@@ -26,7 +26,7 @@ secrets_dir="${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/a
     exit 2
 }
 
-dc --profile pipeline build -q pipeline
+dc build -q pipeline
 trap 'dc --profile egress-ops rm -sf egress-ops >/dev/null 2>&1 || true' EXIT
 status=0
 dc --profile egress-ops --profile taxonomies run --rm taxonomy-job || status=$?

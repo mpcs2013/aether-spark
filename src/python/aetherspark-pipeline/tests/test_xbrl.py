@@ -89,6 +89,43 @@ INSTANCE = """<?xml version="1.0"?>
 )
 
 
+# A made-up dei taxonomy where the store keeps the SEC's, and a filing variant that states its
+# fiscal year and period, as every real filing does (the loader requires them, PR 4b2)
+DEI = "https://xbrl.sec.gov/dei/2024/dei-2024.xsd"
+DEI_SCHEMA = """<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xbrli="http://www.xbrl.org/2003/instance"
+ targetNamespace="http://xbrl.sec.gov/dei/2024" elementFormDefault="qualified">
+ <xs:import namespace="http://www.xbrl.org/2003/instance"
+   schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+ <xs:element name="DocumentFiscalYearFocus" id="dei_DocumentFiscalYearFocus"
+   type="xbrli:gYearItemType" substitutionGroup="xbrli:item" xbrli:periodType="duration"/>
+ <xs:element name="DocumentFiscalPeriodFocus" id="dei_DocumentFiscalPeriodFocus"
+   type="xbrli:stringItemType" substitutionGroup="xbrli:item" xbrli:periodType="duration"/>
+</xs:schema>
+"""
+DEI_IMPORT = f'<xs:import namespace="http://xbrl.sec.gov/dei/2024" schemaLocation="{DEI}"/>'
+COMPANY_DEI = COMPANY.replace("<xs:import namespace", f"{DEI_IMPORT}\n <xs:import namespace", 1)
+
+
+def instance_dei(year: str = "2024", period: str = "FY") -> str:
+    """INSTANCE with its dei fiscal year and period."""
+    return INSTANCE.replace(
+        'xmlns:xbrldi="http://xbrl.org/2006/xbrldi">',
+        'xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:dei="http://xbrl.sec.gov/dei/2024">',
+    ).replace(
+        "</xbrli:xbrl>",
+        f'<dei:DocumentFiscalYearFocus contextRef="fy">{year}</dei:DocumentFiscalYearFocus>'
+        f'<dei:DocumentFiscalPeriodFocus contextRef="fy">{period}</dei:DocumentFiscalPeriodFocus>'
+        "</xbrli:xbrl>",
+    )
+
+
+def put(store: Path, url: str, text: str) -> None:
+    path = store_path(store, url)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
 @pytest.fixture
 def job(tmp_path: Path) -> tuple[Path, Path]:
     folder, store = tmp_path / "job", tmp_path / "store"
@@ -132,6 +169,36 @@ def test_the_numeric_facts_become_rows(job: tuple[Path, Path]) -> None:
     assert parsed.too_precise == 1  # 1.1234567: seven places, never rounded
     assert parsed.nil == 1
     assert parsed.non_numeric == 1
+
+
+def test_a_fiscal_year_that_is_not_a_year_fails_the_load(job: tuple[Path, Path]) -> None:
+    folder, store = job
+    put(store, DEI, DEI_SCHEMA)
+    (folder / "co-20241231.xsd").write_text(COMPANY_DEI, encoding="utf-8")
+    (folder / "co-20241231_htm.xml").write_text(instance_dei("FY24", "Q2"), encoding="utf-8")
+
+    # Arelle checks the gYear type itself; any Arelle error fails the job (strict, the owner's
+    # choice of 2026-11-21)
+    with pytest.raises(LoadFailed, match="DocumentFiscalYearFocus"):
+        load(folder, "co-20241231_htm.xml", store)
+
+
+@pytest.mark.parametrize(
+    ("year", "period", "expected"),
+    [("2024", "FY", (2024, "FY")), ("2025", "Q2", (2025, "Q2"))],
+)
+def test_the_fiscal_year_and_period_come_from_the_dei_facts(
+    job: tuple[Path, Path], year: str, period: str, expected: tuple[int, str]
+) -> None:
+    folder, store = job
+    put(store, DEI, DEI_SCHEMA)
+    (folder / "co-20241231.xsd").write_text(COMPANY_DEI, encoding="utf-8")
+    (folder / "co-20241231_htm.xml").write_text(instance_dei(year, period), encoding="utf-8")
+
+    parsed = load(folder, "co-20241231_htm.xml", store)
+
+    assert (parsed.fiscal_year, parsed.fiscal_period) == expected
+    assert len(parsed.rows) == 3  # the dei facts are not numeric facts
 
 
 def test_a_missing_taxonomy_file_fails_with_its_url(job: tuple[Path, Path]) -> None:

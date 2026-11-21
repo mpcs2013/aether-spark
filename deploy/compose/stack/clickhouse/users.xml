@@ -4,7 +4,9 @@
      into the container's in-memory /tmp at every start, so a rotation applies at the next start.
      - data_owner: the migration owner, the only user that creates, alters or drops; it signs in
        only from this container's loopback (run.sh and migrate.sh), never over the network.
-     - pipeline: rows only, and only from the ingest network: it reads and inserts facts.
+     - pipeline: rows only, and only from the ingest network: it reads and inserts facts (the
+       hashes of a filing's stored facts, then its new rows; PR 4b2). No right on the as-of view
+       (migration 0002): that is for the readers to come.
      - No `default` user, no ingester (it never reads ClickHouse), and nobody holds a source right
        (URL, FILE, REMOTE, S3, …), so table functions that reach outside are refused for everyone.
      The rights live here, not in SQL: users from this file cannot be changed through SQL. -->
@@ -21,7 +23,7 @@
             </networks>
             <profile>default</profile>
             <grants>
-                <query>GRANT CREATE DATABASE, CREATE TABLE, ALTER TABLE, DROP TABLE, SELECT, INSERT, OPTIMIZE ON research.*</query>
+                <query>GRANT CREATE DATABASE, CREATE TABLE, CREATE VIEW, ALTER TABLE, DROP TABLE, SELECT, INSERT, OPTIMIZE ON research.*</query>
                 <query>GRANT CREATE DATABASE, CREATE TABLE, SELECT, INSERT ON meta.*</query>
                 <query>GRANT SYSTEM RELOAD CONFIG ON *.*</query>
             </grants>

@@ -29,10 +29,22 @@ case "$AETHERSPARK_RAW_DIR" in /mnt/*) mkdir -p "$AETHERSPARK_RAW_DIR" ;; esac
     echo "up: the raw folder $AETHERSPARK_RAW_DIR must exist and be writable by the stack user" >&2
     exit 2
 }
+# The taxonomy store (policy.json taxonomy_dirs; docs/runbooks/taxonomies.md), read-only for the
+# pipeline: E: on the desktop, /srv/taxonomies on the Spark (its host role). Filled by `just taxonomies`
+if [ -z "${AETHERSPARK_TAXONOMY_DIR:-}" ]; then
+    if [ -n "${WSL_DISTRO_NAME:-}" ]; then AETHERSPARK_TAXONOMY_DIR=/mnt/e/aetherspark/taxonomies; else AETHERSPARK_TAXONOMY_DIR=/srv/taxonomies; fi
+fi
+export AETHERSPARK_TAXONOMY_DIR
+case "$AETHERSPARK_TAXONOMY_DIR" in /mnt/*) mkdir -p "$AETHERSPARK_TAXONOMY_DIR" ;; esac
+[ -d "$AETHERSPARK_TAXONOMY_DIR" ] || {
+    echo "up: the taxonomy store $AETHERSPARK_TAXONOMY_DIR must exist" >&2
+    exit 2
+}
 
 # The local images: step (step-ca and the step CLI, built from source; the first build takes
-# minutes), postgres-auth's and Keycloak's, the data stores', the runtime egress proxy's, the ingester's
-dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data clickhouse egress-runtime ingester
+# minutes), postgres-auth's and Keycloak's, the data stores', the runtime egress proxy's, the
+# ingester's and the pipeline's
+dc build step-ca postgres-auth keycloak forward-auth whoami backup postgres-data clickhouse egress-runtime ingester pipeline
 python3 -I "$repo/deploy/secret-store/secret_store.py" generate
 python3 -I "$repo/deploy/secret-store/secret_store.py" unseal
 python3 -I "$repo/deploy/ca/ca.py" prepare
@@ -42,7 +54,12 @@ secrets_dir="${AETHERSPARK_SECRETS_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/a
 without=()
 if [ ! -f "$secrets_dir/sec-user-agent-contact" ]; then
     echo "up: the ingester is not started until the SEC contact is entered: just secrets enter sec-user-agent-contact" >&2
-    without=(--scale ingester=0)
+    without+=(--scale ingester=0)
+fi
+# The pipeline waits for the taxonomies: without them every job would fail on its first schema
+if [ ! -f "$AETHERSPARK_TAXONOMY_DIR/MANIFEST.sha256" ]; then
+    echo "up: the pipeline is not started until the taxonomy store is filled: just taxonomies" >&2
+    without+=(--scale pipeline=0)
 fi
 # Always new containers: Docker Desktop mounts a secret file as it was when the container was
 # created, and unseal has just written new files (after a restart of WSL the old ones are gone)
