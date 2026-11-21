@@ -308,14 +308,13 @@ services:
   # The pipeline worker (data-plane.md, section 4): Python, without a listener, built from the
   # repository root. It takes the ingester's jobs from ingest_ops.job_runs over verified TLS on
   # ingest (the stack's root only), copies each job's files from the raw folder (read-only) into
-  # /jobs (in memory) and hashes them again, then parses them in a child process with memory, CPU
-  # and time limits. PR 4a stops at a hardened pre-parse, so `just up` does not start it (profile
-  # `pipeline`, the owner's choice of 2026-11-21): the stack test runs it on jobs of its own, and it
-  # joins `just up` with PR 4b. Healthy while its heartbeat is fresh; a job may take up to the
-  # child's 15 minutes between two heartbeats, hence the long window
+  # /jobs (in memory) and hashes them again, reads them with Arelle offline in a child process with
+  # memory, CPU and time limits (the taxonomy store read-only), and inserts the new facts into
+  # ClickHouse over HTTPS, name and chain checked (PR 4b2). `just up` starts it once the taxonomy
+  # store holds its manifest (up.sh). Healthy while its heartbeat is fresh; a job may take up to
+  # the child's 15 minutes between two heartbeats, hence the long window
   pipeline:
     <<: [*no-restart, *hardening]
-    profiles: [pipeline]
     build:
       context: ../../..
       dockerfile: src/python/aetherspark-pipeline/Dockerfile
@@ -323,7 +322,7 @@ services:
     labels: { aetherspark.role: pipeline }
     environment:
       AETHERSPARK_PLACE: "${AETHERSPARK_PLACE:-localhost}"
-    secrets: [postgres-data-pipeline-password]
+    secrets: [postgres-data-pipeline-password, clickhouse-pipeline-password]
     tmpfs:
       - /tmp
       - "/jobs:size=1100m,uid=${AETHERSPARK_UID:-1000},gid=${AETHERSPARK_GID:-1000},mode=0700"
@@ -346,6 +345,7 @@ services:
     networks: [ingest]
     depends_on:
       postgres-data: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "sh", "-c", "f=/tmp/heartbeat; test -f $$f && test $$(( $$(date +%s) - $$(stat -c %Y $$f) )) -lt 1000"]
       interval: 30s

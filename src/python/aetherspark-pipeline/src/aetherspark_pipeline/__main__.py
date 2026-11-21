@@ -9,6 +9,7 @@ import sys
 from types import FrameType
 
 from . import jobs
+from .clickhouse import ClickHouse
 from .settings import Settings
 from .worker import Stopping, run
 
@@ -25,10 +26,17 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
     log = logging.getLogger("pipeline")
+    store = ClickHouse(
+        settings.clickhouse_host,
+        settings.clickhouse_port,
+        settings.clickhouse_user,
+        settings.clickhouse_password_file,
+        settings.root_certificate,
+    )
     try:
         with jobs.connect(settings) as conn:
-            log.info("pipeline worker started (PR 4a: checks and pre-parse only)")
-            run(settings, conn)
+            log.info("pipeline worker started: checks, Arelle offline, facts into ClickHouse")
+            run(settings, conn, store)
     except Stopping:
         log.info("pipeline worker stopped")
         return 0

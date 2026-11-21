@@ -16,6 +16,13 @@ class Settings:
     """The worker's settings; nothing here is secret (the password is read from its file)."""
 
     database_host: str
+    # ClickHouse over HTTPS (clickhouse.py); its name is checked against the certificate
+    clickhouse_host: str = "clickhouse.svc.aether.localhost"
+    clickhouse_port: int = 8443
+    clickhouse_user: str = "pipeline"
+    clickhouse_password_file: Path = Path("/run/secrets/clickhouse-pipeline-password")
+    # A job whose facts ClickHouse could not take goes back to the queue; the worker waits this long
+    store_retry_seconds: float = 60.0
     database_port: int = 5432
     database_name: str = "research"
     database_user: str = "pipeline"
@@ -45,7 +52,10 @@ class Settings:
     def from_env(cls, env: Mapping[str, str]) -> Settings:
         """The stack's defaults, with each `PIPELINE_<NAME>` taking precedence."""
         place = env.get("AETHERSPARK_PLACE") or "localhost"
-        settings = cls(database_host=f"postgres-data.svc.aether.{place}")
+        settings = cls(
+            database_host=f"postgres-data.svc.aether.{place}",
+            clickhouse_host=f"clickhouse.svc.aether.{place}",
+        )
         changes: dict[str, object] = {}
         for field in fields(cls):
             raw = env.get(f"PIPELINE_{field.name.upper()}")

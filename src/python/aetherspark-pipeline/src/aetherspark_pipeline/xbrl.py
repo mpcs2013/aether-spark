@@ -120,7 +120,10 @@ def _facts(model: Any) -> Parsed:
         name = fact.qname
         if name.namespaceURI and name.namespaceURI.startswith(DEI):
             if name.localName == "DocumentFiscalYearFocus" and fact.value:
-                parsed.fiscal_year = int(str(fact.value).strip()[:4])
+                # A gYear, "2024"; anything else is left unset, and the loader refuses the filing
+                year = str(fact.value).strip()
+                if len(year) == 4 and year.isascii() and year.isdigit():
+                    parsed.fiscal_year = int(year)
             elif name.localName == "DocumentFiscalPeriodFocus" and fact.value:
                 parsed.fiscal_period = str(fact.value).strip()
         if not fact.isNumeric:

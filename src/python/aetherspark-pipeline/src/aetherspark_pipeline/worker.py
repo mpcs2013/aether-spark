@@ -1,5 +1,6 @@
 """The worker's loop (data-plane.md, section 4): one job at a time, from claim to `done` or
-`failed`; stuck jobs recovered; a stop (SIGTERM) gives the job in hand back to the queue."""
+`failed`; stuck jobs recovered; a stop (SIGTERM) gives the job in hand back to the queue, and so
+does a fact store that does not answer (the job is not the cause)."""
 
 from __future__ import annotations
 
@@ -9,7 +10,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import jobs
+from . import facts, jobs
+from .clickhouse import StoreRefused, StoreUnavailable
 from .jobfiles import JobRefused, copy_files, read_contract
 from .sandbox import Limits, Outcome, parse_job
 from .settings import Settings
@@ -28,9 +30,10 @@ def touch(path: Path) -> None:
     path.touch(exist_ok=True)
 
 
-def process(settings: Settings, job: jobs.Job) -> Outcome:
-    """One job: its contract, its files copied and hashed into an in-memory folder, then the parse
-    in a child process. The folder is removed whatever happens."""
+def process(settings: Settings, job: jobs.Job, store: facts.FactStore) -> Outcome:
+    """One job: its contract, its files copied and hashed into an in-memory folder, the parse in a
+    child process, then its new facts into the store. The folder is removed whatever happens.
+    Raises StoreUnavailable when the store does not answer."""
     folder = settings.job_dir / str(job.id)
     home = settings.job_dir / f"{job.id}.home"
     try:
@@ -49,17 +52,26 @@ def process(settings: Settings, job: jobs.Job) -> Outcome:
         parsed = parse_job(folder, instances[0], settings.taxonomy_dir, limits)
         if not parsed.ok:
             return parsed
-        return Outcome(
-            True, f"{checked}; {parsed.reason} (PR 4b1: not loaded yet)", parsed.report, parsed.rows
-        )
+        prepared = facts.prepare(contract, parsed.report, parsed.rows)
+        inserted, stored = facts.load(store, contract, prepared)
+        loaded = f"{inserted} facts loaded, {stored} already stored"
+        if prepared.duplicates:
+            loaded += f", {prepared.duplicates} equal duplicates loaded once"
+        if prepared.conflicting:
+            loaded += f", {prepared.conflicting} left out (the same context, different values)"
+        return Outcome(True, f"{checked}; {parsed.reason}; {loaded}", parsed.report, parsed.rows)
     except JobRefused as refused:
+        return Outcome(False, str(refused))
+    except facts.LoadRefused as refused:
+        return Outcome(False, f"not loaded: {refused}")
+    except StoreRefused as refused:
         return Outcome(False, str(refused))
     finally:
         shutil.rmtree(folder, ignore_errors=True)
         shutil.rmtree(home, ignore_errors=True)
 
 
-def run(settings: Settings, conn: psycopg.Connection[Any]) -> None:
+def run(settings: Settings, conn: psycopg.Connection[Any], store: facts.FactStore) -> None:
     """Works until stopped: recover stuck jobs, claim one, process it, record the outcome."""
     settings.job_dir.mkdir(mode=0o700, exist_ok=True)
     while True:
@@ -72,11 +84,16 @@ def run(settings: Settings, conn: psycopg.Connection[Any]) -> None:
             time.sleep(settings.poll_seconds)
             continue
         try:
-            outcome = process(settings, job)
+            outcome = process(settings, job, store)
         except Stopping:
             jobs.release(conn, job, "the worker was stopped during the job")
             log.info("job %d (%s) given back: the worker is stopping", job.id, job.accession_no)
             raise
+        except StoreUnavailable as down:
+            jobs.release(conn, job, str(down))
+            log.warning("job %d (%s) given back: %s", job.id, job.accession_no, down)
+            time.sleep(settings.store_retry_seconds)
+            continue
         jobs.finish(conn, job, ok=outcome.ok, reason=outcome.reason)
         touch(settings.heartbeat_file)
         level = logging.INFO if outcome.ok else logging.WARNING
