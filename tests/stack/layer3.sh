@@ -12,10 +12,12 @@ fi
 
 # Build and pull first: with the rules in place, build steps get no network, not even DNS. Later
 # builds of the same files are served from the cache. Image pulls run in the Docker daemon on the
-# host, which the rules do not restrict here (only the Spark's host mode does).
+# host, which the rules do not restrict here (only the Spark's host mode does). Every service with a
+# build section, profiles included (tests/python/test_layer3_prebuild.py keeps the list complete)
 COMPOSE_PROJECT_NAME=as-stack-test AETHERSPARK_PLACE=localhost \
     docker compose -f "$repo/deploy/compose/stack/compose.yaml" -f "$repo/tests/stack/compose.test.yaml" \
-    build step-ca postgres-auth postgres-data clickhouse egress-runtime ingester keycloak forward-auth whoami backup backup-standin \
+    --profile pipeline \
+    build step-ca postgres-auth postgres-data clickhouse egress-runtime ingester pipeline keycloak forward-auth whoami backup backup-standin \
     || exit 1
 for f in tests/egress/compose.layer3.yaml tests/egress/compose.test.yaml tests/stack/compose.test.yaml deploy/compose/stack/compose.yaml; do
     for image in $(sed -n 's/^ *image: *\([^ ]*@sha256:[0-9a-f]*\) *$/\1/p' "$repo/$f" | sort -u); do

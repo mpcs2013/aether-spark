@@ -1,0 +1,24 @@
+[project]
+name = "aetherspark-pipeline"
+version = "0.0.0"
+description = "The pipeline worker: filing jobs into checked files, then rows (data-plane.md, section 4)"
+requires-python = ">=3.12"
+# psycopg for the data Postgres (TLS verify-full) and lxml for the hardened pre-parse; Arelle, which
+# needs lxml too, comes with PR 4b (owner, 2026-11-21). Versions locked at least two weeks old.
+# psycopg without its binary part (owner, 2026-11-21): psycopg-binary bundles its own libpq and an
+# older OpenSSL the image scan cannot see; the image installs Alpine's libpq instead.
+dependencies = [
+    "aetherspark-common",
+    "psycopg>=3.3,<4",
+    "lxml>=6.1,<7",
+]
+
+[tool.uv.sources]
+aetherspark-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aetherspark_pipeline"]
