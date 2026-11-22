@@ -5,6 +5,12 @@ Arelle resolves the filing's own files in the job folder and every taxonomy file
 store (taxonomies.py) and never goes online; a taxonomy file missing there fails the job with its
 URL. Afterwards every document Arelle loaded must be a job file or a taxonomy URL, or the job fails.
 
+Any Arelle error fails the job with its message (the owner's choice of 2026-11-21), but one: a
+value that does not fit its type (`xmlSchema:valueError`) on a non-numeric fact outside dei. Such
+a fact never becomes a row, so it is counted, not fatal (the owner's choice of 2026-11-22, after
+Wells Fargo's 10-K for 2020 wrote "one year" where a duration belongs). A value error on a numeric
+fact, a dei fact, a context or a unit still fails the job.
+
 Each numeric, non-nil fact becomes a row: the concept as reported (`prefix:name`, decision D of
 2026-11-21), the unit, the exact value, `decimals`, the period read from the filing's own XML
 (Arelle reports a date-only end as the next midnight), and the sorted dimensions. A value with
@@ -27,6 +33,7 @@ INSTANCE = "{http://www.xbrl.org/2003/instance}"
 DEI = "http://xbrl.sec.gov/dei/"
 MAX_PLACES = 6
 LIMIT = Decimal(10) ** 32  # Decimal(38, 6): 32 digits before the point
+VALUE_ERROR = "xmlSchema:valueError"
 
 
 class LoadFailed(Exception):
@@ -41,6 +48,7 @@ class Parsed:
     too_precise: int = 0
     too_large: int = 0
     no_period: int = 0
+    invalid_non_numeric: int = 0
     fiscal_year: int | None = None
     fiscal_period: str | None = None
 
@@ -95,21 +103,59 @@ def load(folder: Path, instance: str, store: Path) -> Parsed:
         outside = sorted(u for u in model.urlDocs if not _allowed(u, folder))
         if outside:
             raise LoadFailed(f"loaded a document outside the job and the taxonomies: {outside[0]}")
-        problems = [_message(controller)] if model.errors else []
-        if problems:
-            raise LoadFailed(f"{instance}: {problems[0]}")
-        return _facts(model)
+        tolerated = 0
+        if model.errors:
+            problem, tolerated = _errors(controller, model)
+            if problem:
+                raise LoadFailed(f"{instance}: {problem}")
+        parsed = _facts(model)
+        parsed.invalid_non_numeric = tolerated
+        return parsed
     finally:
         controller.close()
 
 
-def _message(controller: Any) -> str:
+def _errors(controller: Any, model: Any) -> tuple[str | None, int]:
+    """The first error that fails the job (None if none does) and how many were tolerated.
+    `model.errors` holds every captured code, also those below ERROR (an inconsistency, a
+    failed assertion) and codes recorded without an ERROR log line; each must be a tolerated
+    value error, one for each tolerated ERROR line, or the job fails."""
     handler = controller.logHandler
     records = getattr(handler, "logRecordBuffer", None) or []
-    for record in records:
-        if record.levelname in ("ERROR", "CRITICAL"):
-            return " ".join(str(record.getMessage()).split())[:300]
-    return "Arelle reported errors"
+    errors = [r for r in records if r.levelname in ("ERROR", "CRITICAL")]
+    for record in errors:
+        if not _tolerated(model, record):
+            return " ".join(str(record.getMessage()).split())[:300], 0
+    codes = list(model.errors)
+    other = next((c for c in codes if c != VALUE_ERROR), None)
+    if other is not None:
+        return f"Arelle reported {str(other)[:100]}", 0
+    if not errors or len(errors) != len(codes):
+        return "Arelle reported errors", 0
+    return None, len(errors)
+
+
+def _tolerated(model: Any, record: Any) -> bool:
+    """A value error whose every object is a non-numeric fact outside dei."""
+    if getattr(record, "messageCode", None) != VALUE_ERROR:
+        return False
+    refs = getattr(record, "refs", None) or []
+    ids = [ref.get("objectId") for ref in refs if isinstance(ref, dict)]
+    if not ids or len(ids) != len(refs) or not all(isinstance(i, str) for i in ids):
+        return False
+    from arelle.ModelInstanceObject import ModelFact
+
+    for object_id in ids:
+        try:
+            fact = model.modelObject(object_id)
+        except (AttributeError, IndexError, ValueError, TypeError):
+            return False
+        if not isinstance(fact, ModelFact) or fact.isNumeric or getattr(fact, "isTuple", False):
+            return False
+        namespace = fact.qname.namespaceURI if fact.qname is not None else None
+        if not namespace or namespace.startswith(DEI):
+            return False
+    return True
 
 
 def _facts(model: Any) -> Parsed:

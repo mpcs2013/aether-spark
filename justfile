@@ -86,6 +86,11 @@ backup *args="run":
 taxonomies:
     bash deploy/compose/stack/taxonomies.sh
 
+# Every failed pipeline job back to the queue, after a pipeline change (data-plane.md; after `just up`)
+[unix]
+retry-failed:
+    bash deploy/compose/stack/retry-failed.sh
+
 # The stack end to end: tests C3, C3b, C5, C9a, C9b, C10 so far, C11 (tests/stack/run.sh; ~20 minutes)
 [unix]
 stack-test:
@@ -160,6 +165,11 @@ backup *args="run":
 [windows]
 taxonomies:
     {{ wsl }} taxonomies
+
+# Every failed pipeline job back to the queue, in WSL2 (data-plane.md; after `just up`)
+[windows]
+retry-failed:
+    {{ wsl }} retry-failed
 
 # The stack end to end, in WSL2 (tests/stack/run.sh; ~20 minutes)
 [windows]
