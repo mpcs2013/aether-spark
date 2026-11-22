@@ -24,6 +24,8 @@ public sealed class IngestDbContext(DbContextOptions<IngestDbContext> options) :
 
     public DbSet<Filing> Filings => Set<Filing>();
 
+    public DbSet<FilingCompany> FilingCompanies => Set<FilingCompany>();
+
     public DbSet<FilingFile> FilingFiles => Set<FilingFile>();
 
     public DbSet<JobRun> JobRuns => Set<JobRun>();
@@ -69,6 +71,18 @@ public sealed class IngestDbContext(DbContextOptions<IngestDbContext> options) :
             e.HasOne<Issuer>().WithMany().HasForeignKey(x => x.Cik).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(x => x.Files).WithOne().HasForeignKey(x => x.AccessionNo).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.Cik, x.KnownAt });
+        });
+
+        modelBuilder.Entity<FilingCompany>(e =>
+        {
+            e.ToTable("filing_companies", "ref");
+            e.HasKey(x => new { x.AccessionNo, x.Cik });
+            e.Property(x => x.AccessionNo).HasColumnName("accession_no");
+            e.Property(x => x.Cik).HasColumnName("cik");
+            e.Property(x => x.FirstSeenAt).HasColumnName("first_seen_at");
+            e.HasOne<Filing>().WithMany().HasForeignKey(x => x.AccessionNo).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Issuer>().WithMany().HasForeignKey(x => x.Cik).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.Cik);
         });
 
         modelBuilder.Entity<FilingFile>(e =>

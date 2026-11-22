@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 CIK = 1234567
+PARTNER = 2345678  # lists only A, the joint 10-K: its index is its one request
 FOLDER = f"/Archives/edgar/data/{CIK}/"
 A, B, C, D, E = (f"0001234567-25-00000{n}" for n in range(1, 6))
 STORED = {
@@ -32,7 +33,9 @@ def _path(accession: str, name: str) -> str:
 
 
 def _expected() -> Counter[str]:
-    want: Counter[str] = Counter({f"/submissions/CIK{CIK:010d}.json": 1})
+    want: Counter[str] = Counter(
+        {f"/submissions/CIK{CIK:010d}.json": 1, f"/submissions/CIK{PARTNER:010d}.json": 1}
+    )
     for acc in (A, B, C, D, E):
         want[_path(acc, acc + ".hdr.sgml")] += 1
     for acc in (A, B, C, E):
@@ -76,8 +79,9 @@ def requests(log: str, start: int, agent: str) -> list[str]:
 
 def again(log: str, start: int) -> list[str]:
     seen = [r["path"] for r in _read(log, start)]
-    if f"/submissions/CIK{CIK:010d}.json" not in seen:
-        return ["the second run did not read the index"]
+    for cik in (CIK, PARTNER):
+        if f"/submissions/CIK{cik:010d}.json" not in seen:
+            return [f"the second run did not read {cik}'s index"]
     stored = [p for p in seen if any(acc.replace("-", "") in p for acc in STORED)]
     return [f"the second run asked for stored filings: {stored}"] if stored else []
 

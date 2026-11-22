@@ -98,9 +98,10 @@ public sealed class SecClient(HttpClient client, IngesterSettings settings, SecS
         }
 
         var status = (int)response.StatusCode;
+        var server = response.Headers.Server.ToString();
         response.Dispose();
         stop.Failed(status);
-        throw new SecRequestException(url, status);
+        throw new SecRequestException(url, status, server: server);
     }
 
     private async Task<T> ReadBodyAsync<T>(Uri url, Func<CancellationToken, Task<T>> read, CancellationToken cancellationToken)

@@ -41,6 +41,7 @@ public sealed class ConnectionTests : IDisposable
 
         Assert.Equal(SslMode.VerifyFull, builder.SslMode);
         Assert.Equal("/ca-certs/root_ca.crt", builder.RootCertificate);
+        Assert.Equal(GssEncryptionMode.Disable, builder.GssEncryptionMode);
         Assert.Equal("ingester", builder.Username);
         Assert.Equal("research", builder.Database);
         Assert.Equal(Password, builder.Password);

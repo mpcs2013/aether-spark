@@ -21,6 +21,11 @@ public static class DataConnection
             Password = ReadSecret(settings.DatabasePasswordFile),
             SslMode = SslMode.VerifyFull,
             RootCertificate = settings.RootCertificateFile,
+
+            // TLS only. Npgsql's default (Prefer) first tries GSS encryption, which loads Kerberos'
+            // libgssapi_krb5; the image has none, and .NET printed "Cannot load library
+            // libgssapi_krb5.so.2" at the first connection (2026-11-22)
+            GssEncryptionMode = GssEncryptionMode.Disable,
             ApplicationName = "ingester",
             PersistSecurityInfo = false,
         };

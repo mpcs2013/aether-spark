@@ -663,8 +663,17 @@ ingester_secrets_hidden() { # as postgres-data's C5: no process environment, ins
     done
 }
 check "no secret value in the ingester's process environments, inspect output or log (C5)" ingester_secrets_hidden
-check "the ingester's migrations are applied and recorded (EF Core's, Wolverine's, the rights)" owner_is t \
-    "select (select count(*) from meta.migrations where name in ('0002_ingester_tables.sql', '0003_ingester_wolverine.sql', '0004_ingester_rights.sql')) = 3 and (select count(*) from meta.ef_migrations) = 1"
+ingester_no_gss() { # TLS only: no attempt at GSS encryption, which printed a missing Kerberos library
+    local log
+    log="$(docker logs "$(dc ps -q ingester)" 2>&1)" || return 1
+    [ -n "$log" ] || { echo "empty log"; return 1; }
+    case $log in *libgssapi*) echo "the log names libgssapi"; return 1 ;; esac
+}
+check "the ingester's log names no Kerberos library (its connections ask for no GSS encryption)" ingester_no_gss
+check "the ingester's migrations are applied and recorded (EF Core's, Wolverine's, the rights, the filings' companies)" owner_is t \
+    "select (select count(*) from meta.migrations where name in ('0002_ingester_tables.sql', '0003_ingester_wolverine.sql', '0004_ingester_rights.sql', '0005_ingester_filing_companies.sql')) = 4 and (select count(*) from meta.ef_migrations) = 2"
+refuse "the pipeline cannot read which companies list a filing (ref)" pgdc pipeline pipeline "$pgd_tls" \
+    "select count(*) from ref.filing_companies"
 check "the ingester writes and removes a company in ref (rows)" pgdc ingester ingester "$pgd_tls" \
     "insert into ref.issuers values (9999999999, 'stack test', now(), now()); delete from ref.issuers where cik = 9999999999"
 refuse "the database refuses a malformed accession number (its check constraint)" pgdc ingester ingester "$pgd_tls" \
@@ -723,15 +732,20 @@ ingester_index_back() { # as 0003_ingester_wolverine.sql makes it
 check "the ingester refuses to start while Wolverine's tables differ from its version's (an index dropped)" ingester_guard_wolverine
 check "... and starts once the index is back" ingester_index_back
 
-echo "--- the ingester against a stub SEC: stored, hashed, handed off; nothing beyond its URLs (D3, D4, D5)"
-# The stub SEC (stub_sec.py, the standard library in the pinned Python image) serves one made-up
-# company on ingest. A run of the ingester's own image and service, with its SEC hosts pointed at the
-# stub and no proxy, walks a one-company universe in the raw folder. The stack's ingester stops
-# meanwhile: both would share Wolverine's store. No request reaches the real SEC.
+echo "--- the ingester against a stub SEC: stored, hashed, handed off; nothing beyond its URLs; a joint filing once (D3, D4, D5)"
+# The stub SEC (stub_sec.py, the standard library in the pinned Python image) serves two made-up
+# companies on ingest; the second's index lists only the first's 10-K (a joint filing). A run of the
+# ingester's own image and service, with its SEC hosts pointed at the stub and no proxy, walks this
+# two-company universe in the raw folder. The stack's ingester stops meanwhile: both would share
+# Wolverine's store. No request reaches the real SEC.
 sec_stub_name="${COMPOSE_PROJECT_NAME}-sec-stub"
 ingester_stub_name="${COMPOSE_PROJECT_NAME}-ingester-stub"
 mkdir -p "$work/stub"
-printf 'cik,name,why\n1234567,Stub Co,the stack test'"'"'s stand-in company\n' >"$work/raw/stub-universe.csv"
+printf 'cik,name,why\n1234567,Stub Co,the stack test'"'"'s stand-in company\n2345678,Stub Partner Co,files the first one'"'"'s 10-K jointly\n' \
+    >"$work/raw/stub-universe.csv"
+# A copy of the joint 10-K under the second company, as every walk left one before 2026-11-22
+joint_copy="$work/raw/2345678/0001234567-25-000001"
+mkdir -p "$joint_copy" && printf '<html/>' >"$joint_copy/stub-20241231.htm"
 sec_stub_check() { python3 -I "$repo/tests/stack/sec_stub_check.py" "$@"; }
 sec_stub_lines() { if [ -f "$work/stub/requests.jsonl" ]; then wc -l <"$work/stub/requests.jsonl"; else echo 0; fi; }
 sec_stub_up() {
@@ -747,7 +761,7 @@ sec_stub_up() {
     docker logs "$sec_stub_name" 2>&1 | tail -5
     return 1
 }
-ingester_stub_run() { # summary line expected: the run walks, then stops
+ingester_stub_run() { # line expected (the walk's end): the run walks, then stops
     local line=$1
     dc run -d --name "$ingester_stub_name" \
         -e Ingester__SecArchives=http://sec-stub:8080/ -e Ingester__SecData=http://sec-stub:8080/ \
@@ -766,10 +780,24 @@ ingester_stub_run() { # summary line expected: the run walks, then stops
     docker rm -f "$ingester_stub_name" >/dev/null
     return 1
 }
-check "the stub SEC serves one company on ingest" sec_stub_up
+check "the stub SEC serves two companies on ingest" sec_stub_up
 stub_first="$(sec_stub_lines)"
-check "the ingester walks the stub's company: 2 filings handed off, 3 refused" \
-    ingester_stub_run "company 1234567: 2 filings handed off, 0 already stored, 3 refused"
+stub_logged() { grep -F "$1" "$work/stub/ingester.log" >/dev/null || { grep -F 'company' "$work/stub/ingester.log"; return 1; }; }
+check "the ingester walks the stub's two companies and logs the walk's end" \
+    ingester_stub_run "universe walk (start) done: 2 companies in "
+check "... the first: 2 filings handed off, 3 refused" \
+    stub_logged "company 1234567: 2 filings handed off, 0 already stored, 0 stored under another company, 3 refused"
+check "... the second: its joint 10-K counted as stored under the first company, without a request for it" \
+    stub_logged "company 2345678: 0 filings handed off, 0 already stored, 1 stored under another company, 0 refused"
+check "... and the end line adds both up" \
+    stub_logged "; 2 filings handed off, 0 already stored, 1 stored under another company, 3 refused; 0 companies refused, 0 stopped"
+check "the joint 10-K's copy under the second company is removed, and the log says so" sh -c \
+    '[ ! -e "$1" ] && grep -F "company 2345678, filing 0001234567-25-000001: its copy removed (the filing is stored under company 1234567)" "$2" >/dev/null' \
+    _ "$joint_copy" "$work/stub/ingester.log"
+check "ref.filing_companies lists the joint 10-K under both companies, the other filing under its own" pgd_is \
+    "0001234567-25-000001 1234567,0001234567-25-000001 2345678,0001234567-25-000002 1234567" ingester ingester "$pgd_tls" \
+    "select string_agg(accession_no || ' ' || cik, ',' order by accession_no, cik) from ref.filing_companies where cik in (1234567, 2345678)"
+refuse "the stub run's log names no Kerberos library" grep -F libgssapi "$work/stub/ingester.log"
 check "it asked only for the URLs it builds, never a link, schema location, redirect or path found in a filing; one User-Agent, the contact; under 5 a second; the 429 and the 503 retried once each" \
     sec_stub_check requests "$work/stub/requests.jsonl" "$stub_first" "AetherSpark stack-test@example.org"
 stub_refused() { # accession, reason
@@ -798,7 +826,7 @@ check "the company and its ticker are recorded" pgd_is "Stub Co STUB NYSE" inges
     "select i.name || ' ' || t.symbol || ' ' || t.exchange from ref.issuers i join ref.tickers t using (cik) where cik = 1234567 and t.valid_to is null"
 stub_second="$(sec_stub_lines)"
 check "a second walk hands off nothing new" \
-    ingester_stub_run "company 1234567: 0 filings handed off, 2 already stored, 3 refused"
+    ingester_stub_run "; 0 filings handed off, 2 already stored, 1 stored under another company, 3 refused; 0 companies refused, 0 stopped"
 check "... and asks for no stored filing" sec_stub_check again "$work/stub/requests.jsonl" "$stub_second"
 check "... and the jobs stay two" pgd_is 2 pipeline pipeline "$pgd_tls" \
     "select count(*) from ingest_ops.job_runs where accession_no like '0001234567-%'"
@@ -808,9 +836,10 @@ stub_down() {
     docker rm -f "$sec_stub_name" >/dev/null 2>&1
     owner_sql "delete from ingest_ops.job_runs where accession_no like '0001234567-%';
         delete from ref.filing_files where accession_no like '0001234567-%';
-        delete from ref.filings where cik = 1234567; delete from ref.tickers where cik = 1234567;
-        delete from ref.issuers where cik = 1234567" >/dev/null \
-        && rm -rf "$work/raw/1234567" "$work/raw/stub-universe.csv" \
+        delete from ref.filing_companies where cik in (1234567, 2345678);
+        delete from ref.filings where cik = 1234567; delete from ref.tickers where cik in (1234567, 2345678);
+        delete from ref.issuers where cik in (1234567, 2345678)" >/dev/null \
+        && rm -rf "$work/raw/1234567" "$work/raw/2345678" "$work/raw/stub-universe.csv" \
         && dc up -d --wait ingester
 }
 check "the stub's rows and files are removed and the stack's ingester runs again" stub_down

@@ -18,6 +18,7 @@ builder.Services.AddDbContextFactory<IngestDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<Npgsql.NpgsqlDataSource>(), DesignTimeFactory.Configure));
 builder.Services.AddSecClient(settings);
 builder.Services.AddSingleton<IFilingRecorder, FilingRecorder>();
+builder.Services.AddSingleton<WalkProgress>();
 builder.Services.AddSingleton<CompanyFetcher>();
 
 builder.UseWolverine(opts => Messaging.Configure(opts, settings));

@@ -48,6 +48,21 @@ public sealed class Filing
     public List<FilingFile> Files { get; } = [];
 }
 
+/// <summary>
+/// A company whose submissions index lists a filing (owner, 2026-11-22). Most filings have one; a
+/// joint filing (Dow Inc. with The Dow Chemical Company, Corteva with EIDP) has a row for each of its
+/// companies, while `ref.filings` keeps it once, under the company whose walk stored it.
+/// </summary>
+public sealed class FilingCompany
+{
+    public required string AccessionNo { get; set; }
+
+    public long Cik { get; set; }
+
+    /// <summary>When a walk first saw the company's index list the filing.</summary>
+    public DateTimeOffset FirstSeenAt { get; set; }
+}
+
 /// <summary>A stored file of a filing, with the SHA-256 it was stored with (lineage, NFR-DQ-01).</summary>
 public sealed class FilingFile
 {
