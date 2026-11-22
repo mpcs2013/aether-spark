@@ -63,6 +63,27 @@ namespace AetherSpark.Ingester.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AetherSpark.Ingester.Persistence.FilingCompany", b =>
+                {
+                    b.Property<string>("AccessionNo")
+                        .HasColumnType("text")
+                        .HasColumnName("accession_no");
+
+                    b.Property<long>("Cik")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cik");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.HasKey("AccessionNo", "Cik");
+
+                    b.HasIndex("Cik");
+
+                    b.ToTable("filing_companies", "ref");
+                });
+
             modelBuilder.Entity("AetherSpark.Ingester.Persistence.FilingFile", b =>
                 {
                     b.Property<string>("AccessionNo")
@@ -225,6 +246,21 @@ namespace AetherSpark.Ingester.Persistence.Migrations
 
             modelBuilder.Entity("AetherSpark.Ingester.Persistence.Filing", b =>
                 {
+                    b.HasOne("AetherSpark.Ingester.Persistence.Issuer", null)
+                        .WithMany()
+                        .HasForeignKey("Cik")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AetherSpark.Ingester.Persistence.FilingCompany", b =>
+                {
+                    b.HasOne("AetherSpark.Ingester.Persistence.Filing", null)
+                        .WithMany()
+                        .HasForeignKey("AccessionNo")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("AetherSpark.Ingester.Persistence.Issuer", null)
                         .WithMany()
                         .HasForeignKey("Cik")

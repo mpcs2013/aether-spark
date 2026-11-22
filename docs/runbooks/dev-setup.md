@@ -52,7 +52,7 @@ dotnet run --project src/dotnet/AetherSpark.AppHost
 ```
 
 - **What starts:** `postgres-data` (the stack's image, built on the first start in a minute or two, later from Docker's cache), `sec-stub` (the stack test's stand-in SEC with one made-up company, CIK 1234567) and `ingester`.
-- **What to expect:** within a minute the dashboard's **Console logs** page, resource `ingester`, shows `company 1234567: 2 filings handed off, 0 already stored, 3 refused`. The three refusals are on purpose (a file name that climbs out of its folder, two acceptance times that differ, a redirect).
+- **What to expect:** within a minute the dashboard's **Console logs** page, resource `ingester`, shows `company 1234567: 2 filings handed off, 0 already stored, 0 stored under another company, 3 refused`, then the walk's end line `universe walk (start) done: 1 companies in …`. The three refusals are on purpose (a file name that climbs out of its folder, two acceptance times that differ, a redirect).
 - **Nothing to enter:** the passwords, the database's certificate and its root are made new at every start; the SEC contact is a dummy (`aspire-run@example.org`). Your sealed contact is never read.
 - **The run's files** are in `%LOCALAPPDATA%\AetherSpark\aspire-run` (the raw files under `raw\1234567\`). The folder is cleared at the next start, and the database lives in memory: stopping ends both.
 - **Stop with Ctrl+C.** If the window was closed instead, the two containers keep running and Aspire's network for them stays (`aspire-session-network-…-AetherSpark`), until the next start removes them. To remove them at once, first the containers, then the network:

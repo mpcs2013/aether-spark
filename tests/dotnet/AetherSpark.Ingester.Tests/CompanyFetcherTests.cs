@@ -147,10 +147,20 @@ public sealed class CompanyFetcherTests
         /// <summary>Filings another walk stores first: their record's write answers false.</summary>
         public HashSet<string> StoredElsewhere { get; init; } = new(StringComparer.Ordinal);
 
+        /// <summary>Joint filings stored under another company from the start: accession number → its CIK.</summary>
+        public Dictionary<string, long> OtherCompanies { get; init; } = new(StringComparer.Ordinal);
+
+        /// <summary>As <see cref="OtherCompanies"/>, but stored only from the walk's second question on.</summary>
+        public Dictionary<string, long> OtherCompaniesLater { get; init; } = new(StringComparer.Ordinal);
+
         /// <summary>The database fails after the walk's first question (the one before the filings).</summary>
         public bool FailsAfterTheFirstQuestion { get; init; }
 
-        public Task<IReadOnlySet<string>> KnownAccessionsAsync(long cik, CancellationToken cancellationToken)
+        /// <summary>Every listing the fetcher recorded, as (CIK, accession number).</summary>
+        public List<(long Cik, string AccessionNo)> Listings { get; } = [];
+
+        public Task<IReadOnlyDictionary<string, long>> StoredUnderAsync(IReadOnlyCollection<string> accessionNos,
+            CancellationToken cancellationToken)
         {
             var call = Interlocked.Increment(ref knownCalls);
             if (FailsAfterTheFirstQuestion && call > 1)
@@ -159,9 +169,21 @@ public sealed class CompanyFetcherTests
             }
 
             // From the second question on, the filings another walk stored meanwhile are known too
-            var recorded = known.Concat(Filings.Select(f => f.Row.AccessionNo));
-            return Task.FromResult<IReadOnlySet<string>>(
-                (call > 1 ? recorded.Concat(StoredElsewhere) : recorded).ToHashSet(StringComparer.Ordinal));
+            var ours = known.Concat(Filings.Select(f => f.Row.AccessionNo));
+            var stored = (call > 1 ? ours.Concat(StoredElsewhere) : ours)
+                .Select(a => KeyValuePair.Create(a, Cik))
+                .Concat(OtherCompanies)
+                .Concat(call > 1 ? OtherCompaniesLater : [])
+                .Where(s => accessionNos.Contains(s.Key))
+                .DistinctBy(s => s.Key, StringComparer.Ordinal)
+                .ToDictionary(StringComparer.Ordinal);
+            return Task.FromResult<IReadOnlyDictionary<string, long>>(stored);
+        }
+
+        public Task RecordListingsAsync(long cik, IReadOnlyCollection<string> accessionNos, CancellationToken cancellationToken)
+        {
+            Listings.AddRange(accessionNos.Select(a => (cik, a)));
+            return Task.CompletedTask;
         }
 
         public Task RecordIssuerAsync(long cik, string name, IReadOnlyList<ListedTicker> tickers, CancellationToken cancellationToken)
@@ -183,7 +205,7 @@ public sealed class CompanyFetcherTests
         }
     }
 
-    private sealed class Captured : ILogger<CompanyFetcher>
+    private sealed class Captured : ILogger<CompanyFetcher>, ILogger<WalkProgress>
     {
         public List<string> Lines { get; } = [];
 
@@ -207,7 +229,8 @@ public sealed class CompanyFetcherTests
         var settings = SecTesting.Settings(sec.Root, raw, TimeSpan.FromMilliseconds(5));
         var pace = new SecPace(TimeProvider.System, settings.RequestSpacing);
         var client = SecTesting.Client(settings, new SecStop(), pace);
-        return (new CompanyFetcher(client, new RawStore(settings), recorder, settings, log), client, pace);
+        var progress = new WalkProgress(TimeProvider.System, log);
+        return (new CompanyFetcher(client, new RawStore(settings), recorder, settings, progress, log), client, pace);
     }
 
     [Fact]
@@ -395,6 +418,63 @@ public sealed class CompanyFetcherTests
             new Recorder(G.Accession) { StoredElsewhere = { B.Accession } });
         Assert.Equal([H.Accession, A.Accession, B.Accession], before.Folders);
         Assert.DoesNotContain(before.Log.Lines, l => l.Contains("files removed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AJointFilingStoredUnderAnotherCompanyCostsNoRequestAndItsCopyIsRemoved()
+    {
+        // A is a joint filing another company's walk stored first (as Dow Inc. with The Dow Chemical
+        // Company); an earlier walk of this company fetched it again and left a copy in its own folder
+        const long Other = 7654321;
+        Dictionary<string, byte[]> routes = [];
+        await using var sec = new LoopbackSec((r, _) =>
+            routes.TryGetValue(r.Path, out var body) ? LoopbackAnswer.Ok(body) : LoopbackAnswer.Code(404));
+        routes = Routes(sec.Root);
+        var raw = SecTesting.TempFolder();
+        var copy = System.IO.Path.Combine(raw, "1234567", A.Accession);
+        var theirs = System.IO.Path.Combine(raw, "7654321", A.Accession);
+        foreach (var folder in new[] { copy, theirs })
+        {
+            Directory.CreateDirectory(folder);
+            await File.WriteAllTextAsync(System.IO.Path.Combine(folder, "stub-20241231.htm"), "<html/>", Token);
+        }
+
+        var recorder = new Recorder(G.Accession) { OtherCompanies = { [A.Accession] = Other } };
+        var log = new Captured();
+        var (fetcher, client, pace) = Build(sec, raw, recorder, log);
+        using (client)
+        using (pace)
+        {
+            var result = await fetcher.FetchAsync(Cik, Token);
+
+            Assert.Equal(new CompanyResult(HandedOff: 2, Known: 1, Refused: 2, Stopped: false, Shared: 1), result);
+        }
+
+        // No request for it, no record, the listing recorded; the copy gone, the other company's folder kept
+        Assert.DoesNotContain(sec.Requests, r => r.Path.Contains(Dashless(A.Accession), StringComparison.Ordinal));
+        Assert.DoesNotContain(recorder.Filings, f => f.Row.AccessionNo == A.Accession);
+        Assert.Contains((Cik, A.Accession), recorder.Listings);
+        Assert.Contains((Cik, G.Accession), recorder.Listings);
+        Assert.False(Directory.Exists(copy));
+        Assert.True(File.Exists(System.IO.Path.Combine(theirs, "stub-20241231.htm")));
+        Assert.Contains(log.Lines, l => l.Contains(
+            $"filing {A.Accession}: its copy removed (the filing is stored under company {Other})", StringComparison.Ordinal));
+        Assert.Contains(log.Lines, l => l.Contains(
+            "2 filings handed off, 1 already stored, 1 stored under another company, 2 refused", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFilingStoredUnderAnotherCompanyAfterItsRefusalLeavesNoCopy()
+    {
+        // B is refused while its files are stored, and by then another company's walk has stored it:
+        // the folder under this company's CIK is no one's, so it goes
+        var (result, folders, log) = await WalkAsync(
+            p => p == BSchema ? LoopbackAnswer.Code(302, Elsewhere) : null,
+            new Recorder(G.Accession) { OtherCompaniesLater = { [B.Accession] = 7654321 } });
+
+        Assert.Equal(new CompanyResult(HandedOff: 2, Known: 1, Refused: 3, Stopped: false), result);
+        Assert.Equal([H.Accession, A.Accession], folders);
+        Assert.Contains(log.Lines, l => l.Contains(B.Accession, StringComparison.Ordinal) && l.Contains("files removed", StringComparison.Ordinal));
     }
 
     [Fact]

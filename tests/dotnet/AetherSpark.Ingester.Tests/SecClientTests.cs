@@ -129,6 +129,48 @@ public sealed class SecClientTests
     }
 
     [Fact]
+    public async Task AFailedAnswerNamesTheServerThatGaveIt()
+    {
+        var headers = new Dictionary<string, string> { ["Server"] = "AkamaiGHost" };
+        await using var sec = new LoopbackSec((_, _) => LoopbackAnswer.Code(502, headers));
+        using var pace = new SecPace(TimeProvider.System, TimeSpan.FromMilliseconds(10));
+        using var client = SecTesting.Client(SecTesting.Settings(sec.Root, SecTesting.TempFolder()), new SecStop(), pace);
+
+        var failed = await Assert.ThrowsAsync<SecRequestException>(() => client.HeaderAsync(Cik, Accession, Token));
+
+        Assert.Equal(502, failed.Status);
+        Assert.EndsWith(".hdr.sgml (server: AkamaiGHost)", failed.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null, "HTTP 504 for /x")]
+    [InlineData("  ", "HTTP 504 for /x")]
+    [InlineData("nginx", "HTTP 504 for /x (server: nginx)")]
+    [InlineData("evil\u001b[31m\u2028end", "HTTP 504 for /x (server: evil[31mend)")]
+    public void TheServerNameIsPlainAsciiAndShort(string? server, string expected)
+    {
+        Assert.Equal(expected, new SecRequestException(new Uri("https://www.sec.gov/x"), 504, server: server).Message);
+        var longName = new SecRequestException(new Uri("https://www.sec.gov/x"), 504, server: new string('a', 500)).Message;
+        Assert.EndsWith($"(server: {new string('a', 60)})", longName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AProxyThatRefusesTheTunnelIsNoAnswerNotTheSecsStatus()
+    {
+        // The loopback answers the CONNECT itself with 502, as a proxy that cannot reach the SEC does
+        await using var proxy = new LoopbackSec((_, _) => LoopbackAnswer.Code(502));
+        using var pace = new SecPace(TimeProvider.System, TimeSpan.FromMilliseconds(10));
+        var settings = SecTesting.Settings(new Uri("https://www.sec.gov/"), SecTesting.TempFolder()) with { Proxy = proxy.Root };
+        using var client = SecTesting.Client(settings, new SecStop(), pace);
+
+        var failed = await Assert.ThrowsAsync<SecRequestException>(() => client.HeaderAsync(Cik, Accession, Token));
+
+        Assert.Equal(0, failed.Status);
+        Assert.StartsWith("no answer for ", failed.Message, StringComparison.Ordinal);
+        Assert.All(proxy.Requests, r => Assert.Equal("www.sec.gov:443", r.Path));
+    }
+
+    [Fact]
     public async Task A403StopsAtOnceWithoutRetry()
     {
         await using var sec = new LoopbackSec((_, _) => LoopbackAnswer.Code(403));

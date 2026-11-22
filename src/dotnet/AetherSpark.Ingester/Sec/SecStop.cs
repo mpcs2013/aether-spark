@@ -106,10 +106,25 @@ public sealed class SecRequestException : Exception
     {
     }
 
-    public SecRequestException(Uri url, int status, Exception? inner = null)
-        : base($"{(status == 0 ? "no answer" : $"HTTP {status}")} for {url?.AbsolutePath}", inner)
+    /// <param name="server">The answer's Server header, when it gave one: inside the TLS tunnel only the
+    /// SEC's side can answer (the proxy's own failures come as no answer), so this tells which of its
+    /// servers did.</param>
+    public SecRequestException(Uri url, int status, Exception? inner = null, string? server = null)
+        : base($"{(status == 0 ? "no answer" : $"HTTP {status}")} for {url?.AbsolutePath}{Server(server)}", inner)
     {
         Status = status;
+    }
+
+    // At most 60 printable ASCII characters of the header, so an answer cannot write into the log
+    private static string Server(string? server)
+    {
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            return "";
+        }
+
+        var plain = new string(server.Where(c => c is >= ' ' and <= '~').Take(60).ToArray()).Trim();
+        return plain.Length == 0 ? "" : $" (server: {plain})";
     }
 
     /// <summary>The HTTP status, or 0 when no answer came.</summary>

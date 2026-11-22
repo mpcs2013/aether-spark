@@ -1,12 +1,13 @@
-"""A stand-in SEC for the stack test (tests/stack/run.sh; data-plane.md, D3 to D5): one made-up
-company over plain HTTP on the test's network, Python's standard library only. It answers the paths
-the ingester builds and records every request it receives (path, User-Agent, time) in
+"""A stand-in SEC for the stack test (tests/stack/run.sh; data-plane.md, D3 to D5): two made-up
+companies over plain HTTP on the test's network, Python's standard library only. It answers the
+paths the ingester builds and records every request it receives (path, User-Agent, time) in
 /log/requests.jsonl, so the test sees exactly what the ingester asked for.
 
 Some answers are hard on purpose: a header answers 429 once and a file 503 once (backoff), a file
 redirects (never followed), a filing names a traversing file, a filing's two acceptance times
 differ, and the documents carry links, schema locations and paths back to this stub (never
-requested).
+requested). The second company's index lists only the first company's 10-K, as a joint filing's
+second company does (Dow Inc. with The Dow Chemical Company); it has no folder of its own here.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 CIK = 1234567
+PARTNER = 2345678
 SELF = "http://sec-stub:8080"
 LOG = "/log/requests.jsonl"
 FOLDER = f"/Archives/edgar/data/{CIK}/"
@@ -136,6 +138,17 @@ def _routes() -> dict[str, bytes]:
             "tickers": ["STUB"],
             "exchanges": ["NYSE"],
             "filings": {"recent": columns, "files": []},
+        }
+    ).encode()
+    # The joint 10-K, the first row of the first company's list
+    joint = {key: values[:1] for key, values in columns.items()}
+    routes[f"/submissions/CIK{PARTNER:010d}.json"] = json.dumps(
+        {
+            "cik": f"{PARTNER:010d}",
+            "name": "Stub Partner Co",
+            "tickers": [],
+            "exchanges": [],
+            "filings": {"recent": joint, "files": []},
         }
     ).encode()
     return routes

@@ -9,26 +9,69 @@ namespace AetherSpark.Ingester.Persistence;
 /// <summary>What the ingester writes to the data Postgres (data-plane.md, sections 1 and 3).</summary>
 public interface IFilingRecorder
 {
-    /// <summary>The company's accession numbers already in `ref.filings`: skipped without a request.</summary>
-    Task<IReadOnlySet<string>> KnownAccessionsAsync(long cik, CancellationToken cancellationToken);
+    /// <summary>
+    /// Of the given accession numbers, those already in `ref.filings`, each with the CIK it is stored
+    /// under: the company's own or, for a joint filing, the company whose walk stored it first.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, long>> StoredUnderAsync(IReadOnlyCollection<string> accessionNos,
+        CancellationToken cancellationToken);
+
+    /// <summary>That the company's index lists these stored filings (`ref.filing_companies`); rows already there stay.</summary>
+    Task RecordListingsAsync(long cik, IReadOnlyCollection<string> accessionNos, CancellationToken cancellationToken);
 
     /// <summary>The company and today's tickers; a ticker no longer listed gets its end date.</summary>
     Task RecordIssuerAsync(long cik, string name, IReadOnlyList<ListedTicker> tickers, CancellationToken cancellationToken);
 
-    /// <summary>The filing, its files and its job in one transaction; false when it is there already.</summary>
+    /// <summary>
+    /// The filing, its files, its company's listing and its job in one transaction; false when it is
+    /// there already.
+    /// </summary>
     Task<bool> RecordFilingAsync(long cik, SubmissionRow row, DateTimeOffset knownAt, FilingJob job,
         CancellationToken cancellationToken);
 }
 
 public sealed class FilingRecorder(IDbContextFactory<IngestDbContext> contexts, TimeProvider time) : IFilingRecorder
 {
-    public async Task<IReadOnlySet<string>> KnownAccessionsAsync(long cik, CancellationToken cancellationToken)
+    public async Task<IReadOnlyDictionary<string, long>> StoredUnderAsync(IReadOnlyCollection<string> accessionNos,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(accessionNos);
+        var wanted = accessionNos.Distinct(StringComparer.Ordinal).ToList();
         var db = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (db.ConfigureAwait(false))
         {
-            return await db.Filings.Where(f => f.Cik == cik).Select(f => f.AccessionNo)
-                .ToHashSetAsync(StringComparer.Ordinal, cancellationToken).ConfigureAwait(false);
+            return await db.Filings.Where(f => wanted.Contains(f.AccessionNo))
+                .ToDictionaryAsync(f => f.AccessionNo, f => f.Cik, StringComparer.Ordinal, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    public async Task RecordListingsAsync(long cik, IReadOnlyCollection<string> accessionNos,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accessionNos);
+        var wanted = accessionNos.Distinct(StringComparer.Ordinal).ToList();
+        if (wanted.Count == 0)
+        {
+            return;
+        }
+
+        var now = time.GetUtcNow();
+        var db = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (db.ConfigureAwait(false))
+        {
+            var listed = await db.FilingCompanies.Where(c => c.Cik == cik && wanted.Contains(c.AccessionNo))
+                .Select(c => c.AccessionNo).ToHashSetAsync(StringComparer.Ordinal, cancellationToken).ConfigureAwait(false);
+            db.FilingCompanies.AddRange(wanted.Where(a => !listed.Contains(a))
+                .Select(a => new FilingCompany { AccessionNo = a, Cik = cik, FirstSeenAt = now }));
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            {
+                // Another walk wrote one of these rows meanwhile; the next walk adds any still missing
+            }
         }
     }
 
@@ -108,6 +151,7 @@ public sealed class FilingRecorder(IDbContextFactory<IngestDbContext> contexts, 
         await using (db.ConfigureAwait(false))
         {
             db.Filings.Add(filing);
+            db.FilingCompanies.Add(new FilingCompany { AccessionNo = row.AccessionNo, Cik = cik, FirstSeenAt = now });
             db.JobRuns.Add(new JobRun
             {
                 AccessionNo = row.AccessionNo,
@@ -117,7 +161,7 @@ public sealed class FilingRecorder(IDbContextFactory<IngestDbContext> contexts, 
             });
             try
             {
-                // One SaveChanges is one transaction: the filing, its files and its job, or nothing
+                // One SaveChanges is one transaction: the filing, its files, its listing and its job, or nothing
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 return true;
             }
