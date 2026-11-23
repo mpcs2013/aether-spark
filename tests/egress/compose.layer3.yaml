@@ -8,7 +8,7 @@ x-client: &client
   cap_add: [NET_RAW]   # for the ICMP tests only
 
 x-python: &python
-  image: python:3.12.16-alpine3.24@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7
+  image: python:3.15.2-alpine3.24@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
   entrypoint: ["sleep", "infinity"]
   read_only: true
   cap_drop: [ALL]
@@ -44,7 +44,7 @@ services:
 
   # E19: stands in for Traefik, published on 443 and on a port the rules do not allow
   web-ingress:
-    image: busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+    image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
     command: ["sh", "-c", "httpd -p 443 -h /tmp && exec httpd -f -p 8080 -h /tmp"]
     networks: [ingress]
     ports: ["443:443", "8080:8080"]
