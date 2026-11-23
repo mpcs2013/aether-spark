@@ -8,9 +8,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from aetherspark_pipeline import xbrl
 from aetherspark_pipeline.child import check, reference_problem
 from aetherspark_pipeline.taxonomies import store_path
-from aetherspark_pipeline.xbrl import LoadFailed, load
+from aetherspark_pipeline.xbrl import VALUE_ERROR, LoadFailed, load
 
 TAXONOMY = "https://xbrl.fasb.org/test/2024/test-2024.xsd"
 TAX_SCHEMA = """<?xml version="1.0"?>
@@ -23,6 +24,8 @@ TAX_SCHEMA = """<?xml version="1.0"?>
  <xs:element name="Assets" id="test_Assets" type="xbrli:monetaryItemType"
    substitutionGroup="xbrli:item" xbrli:periodType="instant" nillable="true"/>
  <xs:element name="Note" id="test_Note" type="xbrli:stringItemType"
+   substitutionGroup="xbrli:item" xbrli:periodType="duration" nillable="true"/>
+ <xs:element name="ServicePeriod" id="test_ServicePeriod" type="xbrli:durationItemType"
    substitutionGroup="xbrli:item" xbrli:periodType="duration" nillable="true"/>
 </xs:schema>
 """
@@ -177,9 +180,113 @@ def test_a_fiscal_year_that_is_not_a_year_fails_the_load(job: tuple[Path, Path])
     (folder / "co-20241231.xsd").write_text(COMPANY_DEI, encoding="utf-8")
     (folder / "co-20241231_htm.xml").write_text(instance_dei("FY24", "Q2"), encoding="utf-8")
 
-    # Arelle checks the gYear type itself; any Arelle error fails the job (strict, the owner's
-    # choice of 2026-11-21)
+    # Arelle checks the gYear type itself; an Arelle error fails the job (strict, the owner's
+    # choice of 2026-11-21), a value error on a dei fact too (2026-11-22)
     with pytest.raises(LoadFailed, match="DocumentFiscalYearFocus"):
+        load(folder, "co-20241231_htm.xml", store)
+
+
+def write_instance(folder: Path, text: str) -> None:
+    (folder / "co-20241231_htm.xml").write_text(text, encoding="utf-8")
+
+
+def test_an_invalid_value_of_a_non_numeric_fact_is_counted_not_fatal(
+    job: tuple[Path, Path],
+) -> None:
+    # Wells Fargo's 10-K for 2020 wrote "one year" where a duration belongs (2026-11-22)
+    folder, store = job
+    write_instance(
+        folder,
+        INSTANCE.replace(
+            "</xbrli:xbrl>",
+            '<test:ServicePeriod contextRef="fy">one year</test:ServicePeriod></xbrli:xbrl>',
+        ),
+    )
+
+    parsed = load(folder, "co-20241231_htm.xml", store)
+
+    assert len(parsed.rows) == 3
+    assert parsed.invalid_non_numeric == 1
+    assert parsed.non_numeric == 2
+
+
+class _Record:
+    def __init__(self, code: str, level: str = "ERROR") -> None:
+        self.messageCode, self.levelname = code, level
+
+    def getMessage(self) -> str:  # logging's name
+        return f"{self.messageCode} message"
+
+
+class _Fake:
+    def __init__(self, records: list[_Record], codes: list[str]) -> None:
+        self.logHandler = self
+        self.logRecordBuffer = records
+        self.errors = codes
+
+
+@pytest.mark.parametrize(
+    ("records", "codes", "expected"),
+    [
+        ([_Record(VALUE_ERROR)], [VALUE_ERROR], (None, 1)),
+        # an inconsistency is captured in model.errors without an ERROR log line
+        (
+            [_Record(VALUE_ERROR), _Record("calc:summationItemsInconsistency", "INCONSISTENCY")],
+            [VALUE_ERROR, "calc:summationItemsInconsistency"],
+            ("Arelle reported calc:summationItemsInconsistency", 0),
+        ),
+        # a code recorded without any log line at ERROR
+        (
+            [_Record(VALUE_ERROR)],
+            [VALUE_ERROR, "arelle.schemaFileError"],
+            ("Arelle reported arelle.schemaFileError", 0),
+        ),
+        # more value errors captured than tolerated lines
+        ([_Record(VALUE_ERROR)], [VALUE_ERROR, VALUE_ERROR], ("Arelle reported errors", 0)),
+        ([], [VALUE_ERROR], ("Arelle reported errors", 0)),
+    ],
+    ids=["tolerated", "inconsistency", "code without a line", "uncounted", "no line"],
+)
+def test_only_tolerated_value_errors_let_a_filing_through(
+    monkeypatch: pytest.MonkeyPatch,
+    records: list[_Record],
+    codes: list[str],
+    expected: tuple[str | None, int],
+) -> None:
+    # The security review of 2026-11-22: model.errors also holds codes below ERROR
+    monkeypatch.setattr(xbrl, "_tolerated", lambda _model, r: r.messageCode == VALUE_ERROR)
+    fake = _Fake(records, codes)
+
+    assert xbrl._errors(fake, fake) == expected
+
+
+def test_a_reference_without_an_object_id_is_not_tolerated() -> None:
+    record = _Record(VALUE_ERROR)
+    record.refs = [{"href": "a_htm.xml#f1"}]  # type: ignore[attr-defined]
+
+    assert not xbrl._tolerated(object(), record)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        (">391035000000<", ">391 billion<", "test:Revenues"),
+        (
+            "<xbrli:instant>2023-12-31</xbrli:instant>",
+            "<xbrli:instant>2023-13-45</xbrli:instant>",
+            "instant",
+        ),
+    ],
+    ids=["numeric fact", "context date"],
+)
+def test_an_invalid_value_elsewhere_still_fails_the_load(
+    job: tuple[Path, Path], old: str, new: str, message: str
+) -> None:
+    folder, store = job
+    assert old in INSTANCE
+    write_instance(folder, INSTANCE.replace(old, new))
+
+    with pytest.raises(LoadFailed, match=message):
         load(folder, "co-20241231_htm.xml", store)
 
 

@@ -42,6 +42,43 @@ def python(code: str, limits: Limits = LIMITS) -> tuple[bool, str]:
     return outcome.ok, outcome.reason
 
 
+def test_libxml2_limits_entity_amplification_even_with_huge_trees() -> None:
+    # Before 2.11, XML_PARSE_HUGE also lifted the entity amplification check; the pre-parse
+    # parses with huge_tree since 2026-11-22 (the security review that day)
+    from lxml import etree
+
+    assert etree.LIBXML_VERSION >= (2, 11)
+
+
+def test_a_billion_laughs_is_refused_within_the_limits(tmp_path: Path) -> None:
+    lol9 = "".join(f'<!ENTITY lol{i} "{f"&lol{i - 1};" * 10}">' for i in range(1, 10))
+    (tmp_path / "a_htm.xml").write_text(
+        f'<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol0 "lol">{lol9}]><xbrl>&lol9;</xbrl>',
+        encoding="utf-8",
+    )
+    code = (
+        "import json\nfrom pathlib import Path\nfrom aetherspark_pipeline.child import check\n"
+        f"ok, reason = check(Path({str(tmp_path)!r}))\n"
+        'print(json.dumps({"ok": ok, "reason": reason}))\n'
+    )
+
+    ok, reason = python(code)
+
+    assert not ok
+    # libxml2 2.14 (the image's, 2026-11-22) stops the parse itself at its amplification limit;
+    # either way the pre-parse refuses the file, not one of the child's limits
+    # (the helper's child exits 0 after its report, so run() puts its own words before the reason)
+    assert any(
+        refused in reason
+        for refused in (
+            "a_htm.xml: declares a DTD",
+            "a_htm.xml: refers to an outside resource",
+            "a_htm.xml: not well-formed XML (Maximum entity amplification",
+        )
+    ), reason
+    assert "limit (" not in reason  # not stopped by the child's memory, CPU or time limit
+
+
 def test_a_report_is_passed_on() -> None:
     assert python('print(\'{"ok": true, "reason": "fine"}\')') == (True, "fine")
 

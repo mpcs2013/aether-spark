@@ -1,12 +1,14 @@
 """D6, the parse's own side: the hardened pre-parse refuses DTDs and with them every entity trick,
-never reaches the network, and refuses what is not well-formed or nested past libxml2's limit."""
+never reaches the network, and refuses what is not well-formed, nested deeper than 256 levels or
+larger than its size limit; a long text node passes."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from aetherspark_pipeline.child import check
+from aetherspark_pipeline import child
+from aetherspark_pipeline.child import MAX_DEPTH, check
 
 BOMB = """<?xml version="1.0"?>
 <!DOCTYPE lolz [
@@ -104,3 +106,32 @@ def test_nesting_past_the_parsers_limit_is_refused(tmp_path: Path) -> None:
 
     assert not ok
     assert "deep.xml" in reason
+
+
+@pytest.mark.parametrize(("depth", "ok"), [(MAX_DEPTH, True), (MAX_DEPTH + 1, False)])
+def test_the_depth_limit_stays_libxml2s_default(tmp_path: Path, depth: int, ok: bool) -> None:
+    # huge_tree would allow 2048 levels; the pre-parse keeps 256
+    write(tmp_path, "deep.xml", "<a>" * depth + "</a>" * depth)
+
+    assert check(tmp_path) == (
+        (True, "1 XML files pre-parsed")
+        if ok
+        else (False, f"deep.xml: nested deeper than {MAX_DEPTH} levels, refused")
+    )
+
+
+def test_a_text_node_longer_than_libxml2s_default_passes(tmp_path: Path) -> None:
+    # Prologis's 10-Ks for 2015 and 2016: a text block past libxml2's 10 MB limit (2026-11-22)
+    write(tmp_path, "a_htm.xml", "<xbrl><block>" + "x" * (11 * 1024 * 1024) + "</block></xbrl>")
+
+    assert check(tmp_path) == (True, "1 XML files pre-parsed")
+
+
+def test_a_file_past_the_size_limit_is_not_parsed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(child, "MAX_XML_BYTES", 100)
+    write(tmp_path, "a.xsd", "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'/>")
+    write(tmp_path, "a_htm.xml", "<xbrl>" + "x" * 100 + "</xbrl>")
+
+    assert check(tmp_path) == (False, "a_htm.xml: larger than 100 bytes, not parsed")

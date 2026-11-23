@@ -916,6 +916,21 @@ pipeline_again() {
     [ "$nothing" = 4 ] || { echo "jobs done again without new facts: $nothing of 4"; return 1; }
 }
 check "D2: the four loaded filings processed again: research.facts unchanged (count and row hash), each job loads 0 new facts" pipeline_again
+# just retry-failed: every failed job back to the queue and processed again; done jobs untouched
+pipeline_retry() {
+    local failed mark out again untouched
+    failed="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and status = 'failed'")" || return 1
+    [ "$failed" -gt 0 ] || { echo "no failed test job to retry"; return 1; }
+    mark="$(owner_sql "select now()")" || return 1
+    out="$(bash "$repo/deploy/compose/stack/retry-failed.sh")" || { echo "$out"; return 1; }
+    case $out in "retry-failed: $failed failed jobs queued again: "*) ;; *) echo "output: $out"; return 1 ;; esac
+    pipeline_settled || return 1
+    again="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and attempts = 1 and started_at > '$mark' and status in ('done', 'failed') and reason not like 'queued again%'")" || return 1
+    [ "$again" = "$failed" ] || { echo "processed again: $again of $failed"; return 1; }
+    untouched="$(owner_sql "select count(*) from ingest_ops.job_runs where accession_no like '0007654321-%' and started_at > '$mark'")" || return 1
+    [ "$untouched" = "$failed" ] || { echo "jobs started after the retry: $untouched, failed before: $failed"; return 1; }
+}
+check "just retry-failed queues every failed job again and the worker processes each once more; done jobs stay as they were" pipeline_retry
 pipeline_alive() {
     [ "$(docker inspect -f '{{.State.Health.Status}} {{.RestartCount}}' "$(dc ps -q pipeline)")" = "healthy 0" ]
 }

@@ -1,7 +1,8 @@
 """The parse of one job, run as a child process under limits (sandbox.py), in four steps:
 
 1. a hardened pre-parse of the job's XML files (instance, schemas, linkbases): no DTD and so no
-   entities, no network, no huge trees;
+   entities, no network, at most 64 MiB a file and 256 levels deep; a text node may be longer
+   than libxml2's 10 MB default (a filing's text block can be, the owner's choice of 2026-11-22);
 2. the reference check: every reference in those files names a file of the job (a plain name) or a
    file on the three taxonomy hosts; anything else (a path, `..`, another host, `file:`) refuses the
    job before Arelle sees it;
@@ -30,6 +31,10 @@ from .taxonomies import Refused, raw_references, store_path
 EXIT_REFUSED = 2
 EXIT_MEMORY = 3
 XML_SUFFIXES = (".xml", ".xsd")
+# The largest XML file of the first real load (2026-11-22, 19,281 files) was under 40 MB
+MAX_XML_BYTES = 64 * 1024 * 1024
+# libxml2's own limit without huge trees, kept by the check below
+MAX_DEPTH = 256
 _PLAIN = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}")
 
 
@@ -48,16 +53,28 @@ class _Nothing(etree.Resolver):  # type: ignore[misc] # lxml is untyped
 
 
 def _parser(resolver: _Nothing) -> etree.XMLParser:
+    # huge_tree lifts libxml2's 10 MB limit on a text node (Prologis's 10-Ks for 2015 and 2016
+    # hold a longer text block) and with it the depth limit, which _depth keeps; a file's size is
+    # checked before, and memory stays bounded by the child's limit. Arelle parses with huge_tree.
     parser = etree.XMLParser(
         resolve_entities=False,
         no_network=True,
         load_dtd=False,
         dtd_validation=False,
-        huge_tree=False,
+        huge_tree=True,
         collect_ids=False,
     )
     parser.resolvers.add(resolver)
     return parser
+
+
+def _depth(root: etree._Element) -> int:
+    """The tree's nesting depth, counted without recursion."""
+    depth = deepest = 0
+    for event, _ in etree.iterwalk(root, events=("start", "end")):
+        depth += 1 if event == "start" else -1
+        deepest = max(deepest, depth)
+    return deepest
 
 
 def reference_problem(ref: str, files: set[str]) -> str | None:
@@ -87,6 +104,8 @@ def check(folder: Path) -> tuple[bool, str]:
     for path in sorted(folder.iterdir()):
         if not path.name.lower().endswith(XML_SUFFIXES):
             continue
+        if path.stat().st_size > MAX_XML_BYTES:
+            return False, f"{path.name}: larger than {MAX_XML_BYTES} bytes, not parsed"
         resolver = _Nothing()
         try:
             with path.open("rb") as handle:
@@ -102,6 +121,8 @@ def check(folder: Path) -> tuple[bool, str]:
             return False, f"{path.name}: declares a DTD, refused (entities, external references)"
         if resolver.asked:
             return False, f"{path.name}: refers to an outside resource, refused"
+        if _depth(tree.getroot()) > MAX_DEPTH:
+            return False, f"{path.name}: nested deeper than {MAX_DEPTH} levels, refused"
         for ref in raw_references(tree.getroot()):
             if problem := reference_problem(ref, files):
                 return False, f"{path.name}: a reference refused ({problem})"
@@ -138,6 +159,8 @@ def main(argv: list[str]) -> int:
     summary = f"{reason}; {len(parsed.rows)} numeric facts" + (
         f" ({noted} left out)" if noted else ""
     )
+    if parsed.invalid_non_numeric:
+        summary += f"; {parsed.invalid_non_numeric} invalid values of non-numeric facts tolerated"
     if parsed.fiscal_year is None or parsed.fiscal_period is None:
         summary += "; no fiscal year or period in its dei facts"
     report = {
