@@ -5,9 +5,9 @@
 # could not use it.
 
 # CA bundle only: the Ubuntu base has none, and apt must fetch over HTTPS (the ops proxy allows 443 only)
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble@sha256:62028293921f5bd6db3d9f9119cd29cd926dfd3c2336da23b09f425e40c3c832 AS ca
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble@sha256:e6702e45635272155c2aa35568bcbdb975595c0afa73e2656a973d0a87703282 AS ca
 
-FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+FROM ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
 
 # Versions from noble-security, the same on amd64 and arm64. The archive keeps only the newest
 # version of a package per pocket, so a new Ubuntu security notice for squid or openssl makes this
