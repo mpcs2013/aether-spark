@@ -28,6 +28,14 @@ public sealed class RealmFileTests
     [InlineData("\"access.token.signed.response.alg\": \"RS256\"", "\"access.token.signed.response.alg\": \"HS256\"", "client.signature-algorithm")]
     [InlineData("\"webOrigins\": []", "\"webOrigins\": [\"+\"]", "client.web-origins-empty")]
     [InlineData("/oauth2/callback\"", "/oauth2/*\"", "client.redirect-uris-exact")]
+    // Realm-wide values (Ostium.Keycloak.Realm 0.6.0 and later): an absent or weaker one is a finding
+    [InlineData("\"revokeRefreshToken\": true", "\"revokeRefreshToken\": false", "realm.refresh-token-rotation")]
+    [InlineData("\"refreshTokenMaxReuse\": 0", "\"refreshTokenMaxReuse\": 1", "realm.refresh-token-rotation")]
+    [InlineData("\"revokeRefreshToken\": true,", "", "realm.refresh-token-rotation")]
+    [InlineData("\"accessTokenLifespan\": 300", "\"accessTokenLifespan\": 301", "realm.access-token-lifetime")]
+    [InlineData("\"defaultSignatureAlgorithm\": \"RS256\"", "\"defaultSignatureAlgorithm\": \"HS256\"", "realm.signature-algorithm")]
+    [InlineData("\"defaultSignatureAlgorithm\": \"RS256\",", "", "realm.signature-algorithm")]
+    [InlineData("\"sslRequired\": \"all\"", "\"sslRequired\": \"none\"", "realm.ssl-required")]
     public void AWeakenedClientIsAFinding(string from, string to, string ruleId)
     {
         var text = Realm.Rendered();

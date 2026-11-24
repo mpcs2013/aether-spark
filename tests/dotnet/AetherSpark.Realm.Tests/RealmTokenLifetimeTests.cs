@@ -10,7 +10,8 @@ namespace AetherSpark.Realm.Tests;
 /// realm value of -1 or 0 (Keycloak may read -1 as "until the session's maximum", hours instead of
 /// minutes) passes its checks. AetherSpark's rule: the realm states `accessTokenLifespan` between 1
 /// and 300 seconds, and a client that sets its own `access.token.lifespan` keeps it between 1 and
-/// 300 too. Ostium's 0.5.2 adds `realm.access-token-lifetime`; this check stays as AetherSpark's own.
+/// 300 too. Ostium's 0.6.0 added `realm.access-token-lifetime` (announced as 0.5.2); this check stays
+/// as AetherSpark's own.
 /// </summary>
 public sealed class RealmTokenLifetimeTests
 {
