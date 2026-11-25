@@ -25,7 +25,7 @@ Today one package: `Ostium.Keycloak.Realm`, in the test project `tests/dotnet/Ae
 ## 2. Pin a version (a first package or a version change)
 1. In `Directory.Packages.props`, add the line or change its version, in square brackets so that it is exact (without them NuGet reads a minimum), for example:
    ```xml
-   <PackageVersion Include="Ostium.Keycloak.Realm" Version="[0.5.0]" />
+   <PackageVersion Include="Ostium.Keycloak.Realm" Version="[0.6.1]" />
    ```
 2. Restore with the token, writing the lock files, then once more in locked mode:
    ```powershell
@@ -61,9 +61,9 @@ In PowerShell. The commands assume your Ostium clone next to this one; change `$
    git log --oneline -1
    dotnet restore --locked-mode
    ```
-4. **The check,** with the new version (here `0.5.0`):
+4. **The check,** with the new version (here `0.6.1`):
    ```powershell
-   python "$ostium\tools\release\checksums.py" check --ostium $ostium --version 0.5.0 --consumer . --allowed-signers .github/allowed-signers/ostium --expect-fingerprint $fp --packages "$env:USERPROFILE\.nuget\packages"
+   python "$ostium\tools\release\checksums.py" check --ostium $ostium --version 0.6.1 --consumer . --allowed-signers .github/allowed-signers/ostium --expect-fingerprint $fp --packages "$env:USERPROFILE\.nuget\packages"
    ```
    - Exit 0 is `RESULT: PASS`, exit 1 is `RESULT: FAIL`.
    - Exit 2 means a missing or malformed option, or that `git` or `ssh-keygen` is not found. For the latter, add `--ssh-keygen "C:\Program Files\Git\usr\bin\ssh-keygen.exe"` (Git for Windows' copy).
@@ -78,7 +78,7 @@ In PowerShell, in the repository. The feed is in WSL2, so WSL2 (`Ubuntu-24.04`, 
    ```powershell
    just ostium-feed local-sync
    ```
-   Expected: `local-feed: 1 copied (ostium.keycloak.realm.0.5.0.nupkg)` the first time, `local-feed: 0 copied` when it already holds every pinned version.
+   Expected: `local-feed: 1 copied (ostium.keycloak.realm.0.6.1.nupkg)` for a new version, `local-feed: 0 copied` when it already holds every pinned version. Older versions stay in the feed (only a withdrawn one is removed, step 4).
    - `... is not in ...: restore the solution first`: run `just ostium-feed restore` (step 2), then this again.
    - `check failed: ... differs from the lock file's hash`: stop. The package on your machine, or the copy already in the feed, is not the one the lock file names. Nothing was copied or replaced. Tell Ostium in the exchange.
 2. **Check it,** then prove that a restore works from it alone:
