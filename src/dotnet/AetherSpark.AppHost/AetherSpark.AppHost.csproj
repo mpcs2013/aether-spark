@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <!-- A resource of `aspire run`, not a library: the SDK references no assembly of it -->
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <ProjectReference Include="..\AetherSpark.Ingester\AetherSpark.Ingester.csproj" />
   </ItemGroup>
 
