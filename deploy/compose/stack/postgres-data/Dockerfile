@@ -24,7 +24,7 @@ FROM postgres:18.7-alpine3.24@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38
 # base image carries 3.5.9-r1 or newer
 ARG OPENSSL_VERSION=3.5.9-r1
 # libxml2 fixed for CVE-2026-86144 (High), as in postgres-auth/Dockerfile (the owner's choice of
-# 2026-11-21); drop it together with that file's
-ARG LIBXML2_VERSION=2.13.9-r3
+# 2026-11-21; 2.13.9-r5 since 2026-11-26, as there); drop it together with that file's
+ARG LIBXML2_VERSION=2.13.9-r5
 RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}" "libxml2=${LIBXML2_VERSION}"
 COPY --from=build /out/usr/local/ /usr/local/
