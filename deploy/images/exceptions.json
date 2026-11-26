@@ -4,55 +4,55 @@
       "id": "CVE-2026-59850",
       "target": "curlimages/curl",
       "package": "libssh2",
-      "reason": "Test client only (egress tests on throwaway CI runners and the desktop). The tests use curl for HTTP, HTTPS and ICMP, never SCP or SFTP, so libssh2 is not reached. Alpine has no fixed package yet; Dependabot moves the image when one ships.",
+      "reason": "Test client only (egress tests on throwaway CI runners and the desktop). The tests use curl for HTTP, HTTPS and ICMP, never SCP or SFTP, so libssh2 is not reached. Re-checked 2026-11-26: the advisory (GHSA-cr6p-6527-344m) describes a flaw in libssh, a different library from libssh2, which the scanner matches by name; Alpine 3.24 and edge still ship libssh2 1.11.1-r4 and record no fix. If the database corrects the match, the scan reports this entry as stale.",
       "issue": 31,
-      "approved": "2026-10-31",
-      "expires": "2026-11-30"
+      "approved": "2026-11-26",
+      "expires": "2027-02-24"
     },
     {
       "id": "CVE-2026-119373",
       "target": "python",
       "package": "sqlite-libs",
-      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite), on throwaway CI runners and the desktop. No fixed Alpine package yet; newer images are worse today (python 3.15.0 Critical, busybox 1.38.0 Highs, #59). Dependabot moves the image when a fix ships.",
+      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite; re-checked 2026-11-26), on throwaway CI runners and the desktop. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-04",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119374",
       "target": "python",
       "package": "sqlite-libs",
-      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite), on throwaway CI runners and the desktop. No fixed Alpine package yet; newer images are worse today (python 3.15.0 Critical, busybox 1.38.0 Highs, #59). Dependabot moves the image when a fix ships.",
+      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite; re-checked 2026-11-26), on throwaway CI runners and the desktop. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-04",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119379",
       "target": "python",
       "package": "sqlite-libs",
-      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite), on throwaway CI runners and the desktop. No fixed Alpine package yet; newer images are worse today (python 3.15.0 Critical, busybox 1.38.0 Highs, #59). Dependabot moves the image when a fix ships.",
+      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite; re-checked 2026-11-26), on throwaway CI runners and the desktop. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-04",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119586",
       "target": "python",
       "package": "sqlite-libs",
-      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite), on throwaway CI runners and the desktop. No fixed Alpine package yet; newer images are worse today (python 3.15.0 Critical, busybox 1.38.0 Highs, #59). Dependabot moves the image when a fix ships.",
+      "reason": "Egress tests' UDP test client only (tests/egress/udp.py imports socket, struct and sys, never sqlite; re-checked 2026-11-26), on throwaway CI runners and the desktop. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-04",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "GHSA-mgcc-cww5-fp2q",
       "target": "step-ca",
       "package": "github.com/go-jose/go-jose/v3",
-      "reason": "CPU denial of service from a crafted RSA key in a JWK; no forged certificate. No fixed v3 release, and step's go.step.sm/crypto still uses v3 (v4 is raised to the fixed 4.1.6 in the same image). step-ca is reached only from the internal pki network (Traefik, the bootstrap step, the renewers); the worst case is a stalled CA, visible through its health check. The weekly scan and Dependabot show when upstream moves.",
+      "reason": "CPU denial of service from a crafted RSA key in a JWK; no forged certificate. No fixed v3 release, and none will come (v3.0.5 is the last; the advisory lists no fix for v3). step-ca 0.30.2, still its latest release, uses v3 through go.step.sm/crypto (v4 is raised to the fixed 4.1.6 in the same image). Re-checked 2026-11-26: step-ca's main branch has moved to v4 only (go-jose v4.1.9, go.step.sm/crypto v0.92), so its next release ends this finding; AetherSpark builds releases only. step-ca is reached only from the internal pki network (Traefik, the bootstrap step, the renewers); the worst case is a stalled CA, visible through its health check.",
       "issue": 31,
-      "approved": "2026-11-06",
-      "expires": "2026-12-06"
+      "approved": "2026-11-26",
+      "expires": "2027-02-24"
     },
     {
       "id": "CVE-2026-107696",
@@ -2641,37 +2641,37 @@
       "id": "CVE-2026-119373",
       "target": "pipeline",
       "package": "sqlite-libs",
-      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21, again on 2026-11-26); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-21",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119374",
       "target": "pipeline",
       "package": "sqlite-libs",
-      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21, again on 2026-11-26); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-21",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119379",
       "target": "pipeline",
       "package": "sqlite-libs",
-      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21, again on 2026-11-26); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-21",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     },
     {
       "id": "CVE-2026-119586",
       "target": "pipeline",
       "package": "sqlite-libs",
-      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. No fixed Alpine package yet; a rebuild picks up the fix, and the scan then reports this entry as stale.",
+      "reason": "The pipeline worker: nothing in it imports sqlite3 (checked on 2026-11-21, again on 2026-11-26); SQLite is in the image only as part of Python's Alpine base, as in the stack tests' python image. CVE-2026-119373, -119374 and -119379 are fixed in SQLite 3.54.0 (Alpine edge has 3.54.1), but Alpine 3.24 still ships 3.53.4-r0 and records no fix; CVE-2026-119586 is in SQLite's command-line shell, which the image does not carry, and is unfixed through 3.54.1. A rebuild on a fixed Alpine package makes the scan report these entries as stale.",
       "issue": 31,
-      "approved": "2026-11-21",
-      "expires": "2026-12-04"
+      "approved": "2026-11-26",
+      "expires": "2027-01-04"
     }
   ]
 }
