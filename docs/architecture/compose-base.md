@@ -123,6 +123,7 @@ Placement in WP3.1:
 - **Bootstrap and renewal:**
   - At `just up`, a one-shot `cert-bootstrap` step mints a single-use token per service that lacks a valid certificate.
   - The renewers then run `step ca renew --daemon`, which authenticates with the current certificate and holds no password. step-ca refuses to renew an expired certificate, so a renewer down for longer than its lifetime is bootstrapped again by the next `just up`.
+  - `just up` stops the running renewers before the bootstrap step and starts them again after it (#147). A renewer keeps its certificate and key in memory, so one that renewed after the bootstrap had written a new pair would put a certificate for its old key over it. The stack test saw this on 2026-11-26, after an expired intermediate was renewed while the stack was up.
   - The renewer writes the key with the service's user and mode 0600; the service mounts the volume read-only.
 - **Lifetimes:** leaf certificates 24 hours, renewed at two thirds. Traefik's ACME client is set to 24-hour certificates (`certificatesDuration: 24`; its default of 90 days would not match step-ca), its `caServer` is step-ca and its CA trust is step-ca's root only. Intermediate 1 year, root 10 years.
 - **Expiry is watched, not remembered:** a check reports the intermediate's remaining validity and alerts at 60 days (ADR-0011); a runbook renews it with the off-line root.
