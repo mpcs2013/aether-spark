@@ -8,7 +8,7 @@ Once a day, when you start the stack, AetherSpark copies what cannot be rebuilt 
 ## Goal and scope
 - **In scope (desktop phase):** the job, its secrets, `just backup`, the daily run from `just up`, `just restore`, the restore drill in CI on every stack test and by the owner from the NAS, the runbook `docs/runbooks/restore-drill.md`. Gate G3's "restore drill passes".
 - **Later:** the Spark's nightly timer and its own repository (cutover, WP6.4/6.6); TLS to the backup target (WP6.6); the data Postgres and ClickHouse with P4a.
-- **Not AetherSpark's:** retention, checks, the offline copies and the freshness alert run on the NAS (the home infrastructure, A-012, A-015).
+- **Not AetherSpark's:** retention, checks, the offline copies, the freshness alert and the key-change alert run on the NAS (the home infrastructure, A-012, A-015). The key-change alert (live since 2026-11-24) compares the repository's key list each night with a stored list of its three keys and mails the owner when one is added or removed; an intended change is announced to the home infrastructure the same day, and the quarterly drill compares the list by hand as a second check (restore-drill.md).
 
 ## Owner's decisions (2026-11-11)
 1. **When it runs:** `just up` makes a snapshot once a day, after the stack is healthy, if none was made that day; `just backup` makes one by hand. On the Spark a nightly timer replaces this at cutover.
