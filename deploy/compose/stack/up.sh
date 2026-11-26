@@ -64,6 +64,11 @@ fi
 # Always new containers: Docker Desktop mounts a secret file as it was when the container was
 # created, and unseal has just written new files (after a restart of WSL the old ones are gone)
 dc up -d --wait --force-recreate step-ca
+# The running renewers stop before the bootstrap (#147): each keeps its certificate and key in
+# memory, and one that renews after the bootstrap wrote a new pair would write a certificate for its
+# old key over the new one. The line after the bootstrap starts them again from the files
+mapfile -t renewers < <(dc config --services | grep -- '-renewer$')
+dc stop "${renewers[@]}"
 dc run --rm cert-bootstrap
 dc up -d --wait --force-recreate "${without[@]}"
 # The aetherspark realm as the repository says (deploy/keycloak/admin.py apply): Keycloak imports

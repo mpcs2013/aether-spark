@@ -1508,6 +1508,14 @@ on_pki 'rm -f /tls/postgres-auth/tls.crt' >/dev/null 2>&1
 refuse "with the intermediate expired, issuance fails visibly" dc run --rm cert-bootstrap
 check "ca renew-intermediate (the runbook) signs a new one from the sealed root" ca renew-intermediate
 check "just up then issues and reaches healthy" up
+# The renewers had been failing while the intermediate was expired; one still running during the
+# bootstrap could write a certificate for its old key over the new pair (#147)
+keys_match() {
+    on_pki 'for d in /tls/*/; do [ -f "$d/tls.crt" ] || continue
+        [ "$(step certificate key "$d/tls.crt")" = "$(step crypto key public "$d/tls.key")" ] \
+            || { echo "certificate and key differ: $d"; exit 1; }; done'
+}
+check "... and every certificate matches its key (the renewers were stopped for the bootstrap)" keys_match
 year() { ca status | grep -q 'valid for 36[45] more days'; }
 check "ca status reports the new intermediate (about a year)" year
 
