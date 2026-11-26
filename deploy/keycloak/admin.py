@@ -16,7 +16,10 @@ permanent administrator and the config service account, in one run:
   3. the administrator USERNAME, with the realm's `admin` role, a temporary password (asked for, or
      read from FILE) that must be changed at the first login, and the key to register;
   4. the config service account `aetherspark-config` (client credentials, its secret from the
-     secrets store): it may administer the `aetherspark` realm and nothing else;
+     secrets store): it may administer the `aetherspark` realm and nothing else. Its default scopes
+     include Keycloak's built-in `kc-admin-api`, whose mapper puts the Admin API's address in the
+     token's audience: since 26.8.2 the Admin API refuses a token without it (CVE-2026-19688). The
+     scope grants no role;
   5. last, no client of the realm may sign in with a password alone (direct grants), so this tool
      cannot sign in as an administrator again: from then on the console, with the key, is the way
      in;
@@ -75,6 +78,10 @@ BOOTSTRAP_USER = "bootstrap-admin"  # KC_BOOTSTRAP_ADMIN_USERNAME in the stack's
 BOOTSTRAP_SECRET = "keycloak-bootstrap-admin-password"  # noqa: S105 - a secret's name
 CONFIG_CLIENT = "aetherspark-config"
 CONFIG_SECRET = "keycloak-config-client-secret"  # noqa: S105 - a secret's name
+# Keycloak's built-in client scope (26.8.2) that puts the Admin API's address in a token's audience;
+# the config account's only one beyond the defaults (exchange O-047 point 8)
+ADMIN_API_SCOPE = "kc-admin-api"
+ADMIN_API_STEP = 'keycloak-admin.md, "Keycloak 26.8.2: the config account\'s Admin API scope"'
 # The config account's rights: these roles of master's management client for the aetherspark realm
 CONFIG_ROLES = (
     "view-realm",
@@ -313,6 +320,26 @@ def sign_in_config(admin: Admin) -> bool:
     raise Refused(f"the config service account cannot sign in (HTTP {status}, {reason})")
 
 
+def config_reaches_admin_api(admin: Admin) -> None:
+    """Refused, with the way out, when the Admin API turns the config account's token away: a
+    realm set up before 26.8.2 lacks the scope `kc-admin-api` on that account."""
+    status, _ = admin.call("GET", f"/admin/realms/{REALM}")
+    if status == 401:
+        raise Refused(
+            f"the Admin API refuses the config service account's token (HTTP 401): since Keycloak "
+            f"26.8.2 {CONFIG_CLIENT} needs the client scope {ADMIN_API_SCOPE} among its default "
+            f"scopes; add it once in the console ({ADMIN_API_STEP})"
+        )
+
+
+def admin_api_scope(admin: Admin) -> dict[str, Any]:
+    """Master's built-in client scope `kc-admin-api` (Keycloak 26.8.2 and later)."""
+    for scope in admin.need("GET", f"/admin/realms/{MASTER}/client-scopes"):
+        if scope.get("name") == ADMIN_API_SCOPE:
+            return dict(scope)
+    raise Refused(f"master has no client scope {ADMIN_API_SCOPE}: Keycloak older than 26.8.2?")
+
+
 # Flows
 
 
@@ -494,6 +521,8 @@ def create_config_account(admin: Admin) -> None:
         f"/admin/realms/{MASTER}/users/{account['id']}/role-mappings/clients/{management['id']}"
     )
     admin.need("POST", mapping, roles, ok=(204,))
+    scope = admin_api_scope(admin)
+    admin.need("PUT", f"{clients}/{client['id']}/default-client-scopes/{scope['id']}", ok=(204,))
 
 
 def no_direct_grants(admin: Admin) -> None:
@@ -692,6 +721,7 @@ def apply(if_ready: bool) -> list[str] | None:
         if if_ready:
             return None
         raise Refused(f"the config service account {CONFIG_CLIENT} cannot sign in; run setup first")
+    config_reaches_admin_api(admin)
     return apply_realm(admin)
 
 
@@ -701,6 +731,7 @@ def add_user(username: str, key: bool, password_file: Path | None) -> list[str]:
     admin = admin_route()
     if not sign_in_config(admin):
         raise Refused(f"the config service account {CONFIG_CLIENT} cannot sign in; run setup first")
+    config_reaches_admin_api(admin)
     actions = ["UPDATE_PASSWORD", "webauthn-register" if key else "CONFIGURE_TOTP"]
     user = create_user(admin, REALM, username, password, actions)
     return [] if set(user.get("requiredActions", [])) == set(actions) else ["the new user: actions"]

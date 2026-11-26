@@ -93,6 +93,23 @@ just up
 
 Then "First time" above, steps 2 to 5: `just keycloak setup <username>` (the same name or a new one), the first sign-in with the YubiKey, and deleting `bootstrap-admin`. The CA, the certificates and the browser's trust stay as they are. The old YubiKey registration went with the old database, so you register the key again.
 
+### Keycloak 26.8.2: the config account's Admin API scope
+**Once, on a Keycloak set up before 26.8.2** (the desktop's, set up on 26.8.1). About 5 minutes, YubiKey 1 at hand.
+
+**Why.** Since 26.8.2 Keycloak's Admin API accepts a token only if it is addressed to the Admin API (the fix for CVE-2026-19688). Keycloak's built-in client scope `kc-admin-api` adds that address to a token. 26.8.2 gives it to its own admin clients; `setup` gives it to the config account `aetherspark-config` on a new Keycloak, but on an older one the account lacks it. Until you add it, `just keycloak apply` is refused with "the Admin API refuses the config service account's token (HTTP 401)"; `just up` prints the same and "up: the realm does not match the repository", and starts the rest of the stack anyway. The scope only addresses the token; it grants no right, so the account still changes only the `aetherspark` realm.
+
+1. After the update (`git pull`, then `just up`, which prints that message), open `https://auth-admin.aether.localhost/admin/master/console/` and sign in as administrator: your password, then the YubiKey.
+2. The realm at the top left is **master**. In the left menu: **Clients**, then click **aetherspark-config**.
+3. Tab **Client scopes**, button **Add client scope**. Tick **kc-admin-api**, then **Add** → **Default**.
+4. The list now shows `kc-admin-api` with the assigned type **Default**. Give it to no other client.
+5. Sign out (top right, your name → **Sign out**), then in PowerShell, in the repository:
+   ```powershell
+   just keycloak apply
+   ```
+   It must end without "refused".
+
+`just stack-test` checks on every run that of all service accounts only `aetherspark-config` has the scope, and that it is no realm's default scope (exchange O-047 point 8).
+
 ## Break-glass: no administrator can sign in
 For a lost account, a forgotten password with no key left, or both keys lost. It does not need the old account.
 

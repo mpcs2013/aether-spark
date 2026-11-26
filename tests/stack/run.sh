@@ -1223,6 +1223,29 @@ if required:
 EOF
 check "the config account administers the aetherspark realm only (master: 403 on users, clients, roles, settings); email and names optional" \
     python3 -I "$work/config_probe.py" "$repo"
+# Keycloak 26.8.2's built-in scope kc-admin-api holds a mapper that adds the Admin API's audience;
+# since 26.8.2 the Admin API refuses a token without it (CVE-2026-19688). Keycloak gives it to its
+# own admin clients (admin-cli, the console), setup to the config account. Exchange O-047 point 8: no
+# other service-account client may get it, in either realm, as a default or optional scope or through
+# such a mapper of its own, and it is no realm default scope (every new client would get it).
+# The first check proves the scope and its mapper exist, so that the others' results mean something.
+admin_aud="exists (select 1 from protocol_mapper m where m.client_scope_id = s.id
+                    and m.protocol_mapper_name = 'oidc-admin-api-audience-mapper')"
+check "database: both realms hold the built-in scope kc-admin-api with the Admin API audience mapper" kc_db \
+    "aetherspark master" \
+    "select string_agg(r.name, ' ' order by r.name) from client_scope s join realm r on r.id = s.realm_id
+      where s.name = 'kc-admin-api' and $admin_aud"
+check "database: of the service accounts, only master's aetherspark-config gets the Admin API audience (O-047)" kc_db \
+    "master/aetherspark-config" \
+    "select string_agg(distinct r.name || '/' || c.client_id, ' ') from client c join realm r on r.id = c.realm_id
+      where c.service_accounts_enabled
+        and (exists (select 1 from client_scope_client l join client_scope s on s.id = l.scope_id
+                      where l.client_id = c.id and (s.name = 'kc-admin-api' or $admin_aud))
+             or exists (select 1 from protocol_mapper m
+                         where m.client_id = c.id and m.protocol_mapper_name = 'oidc-admin-api-audience-mapper'))"
+check "database: kc-admin-api is no realm's default scope" kc_db 0 \
+    "select count(*) from default_client_scope d join client_scope s on s.id = d.scope_id
+      where s.name = 'kc-admin-api' or $admin_aud"
 check "database: both realms accept only external security keys (cross-platform), never Windows Hello" kc_db \
     "cross-platform cross-platform" \
     "select string_agg(a.value, ' ' order by r.name) from realm_attribute a join realm r on r.id = a.realm_id
