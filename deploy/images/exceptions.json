@@ -181,15 +181,6 @@
       "expires": "2026-12-08"
     },
     {
-      "id": "CVE-2026-119374",
-      "target": "keycloak",
-      "package": "sqlite-libs",
-      "reason": "The system SQLite library, used in the image only by the package manager's database (rpm never runs in the container). Keycloak is Java and never loads it; the flaw needs a crafted database file opened with FTS5 secure-delete. No fixed package yet (O-035 and O-047 list it).",
-      "issue": 31,
-      "approved": "2026-11-08",
-      "expires": "2026-12-08"
-    },
-    {
       "id": "CVE-2026-119379",
       "target": "keycloak",
       "package": "sqlite-libs",
