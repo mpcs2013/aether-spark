@@ -1333,6 +1333,141 @@
       "expires": "2026-12-08"
     },
     {
+      "id": "CVE-2026-135706",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135709",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135722",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135723",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135725",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135734",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135736",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135737",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135738",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135739",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135740",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135742",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-135743",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "ffmpeg",
+      "reason": "LLM trial on the Spark (docs/architecture/llm-trial.md), served on the internal llm network only: no port, no way out, reached only from an admin SSH session. ffmpeg decodes audio and video for multimodal requests; the trial's model is text-only and no such request is sent. Thirteen findings of 2026-11-26 (two Critical), all fixed in ffmpeg 9.1; NVIDIA's latest vLLM image (26.10) ships ffmpeg 8.1.3 and 9.0.1. Ends with the image's other exceptions; the trial's Compose file goes when WP5b.1 brings the real serving.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-130685",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "vllm",
+      "reason": "GHSA-q9v9-qpjp-fc24: an out-of-range prompt token id crashes the engine, but only when vLLM is served with --skip-tokenizer-init (clients send raw token ids). The LLM trial's server keeps its tokenizer (deploy/compose/llm-trial/compose.yaml) and answers only the owner's chat requests, on the internal llm network, with no port and no way out. Fixed in vLLM 0.33.0; NVIDIA's latest image (26.10) ships 0.31. Ends with the image's other exceptions.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
+      "id": "CVE-2026-130686",
+      "target": "nvcr.io/nvidia/vllm",
+      "package": "vllm",
+      "reason": "GHSA-5r3c-5x4v-8gjh: one request with many remote images exhausts the frontend (no request-wide media budget). The LLM trial serves a text-only model, only the owner sends requests, and the server has no way out to fetch any image (internal llm network, no port). Fixed in vLLM 0.33.0; NVIDIA's latest image (26.10) ships 0.31. Ends with the image's other exceptions.",
+      "issue": 31,
+      "approved": "2026-11-26",
+      "expires": "2026-12-08"
+    },
+    {
       "id": "CVE-2026-107493",
       "target": "step-ca",
       "package": "libcrypto3",
