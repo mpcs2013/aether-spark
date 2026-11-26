@@ -10,6 +10,8 @@ FROM postgres:18.7-alpine3.24@sha256:ff64c9e3bdf8e2120107d3559de8db314e8305f7e38
 # (scan of 2026-11-19); drop this once the base carries 3.5.9-r1 or newer
 ARG OPENSSL_VERSION=3.5.9-r1
 # libxml2 fixed for CVE-2026-86144 (High) in Alpine, not yet in the base image (scan of
-# 2026-11-21, the owner's choice that day); drop this once the base carries 2.13.9-r3 or newer
-ARG LIBXML2_VERSION=2.13.9-r3
+# 2026-11-21, the owner's choice that day). Raised to 2.13.9-r5 on 2026-11-26 (the owner's choice):
+# Alpine keeps only the newest build, and r4 and r5 added only security fixes, so r3 could no
+# longer be installed. Drop this once the base carries 2.13.9-r5 or newer
+ARG LIBXML2_VERSION=2.13.9-r5
 RUN apk add --no-cache "libssl3=${OPENSSL_VERSION}" "libcrypto3=${OPENSSL_VERSION}" "libxml2=${LIBXML2_VERSION}"
