@@ -3,12 +3,14 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
 
 ## Concepts
 - **The repository** on the NAS holds AetherSpark's snapshots. The NAS accepts new ones and refuses to delete any (append-only). Old ones are thinned out by the NAS itself, never by AetherSpark.
-- **Two keys open it.** The repository's original password is yours, in your password manager: the recovery key. AetherSpark's own key is generated and sealed with its other secrets: the job uses that one every day.
+- **Three keys open it.** The repository's original password is yours, in your password manager: the recovery key. AetherSpark's own key is generated and sealed with its other secrets: the job uses that one every day. The third is the NAS's maintenance key, which the home infrastructure uses for its own checks and for thinning out old snapshots.
+- **A new key is a risk.** Whoever adds a key can read every snapshot. So each night (04:00) the NAS compares the repository's key list with a stored list of those three and mails you when a key was added or removed (A-015). It reports a change the next morning; it does not prevent one. The drill also compares the list by hand (section 3, step 7), in case the alert itself stops working.
 - **What a snapshot holds:** the certificate authority's volume, a dump of Keycloak's database, the sealed secrets store, and the local folder feed of pinned Ostium packages. Everything else is rebuilt by `just up`.
 - **Your off-line items.** If the desktop is lost, the NAS copy alone is not enough: the sealed store inside it opens only with the dev key. So you keep, away from the desktop:
   - the **dev key's off-line copy** (with the recovery sheet);
   - the **backup login** (name and password), the **repository's address and path**, and the **repository's original password**, in your password manager;
-  - the **root CA's fingerprint**, written down, to check a restore against.
+  - the **root CA's fingerprint**, written down, to check a restore against;
+  - the **IDs of the repository's three keys**, in your password manager with the backup login, to compare the key list against.
 - **Once a day:** `just up` makes a snapshot if none was made that day. If the NAS does not answer, `just up` only prints a warning. If no snapshot arrives for 7 days, the NAS mails you.
 
 ## 1. Your off-line items (once)
@@ -20,6 +22,11 @@ How AetherSpark's backup reaches the NAS, how its first snapshot is made, and ho
    (The single quotes keep PowerShell from turning `~` or `$HOME` into your Windows folder.)
    It shows three lines; the last starts with `AGE-SECRET-KEY-`. Store all three lines in a secure note of your password manager, and add the `AGE-SECRET-KEY-…` line to the printed recovery sheet that is kept away from home. Then clear the terminal (`Clear-Host`). Never paste it into a chat, a ticket or a file in a repository.
 3. **The backup login, address and path** come from the home infrastructure (exchange A-015); keep them in your password manager, as for every other login.
+4. **The key IDs**, once section 2b is done. In a WSL shell in the repository (section 2), with the stack's secrets unsealed (after `just up`):
+   ```bash
+   just backup keys
+   ```
+   It lists three keys, each with an 8-character ID; the one marked `*` is AetherSpark's own. Add the three IDs, with which is which, to the entry that holds the backup login. They are not secret, but they belong with the login, not in the repository: a key change would otherwise need a pull request.
 
 ## 2. The first snapshots
 Everything here runs in a WSL shell in the repository, opened from PowerShell with:
@@ -113,8 +120,13 @@ A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark
    just up
    ```
    Expected: `the root fingerprint matches the expected one`, every service healthy, `the aetherspark realm matches the repository`, and no `backup: snapshot` line: the restore counts as the day's snapshot, so the drill writes nothing into the repository.
-7. **Sign in** at `https://whoami.aether.localhost` in a Firefox **private window** (Ctrl+Shift+P), with your everyday user and your security key. A private window holds no sign-in from your normal stack, so Keycloak must ask. The browser trusts the page without any new step: it is the same root. Paste nothing from the page: it shows your user name and a session cookie.
-8. **Record** the date, the snapshot it took, and the result in the table below; then tidy up:
+7. **The key list**, compared by hand:
+   ```bash
+   just backup keys
+   ```
+   Expected: exactly three keys, with the three IDs from your password manager, and AetherSpark's marked `*`. A fourth key, or a missing or different ID, that you did not change yourself (see "Changing a key on purpose"): stop the drill and treat it as an incident (below). Write "key list: 3, as recorded" in the record.
+8. **Sign in** at `https://whoami.aether.localhost` in a Firefox **private window** (Ctrl+Shift+P), with your everyday user and your security key. A private window holds no sign-in from your normal stack, so Keycloak must ask. The browser trusts the page without any new step: it is the same root. Paste nothing from the page: it shows your user name and a session cookie.
+9. **Record** the date, the snapshot it took, the key list, and the result in the table below; then tidy up:
    ```bash
    just down
    docker volume ls -q --filter name=aetherspark-drill_       # only aetherspark-drill_… names
@@ -125,7 +137,9 @@ A fresh WSL distribution stands for a new machine: it has nothing of AetherSpark
 
 **If a step fails, stop and keep the state**: nothing of the live stack is touched by the drill.
 
-**After an incident** (the desktop or a backup key possibly compromised): never take the newest snapshot blindly. `just backup snapshots` lists them; choose one from before the incident, check with the home infrastructure when the NAS received it, and give it to `restore --snapshot <id>`. Then follow backup-job.md, Residual risks: a new repository and login, new realm keys and client secrets, new app codes.
+**Changing a key on purpose** (a new `just backup key-add`, a key removed, a new recovery password; none is planned): the NAS's stored key list must follow before its next nightly check, or the check fails, mails you, and that night's cleanup is skipped. So **the same day**, tell the home infrastructure in the exchange (a new thread replying to A-015, which is closed) which key changed, with its ID from `just backup keys`. Then update the IDs in your password manager. A mail about the key list that does not match a change you announced is an incident.
+
+**After an incident** (the desktop or a backup key possibly compromised, or a key list you did not change): never take the newest snapshot blindly. `just backup snapshots` lists them; choose one from before the incident, check with the home infrastructure when the NAS received it, and give it to `restore --snapshot <id>`. Then follow backup-job.md, Residual risks: a new repository and login, new realm keys and client secrets, new app codes.
 
 ## Record
 | Date | Kind | Snapshot | Result |
