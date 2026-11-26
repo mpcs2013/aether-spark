@@ -68,9 +68,16 @@ def context(cid: str, start: str, end: str) -> str:
     )
 
 
-def instance(facts: list[tuple[str, str]], dei: bool = True) -> bytes:
+def instance(facts: list[tuple[str, str]], dei: bool = True, linkbase: str = "") -> bytes:
     """A filing for fiscal 2025 (FY): its fourth quarter, third quarter and year (the year and the
-    fourth quarter end on the same day), and `facts` as (context, value) of test:Revenues."""
+    fourth quarter end on the same day), and `facts` as (context, value) of test:Revenues; with
+    `linkbase`, a linkbaseRef to that file."""
+    ref = (
+        f'<link:linkbaseRef xlink:type="simple" xlink:href="{linkbase}"'
+        ' xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase"/>'
+        if linkbase
+        else ""
+    )
     fiscal = (
         '<dei:DocumentFiscalYearFocus contextRef="ytd">2025</dei:DocumentFiscalYearFocus>'
         '<dei:DocumentFiscalPeriodFocus contextRef="ytd">FY</dei:DocumentFiscalPeriodFocus>'
@@ -87,6 +94,7 @@ def instance(facts: list[tuple[str, str]], dei: bool = True) -> bytes:
         ' xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:test="http://fasb.org/test/2024"'
         ' xmlns:dei="http://xbrl.sec.gov/dei/2024">'
         '<link:schemaRef xlink:type="simple" xlink:href="q.xsd"/>'
+        + ref
         + context("q4", "2025-10-01", "2025-12-31")
         + context("q3", "2025-07-01", "2025-09-30")
         + context("ytd", "2025-01-01", "2025-12-31")
@@ -203,6 +211,14 @@ CASES = {
         1,
         ("not loaded: no fiscal year in its dei facts (None)",),
         files={**GOOD, "q_htm.xml": instance(ORIGINAL, dei=False)},
+    ),
+    # #136: the instance names the filing's own .htm main document as a linkbase; the pre-parse
+    # checks only .xml and .xsd files, so the reference check refuses it before Arelle reads it
+    16: Case(
+        "failed",
+        1,
+        ("q_htm.xml: a reference refused (not an XML file of the job: q.htm",),
+        files={**GOOD, "q_htm.xml": instance(ORIGINAL, linkbase="q.htm")},
     ),
 }
 

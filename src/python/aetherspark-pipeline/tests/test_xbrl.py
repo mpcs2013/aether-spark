@@ -329,13 +329,16 @@ def test_a_missing_taxonomy_file_fails_with_its_url(job: tuple[Path, Path]) -> N
         ("/run/secrets/x", "not a file of the job"),
         ("sub/co.xsd", "not a file of the job"),
         ("other.xsd", "names a file the job does not have"),
+        ("co-20241231.htm", "not an XML file of the job"),
+        ("co-20241231.htm#anchor", "not an XML file of the job"),
+        ("CO-20241231_HTM.XML", "names a file the job does not have"),
         ("https://evil.example/x.xsd", "not a taxonomy host"),
         ("file:///proc/self/environ", "not a taxonomy host"),
         ("https://xbrl.fasb.org/../x.xsd", "not a plain taxonomy path"),
     ],
 )
 def test_the_reference_check(ref: str, problem: str | None) -> None:
-    found = reference_problem(ref, {"co-20241231.xsd", "co-20241231_htm.xml"})
+    found = reference_problem(ref, {"co-20241231.xsd", "co-20241231_htm.xml", "co-20241231.htm"})
     assert (found is None) if problem is None else (found is not None and problem in found)
 
 
@@ -350,3 +353,48 @@ def test_a_traversing_import_refuses_the_job_before_arelle(job: tuple[Path, Path
 
     assert not ok
     assert reason.startswith("co-20241231.xsd: a reference refused (not a file of the job")
+
+
+# #136: a linkbaseRef to the filing's own .htm main document. Its content here is a well-formed
+# linkbase, so Arelle would load it as one; the pre-parse never checks a .htm file
+HTM_LINKBASE = """<?xml version="1.0"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink"/>
+"""
+LINKBASE_REF = (
+    '<link:linkbaseRef xlink:type="simple" xlink:href="co-20241231.htm"'
+    ' xlink:arcrole="http://www.w3.org/1999/xlink/properties/linkbase"/>'
+)
+
+
+def _link_to_htm(folder: Path) -> None:
+    (folder / "co-20241231.htm").write_text(HTM_LINKBASE, encoding="utf-8")
+    schema_ref = 'xlink:href="co-20241231.xsd"/>'
+    (folder / "co-20241231_htm.xml").write_text(
+        INSTANCE.replace(schema_ref, schema_ref + LINKBASE_REF), encoding="utf-8"
+    )
+
+
+def test_a_link_to_the_jobs_htm_document_refuses_the_job_before_arelle(
+    job: tuple[Path, Path],
+) -> None:
+    folder, _ = job
+    _link_to_htm(folder)
+
+    ok, reason = check(folder)
+
+    assert not ok
+    assert reason == (
+        "co-20241231_htm.xml: a reference refused (not an XML file of the job: co-20241231.htm)"
+    )
+
+
+def test_arelle_loading_a_job_file_the_pre_parse_did_not_check_fails_the_load(
+    job: tuple[Path, Path],
+) -> None:
+    # The second guard: should a non-XML job file pass the reference check, the load still fails
+    folder, store = job
+    _link_to_htm(folder)
+
+    with pytest.raises(LoadFailed, match="neither an XML file of the job nor a taxonomy file"):
+        load(folder, "co-20241231_htm.xml", store)

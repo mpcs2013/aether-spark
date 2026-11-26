@@ -3,7 +3,9 @@ the child process only (child.py), after the pre-parse and the reference check.
 
 Arelle resolves the filing's own files in the job folder and every taxonomy file in the read-only
 store (taxonomies.py) and never goes online; a taxonomy file missing there fails the job with its
-URL. Afterwards every document Arelle loaded must be a job file or a taxonomy URL, or the job fails.
+URL. Afterwards every document Arelle loaded must be an XML file of the job (.xml or .xsd, which
+the pre-parse checked) or a taxonomy URL, or the job fails: a second guard behind the reference
+check, should Arelle reach a job file that the check let through (#136).
 
 Any Arelle error fails the job with its message (the owner's choice of 2026-11-21), but one: a
 value that does not fit its type (`xmlSchema:valueError`) on a non-numeric fact outside dei. Such
@@ -27,6 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from .child import XML_SUFFIXES
 from .taxonomies import HOSTS
 
 INSTANCE = "{http://www.xbrl.org/2003/instance}"
@@ -80,11 +83,15 @@ def _dimensions(context: Any) -> list[tuple[str, str]]:
 
 
 def _allowed(url: str, folder: Path) -> bool:
+    """A taxonomy URL, or an XML file of the job, the only kind the pre-parse checked."""
     parts = urlsplit(url)
     if parts.scheme in ("http", "https"):
         return parts.hostname in HOSTS
     try:
-        return Path(url).resolve().parent == folder.resolve()
+        path = Path(url)
+        return path.resolve().parent == folder.resolve() and path.name.lower().endswith(
+            XML_SUFFIXES
+        )
     except (OSError, ValueError):
         return False
 
@@ -102,7 +109,10 @@ def load(folder: Path, instance: str, store: Path) -> Parsed:
             raise LoadFailed(f"{instance}: Arelle did not load it")
         outside = sorted(u for u in model.urlDocs if not _allowed(u, folder))
         if outside:
-            raise LoadFailed(f"loaded a document outside the job and the taxonomies: {outside[0]}")
+            raise LoadFailed(
+                f"loaded a document that is neither an XML file of the job nor a taxonomy file: "
+                f"{outside[0]}"
+            )
         tolerated = 0
         if model.errors:
             problem, tolerated = _errors(controller, model)

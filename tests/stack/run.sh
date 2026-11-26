@@ -874,7 +874,7 @@ pipeline_results() {
     owner_sql "select accession_no || '|' || status || '|' || attempts || '|' || coalesce(reason, '') from ingest_ops.job_runs where accession_no like '0007654321-%' order by accession_no" \
         >"$work/pipeline-results.txt" && pipeline_jobs check "$work/pipeline-results.txt"
 }
-check "each job ends as its case says: 3 facts loaded; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails; a taxonomy file the store lacks, an import out of the job folder, an import from another host fail; equal duplicates load once, different values for one context are left out; a filing without its fiscal year fails (D5, D6)" pipeline_results
+check "each job ends as its case says: 3 facts loaded; a changed file, a traversing name, a link to the worker's own secret, an entity bomb, a remote DTD, a missing file fail with their reasons; a stuck job is queued again once, then fails; a taxonomy file the store lacks, an import out of the job folder, an import from another host, a link to the filing's own .htm document fail; equal duplicates load once, different values for one context are left out; a filing without its fiscal year fails (D5, D6)" pipeline_results
 # D1, point in time, through the view every reader uses (migration 0002): before the first filing
 # nothing; from its acceptance its three values, the quarter and the year that end the same day both
 # among them; after the restatement the restated values; both versions stay in research.facts

@@ -3,9 +3,10 @@
 1. a hardened pre-parse of the job's XML files (instance, schemas, linkbases): no DTD and so no
    entities, no network, at most 64 MiB a file and 256 levels deep; a text node may be longer
    than libxml2's 10 MB default (a filing's text block can be, the owner's choice of 2026-11-22);
-2. the reference check: every reference in those files names a file of the job (a plain name) or a
-   file on the three taxonomy hosts; anything else (a path, `..`, another host, `file:`) refuses the
-   job before Arelle sees it;
+2. the reference check: every reference in those files names an XML file of the job (a plain name
+   ending in .xml or .xsd, so one that step 1 checked) or a file on the three taxonomy hosts;
+   anything else (a path, `..`, another host, `file:`, the job's .htm document) refuses the job
+   before Arelle sees it;
 3. Arelle, offline, with the read-only taxonomy store as its cache (xbrl.py);
 4. the facts, as rows.
 
@@ -78,8 +79,10 @@ def _depth(root: etree._Element) -> int:
 
 
 def reference_problem(ref: str, files: set[str]) -> str | None:
-    """Why a reference is refused, or None: a job file's plain name (a fragment allowed), or a file
-    on the taxonomy hosts as the store would keep it."""
+    """Why a reference is refused, or None: the plain name of a job's XML file (a fragment allowed),
+    or a file on the taxonomy hosts as the store would keep it. Any other job file (the .htm main
+    document, an exhibit) is refused: the pre-parse checks only .xml and .xsd files, and Arelle
+    would parse it as XML without those checks (#136)."""
     target, _ = urldefrag(ref)
     if not target:
         return None  # a fragment within the same file
@@ -93,6 +96,8 @@ def reference_problem(ref: str, files: set[str]) -> str | None:
         return f"not a file of the job: {target}"
     if target not in files:
         return f"names a file the job does not have: {target}"
+    if not target.lower().endswith(XML_SUFFIXES):
+        return f"not an XML file of the job: {target}"
     return None
 
 
